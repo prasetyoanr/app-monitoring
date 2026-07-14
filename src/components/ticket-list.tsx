@@ -1,11 +1,12 @@
 "use client";
 
 import { CalendarDays, Eye, Filter, MapPin, Pencil, Plus, QrCode, Search, Trash2, X } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useMemo, useRef, useState } from "react";
+import { deleteIssueAction, saveIssueAction } from "@/app/troubleshooting/actions";
 import { ApprovalQrModal } from "@/components/approval-qr-modal";
-import { useAppData } from "@/components/app-data-provider";
 import { Card, StatusBadge } from "@/components/ui";
-import type { TicketRecord } from "@/data/mock-data";
+import type { TicketRecord } from "@/data/types";
 
 type FormMode = "create" | "edit" | null;
 
@@ -16,17 +17,18 @@ function completionLabel(days: number | null) {
 }
 
 function formatCompactDate(value: string) {
-  if (!value) return "dd/mm/yy";
+  if (!value) return "dd/mm/yyyy";
   const [year, month, day] = value.split("-");
-  return `${day}/${month}/${year.slice(-2)}`;
+  return `${day}/${month}/${year}`;
 }
 
 function canRequestApproval(ticket: TicketRecord) {
   return ticket.status === "Waiting for Client Approval" && Boolean(ticket.resolution.trim());
 }
 
-export function TicketList() {
-  const { ticketRecords, addTicket, updateTicket, deleteTicket } = useAppData();
+export function TicketList({ initialRecords }: { initialRecords: TicketRecord[] }) {
+  const router = useRouter();
+  const ticketRecords = initialRecords;
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("All Statuses");
   const [location, setLocation] = useState("All Locations");
@@ -36,6 +38,8 @@ export function TicketList() {
   const [approvalRecord, setApprovalRecord] = useState<TicketRecord | null>(null);
   const [pendingDelete, setPendingDelete] = useState<TicketRecord | null>(null);
   const [requestDate, setRequestDate] = useState("2026-07-13");
+  const [formError, setFormError] = useState("");
+  const [saving, setSaving] = useState(false);
   const dateInputRef = useRef<HTMLInputElement>(null);
 
   const filtered = useMemo(() => ticketRecords.filter((ticket) => {
@@ -46,6 +50,7 @@ export function TicketList() {
   function openForm(nextMode: Exclude<FormMode, null>, record: TicketRecord | null = null) {
     setSelected(record);
     setRequestDate(record?.reportedDate ?? "2026-07-13");
+    setFormError("");
     setMode(nextMode);
   }
 
@@ -56,28 +61,35 @@ export function TicketList() {
     else { input.focus(); input.click(); }
   }
 
-  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
-    const recordStatus = String(data.get("status"));
-    const maxNumber = ticketRecords.reduce((max, item) => Math.max(max, Number(item.id.split("-").at(-1)) || 0), 0);
-    const record: TicketRecord = {
-      id: selected?.id ?? `INC-2026-${String(maxNumber + 1).padStart(4, "0")}`,
-      title: String(data.get("title")),
-      category: String(data.get("category")),
-      requester: String(data.get("requester")),
-      division: String(data.get("division")),
-      location: String(data.get("location")),
-      reportedAt: formatCompactDate(requestDate),
-      reportedDate: requestDate,
-      priority: String(data.get("priority")),
-      status: recordStatus,
-      completedDays: recordStatus === "Completed" ? Number(data.get("completedDays") || 0) : null,
-      description: String(data.get("description")),
-      resolution: String(data.get("resolution")),
-    };
-    if (mode === "edit") updateTicket(record); else addTicket(record);
+    data.set("reportedDate", requestDate);
+    if (selected) data.set("id", selected.id);
+    setSaving(true);
+    setFormError("");
+    const result = await saveIssueAction(data);
+    setSaving(false);
+    if (!result.ok) {
+      setFormError(result.error);
+      return;
+    }
     setMode(null);
+    router.refresh();
+  }
+
+  async function confirmDelete() {
+    if (!pendingDelete) return;
+    setSaving(true);
+    setFormError("");
+    const result = await deleteIssueAction(pendingDelete.id);
+    setSaving(false);
+    if (!result.ok) {
+      setFormError(result.error);
+      return;
+    }
+    setPendingDelete(null);
+    router.refresh();
   }
 
   return (
@@ -185,16 +197,17 @@ export function TicketList() {
               <div className="grid gap-4 sm:grid-cols-2"><label className="block text-[11px] font-semibold text-slate-600">Location<select name="location" defaultValue={selected?.location ?? "HO"} className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 px-3 text-xs outline-none"><option>HO</option><option>Factory</option></select></label><div className="block text-[11px] font-semibold text-slate-600"><span id="request-date-label">Request Date</span><div className="relative mt-1.5"><button type="button" onClick={openDatePicker} aria-labelledby="request-date-label" className="flex h-10 w-full items-center rounded-xl border border-slate-200 bg-white px-3 text-left text-xs font-normal text-slate-700 outline-none"><span className="flex-1">{formatCompactDate(requestDate)}</span><CalendarDays size={15} className="text-slate-400" /></button><input ref={dateInputRef} type="date" value={requestDate} onChange={(event) => setRequestDate(event.target.value)} className="absolute bottom-0 left-0 h-px w-px opacity-0" tabIndex={-1} aria-hidden="true" /></div></div></div>
               <div className="grid gap-4 sm:grid-cols-2"><label className="block text-[11px] font-semibold text-slate-600">Requester Name<input name="requester" required defaultValue={selected?.requester} className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 px-3 text-xs outline-none" /></label><label className="block text-[11px] font-semibold text-slate-600">Division<select name="division" required defaultValue={selected?.division ?? "Finance"} className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-xs outline-none"><option>Finance</option><option>Legal</option><option>Purchase</option><option>Human Resources</option><option>Production</option><option>Marketing</option><option>Warehouse</option></select></label></div>
               <div className="grid gap-4 sm:grid-cols-2"><label className="block text-[11px] font-semibold text-slate-600">Category<select name="category" defaultValue={selected?.category ?? "Software"} className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 px-3 text-xs outline-none"><option>Software</option><option>Hardware</option><option>Network</option><option>Server</option><option>Other</option></select></label><label className="block text-[11px] font-semibold text-slate-600">Priority<select name="priority" defaultValue={selected?.priority ?? "Low"} className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 px-3 text-xs outline-none"><option>Low</option><option>Medium</option><option>High</option><option>Critical</option></select></label></div>
-              <div className="grid gap-4 sm:grid-cols-2"><label className="block text-[11px] font-semibold text-slate-600">Status<select name="status" defaultValue={selected?.status ?? "New"} className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 px-3 text-xs outline-none"><option>New</option><option>In Progress</option><option>Waiting for Client Approval</option><option>Completed</option></select></label><label className="block text-[11px] font-semibold text-slate-600">Completion Time (Days)<input name="completedDays" type="number" min="0" defaultValue={selected?.completedDays ?? 0} className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 px-3 text-xs outline-none" /></label></div>
+              <div className="grid gap-4 sm:grid-cols-2"><label className="block text-[11px] font-semibold text-slate-600">Status<select name="status" defaultValue={selected?.status ?? "New"} className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 px-3 text-xs outline-none"><option>New</option><option>In Progress</option><option>Waiting for Client Approval</option><option>Reopened</option>{selected?.status === "Completed" ? <option>Completed</option> : null}</select></label><div><p className="text-[11px] font-semibold text-slate-600">Completion Time</p><p className="mt-1.5 rounded-xl bg-slate-50 px-3 py-2.5 text-[10px] leading-5 text-slate-500">Calculated automatically after client approval.</p></div></div>
               <label className="block text-[11px] font-semibold text-slate-600">Issue Description<textarea name="description" required rows={4} defaultValue={selected?.description} className="mt-1.5 w-full resize-none rounded-xl border border-slate-200 p-3 text-xs outline-none" /></label>
               <label className="block text-[11px] font-semibold text-slate-600">Resolution Summary<textarea name="resolution" rows={4} defaultValue={selected?.resolution} className="mt-1.5 w-full resize-none rounded-xl border border-slate-200 p-3 text-xs outline-none" placeholder="Describe the work completed before requesting client approval." /></label>
-              <div className="flex justify-end gap-2 pt-1"><button type="button" onClick={() => setMode(null)} className="h-10 rounded-xl border border-slate-200 px-4 text-xs font-semibold text-slate-600">Cancel</button><button className="h-10 rounded-xl bg-[#3157d5] px-4 text-xs font-semibold text-white">Save Record</button></div>
+              {formError ? <p className="rounded-xl bg-rose-50 p-3 text-[11px] font-semibold text-rose-700">{formError}</p> : null}
+              <div className="flex justify-end gap-2 pt-1"><button type="button" onClick={() => setMode(null)} className="h-10 rounded-xl border border-slate-200 px-4 text-xs font-semibold text-slate-600">Cancel</button><button disabled={saving} className="h-10 rounded-xl bg-[#3157d5] px-4 text-xs font-semibold text-white disabled:bg-slate-300">{saving ? "Saving..." : "Save Record"}</button></div>
             </form>
           </div>
         </div>
       ) : null}
 
-      {pendingDelete ? <div className="fixed inset-0 z-[80] grid place-items-center bg-slate-950/50 p-4 backdrop-blur-sm" role="alertdialog" aria-modal="true"><div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-2xl"><h2 className="text-sm font-bold text-slate-900">Delete issue record?</h2><p className="mt-2 text-xs leading-5 text-slate-500">Record <b>{pendingDelete.id}</b> will be removed from this frontend session.</p><div className="mt-5 flex justify-end gap-2"><button onClick={() => setPendingDelete(null)} className="h-9 rounded-xl border border-slate-200 px-4 text-xs font-semibold text-slate-600">Cancel</button><button onClick={() => { deleteTicket(pendingDelete.id); setPendingDelete(null); }} className="h-9 rounded-xl bg-rose-600 px-4 text-xs font-semibold text-white">Delete</button></div></div></div> : null}
+      {pendingDelete ? <div className="fixed inset-0 z-[80] grid place-items-center bg-slate-950/50 p-4 backdrop-blur-sm" role="alertdialog" aria-modal="true"><div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-2xl"><h2 className="text-sm font-bold text-slate-900">Delete issue record?</h2><p className="mt-2 text-xs leading-5 text-slate-500">Record <b>{pendingDelete.id}</b> will be permanently removed from the database.</p>{formError ? <p className="mt-3 text-[11px] font-semibold text-rose-600">{formError}</p> : null}<div className="mt-5 flex justify-end gap-2"><button onClick={() => setPendingDelete(null)} className="h-9 rounded-xl border border-slate-200 px-4 text-xs font-semibold text-slate-600">Cancel</button><button disabled={saving} onClick={confirmDelete} className="h-9 rounded-xl bg-rose-600 px-4 text-xs font-semibold text-white disabled:bg-slate-300">{saving ? "Deleting..." : "Delete"}</button></div></div></div> : null}
     </>
   );
 }

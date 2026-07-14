@@ -2,8 +2,8 @@
 
 import { CalendarRange, Download, FileSpreadsheet, FolderSync, Wrench } from "lucide-react";
 import { useMemo, useState } from "react";
-import { useAppData } from "@/components/app-data-provider";
 import { Card } from "@/components/ui";
+import type { BackupRecord, TicketRecord } from "@/data/types";
 
 type FilterMode = "range" | "month";
 
@@ -29,8 +29,7 @@ function dateMatches(date: string, mode: FilterMode, startDate: string, endDate:
   return (!startDate || date >= startDate) && (!endDate || date <= endDate);
 }
 
-export function ReportsCenter() {
-  const { ticketRecords, backupRecords } = useAppData();
+export function ReportsCenter({ ticketRecords, backupRecords }: { ticketRecords: TicketRecord[]; backupRecords: BackupRecord[] }) {
   const [mode, setMode] = useState<FilterMode>("month");
   const [startDate, setStartDate] = useState("2026-07-01");
   const [endDate, setEndDate] = useState("2026-07-31");

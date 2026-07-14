@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Activity, Cpu, ExternalLink, MemoryStick, Server, TriangleAlert } from "lucide-react";
 import { Card, MetricCard, PageHeader, StatusBadge } from "@/components/ui";
-import { servers } from "@/data/mock-data";
+import { getServerRecords } from "@/data/app-data";
 
 export const metadata: Metadata = { title: "Server Monitoring" };
 
@@ -9,11 +9,16 @@ function UsageBar({ value }: { value: number }) {
   return <div className="mt-2 h-1.5 rounded-full bg-slate-100"><div className={`h-full rounded-full ${value >= 90 ? "bg-rose-500" : value >= 80 ? "bg-amber-500" : "bg-[#3157d5]"}`} style={{ width: `${value}%` }} /></div>;
 }
 
-export default function MonitoringPage() {
+export default async function MonitoringPage() {
+  const servers = await getServerRecords();
+  const healthy = servers.filter((server) => server.status === "Healthy").length;
+  const alerts = servers.length - healthy;
+  const averageCpu = servers.length ? servers.reduce((sum, server) => sum + server.cpu, 0) / servers.length : 0;
+  const averageMemory = servers.length ? servers.reduce((sum, server) => sum + server.memory, 0) / servers.length : 0;
   return (
     <>
       <PageHeader eyebrow="Prometheus · Connected" title="Server Monitoring" description="Infrastructure health overview. Detailed metric analysis remains available through Grafana." action={<button className="inline-flex h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-xs font-semibold text-slate-600 hover:bg-slate-50"><ExternalLink size={15} /> Open Grafana</button>} />
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"><MetricCard label="Total Servers" value="20" icon={Server} detail="18 online · 2 with issues" /><MetricCard label="Average CPU" value="46.8%" icon={Cpu} tone="green" detail="Within the normal range" /><MetricCard label="Average Memory" value="67.4%" icon={MemoryStick} tone="amber" detail="DB-PROD-01 above 85%" /><MetricCard label="Active Alerts" value="3" icon={TriangleAlert} tone="red" detail="1 critical · 2 warnings" /></div>
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"><MetricCard label="Total Servers" value={String(servers.length)} icon={Server} detail={`${healthy} healthy · ${alerts} with issues`} /><MetricCard label="Average CPU" value={`${averageCpu.toFixed(1)}%`} icon={Cpu} tone="green" detail="Latest stored measurement" /><MetricCard label="Average Memory" value={`${averageMemory.toFixed(1)}%`} icon={MemoryStick} tone="amber" detail="Latest stored measurement" /><MetricCard label="Active Alerts" value={String(alerts)} icon={TriangleAlert} tone="red" detail="Warning and critical servers" /></div>
       <div className="mt-5 grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
         {servers.map((server) => (
           <Card key={server.name} className="p-4 transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-lg sm:p-5">

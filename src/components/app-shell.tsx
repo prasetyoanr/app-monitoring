@@ -18,18 +18,22 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 
-const navigation = [
+const navigationBase = [
   { label: "Overview", href: "/", icon: Gauge },
-  { label: "Troubleshooting", href: "/troubleshooting", icon: TicketCheck, count: 12 },
-  { label: "Backup User", href: "/backups", icon: HardDriveDownload, count: 3 },
+  { label: "Troubleshooting", href: "/troubleshooting", icon: TicketCheck },
+  { label: "Backup User", href: "/backups", icon: HardDriveDownload },
   { label: "Monitoring", href: "/monitoring", icon: Server },
   { label: "Surveys", href: "/surveys", icon: ClipboardCheck },
   { label: "Reports", href: "/reports", icon: FileBarChart },
 ];
 
-export function AppShell({ children }: { children: React.ReactNode }) {
+export function AppShell({ children, counts }: { children: React.ReactNode; counts: { issues: number; backups: number } }) {
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
+  const navigation = navigationBase.map((item) => ({
+    ...item,
+    count: item.href === "/troubleshooting" ? counts.issues : item.href === "/backups" ? counts.backups : undefined,
+  }));
 
   if (pathname.startsWith("/troubleshooting/approval/")) return <>{children}</>;
 

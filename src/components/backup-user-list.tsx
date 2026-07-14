@@ -1,12 +1,34 @@
 "use client";
 
-import { Check, Eye, Filter, FolderSync, Pencil, Plus, Search, Trash2, X } from "lucide-react";
-import { useMemo, useState } from "react";
-import { useAppData } from "@/components/app-data-provider";
+import { CalendarDays, Check, Eye, Filter, FolderSync, Pencil, Plus, Search, Trash2, X } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useMemo, useRef, useState } from "react";
+import { deleteBackupAction, saveBackupAction } from "@/app/backups/actions";
 import { Card, StatusBadge } from "@/components/ui";
-import type { BackupRecord } from "@/data/mock-data";
+import type { BackupRecord } from "@/data/types";
 
 type FormMode = "create" | "edit" | null;
+
+function currentJakartaDateTime() {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Jakarta",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(new Date());
+  const value = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `${value.year}-${value.month}-${value.day}T${value.hour}:${value.minute}`;
+}
+
+function formatDayFirstDateTime(value: string) {
+  if (!value) return "dd/mm/yyyy HH:mm";
+  const [date, time] = value.split("T");
+  const [year, month, day] = date.split("-");
+  return `${day}/${month}/${year} ${time}`;
+}
 
 function statusTone(status: string): "green" | "amber" | "red" | "gray" {
   if (status === "Success") return "green";
@@ -15,14 +37,10 @@ function statusTone(status: string): "green" | "amber" | "red" | "gray" {
   return "gray";
 }
 
-function formatDateTime(value: string) {
-  const [date, time] = value.split("T");
-  const [year, month, day] = date.split("-");
-  return `${day}/${month}/${year.slice(-2)} ${time}`;
-}
-
 function AccountDataIndicator({ record }: { record: BackupRecord }) {
-  const complete = Boolean(record.username.trim() && record.password.trim());
+  const complete = Boolean(
+    record.username.trim() && record.passwordInformation.trim(),
+  );
 
   return complete ? (
     <span className="grid size-8 place-items-center rounded-full bg-emerald-50 text-emerald-600" title="Username and password available">
@@ -37,14 +55,19 @@ function AccountDataIndicator({ record }: { record: BackupRecord }) {
   );
 }
 
-export function BackupUserList() {
-  const { backupRecords, addBackup, updateBackup, deleteBackup } = useAppData();
+export function BackupUserList({ initialRecords }: { initialRecords: BackupRecord[] }) {
+  const router = useRouter();
+  const backupRecords = initialRecords;
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("All Status");
   const [mode, setMode] = useState<FormMode>(null);
   const [selected, setSelected] = useState<BackupRecord | null>(null);
   const [detailRecord, setDetailRecord] = useState<BackupRecord | null>(null);
   const [pendingDelete, setPendingDelete] = useState<BackupRecord | null>(null);
+  const [formError, setFormError] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [lastBackupDateTime, setLastBackupDateTime] = useState(currentJakartaDateTime);
+  const dateTimeInputRef = useRef<HTMLInputElement>(null);
 
   const filtered = useMemo(() => backupRecords.filter((record) => {
     const matchesQuery = `${record.user} ${record.username} ${record.email} ${record.syncPath} ${record.id}`.toLowerCase().includes(query.toLowerCase());
@@ -53,27 +76,47 @@ export function BackupUserList() {
 
   function openForm(nextMode: Exclude<FormMode, null>, record: BackupRecord | null = null) {
     setSelected(record);
+    setFormError("");
+    setLastBackupDateTime(record?.lastBackupIso || currentJakartaDateTime());
     setMode(nextMode);
   }
 
-  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+  function openDateTimePicker() {
+    const input = dateTimeInputRef.current;
+    if (!input) return;
+    if (typeof input.showPicker === "function") input.showPicker();
+    else { input.focus(); input.click(); }
+  }
+
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
-    const lastBackupIso = String(data.get("lastBackupIso"));
-    const maxNumber = backupRecords.reduce((max, item) => Math.max(max, Number(item.id.split("-").at(-1)) || 0), 0);
-    const record: BackupRecord = {
-      id: selected?.id ?? `BKU-2026-${String(maxNumber + 1).padStart(4, "0")}`,
-      user: String(data.get("user")),
-      username: String(data.get("username")),
-      email: String(data.get("email")),
-      password: String(data.get("password")),
-      syncPath: String(data.get("syncPath")),
-      lastBackupIso,
-      lastBackup: formatDateTime(lastBackupIso),
-      status: String(data.get("status")),
-    };
-    if (mode === "edit") updateBackup(record); else addBackup(record);
+    if (selected) data.set("id", selected.id);
+    data.set("lastBackupIso", lastBackupDateTime);
+    setSaving(true);
+    setFormError("");
+    const result = await saveBackupAction(data);
+    setSaving(false);
+    if (!result.ok) {
+      setFormError(result.error);
+      return;
+    }
     setMode(null);
+    router.refresh();
+  }
+
+  async function confirmDelete() {
+    if (!pendingDelete) return;
+    setSaving(true);
+    setFormError("");
+    const result = await deleteBackupAction(pendingDelete.id);
+    setSaving(false);
+    if (!result.ok) {
+      setFormError(result.error);
+      return;
+    }
+    setPendingDelete(null);
+    router.refresh();
   }
 
   return (
@@ -144,7 +187,7 @@ export function BackupUserList() {
                   <div><dt className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">User</dt><dd className="mt-1 font-medium text-slate-800">{detailRecord.user}</dd></div>
                   <div><dt className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Username</dt><dd className="mt-1 font-medium text-slate-800">{detailRecord.username}</dd></div>
                   <div><dt className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Email</dt><dd className="mt-1 break-all font-medium text-slate-800">{detailRecord.email}</dd></div>
-                  <div><dt className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Password Information</dt><dd className="mt-1 whitespace-pre-wrap font-medium text-slate-800">{detailRecord.password}</dd></div>
+                  <div><dt className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Password Information</dt><dd className="mt-1 whitespace-pre-wrap break-words font-medium text-slate-800">{detailRecord.passwordInformation || "Not available"}</dd></div>
                 </dl>
               </section>
               <section className="mt-8" aria-labelledby="backup-information-title">
@@ -168,18 +211,19 @@ export function BackupUserList() {
             <form key={`${mode}-${selected?.id ?? "new"}`} className="space-y-4 p-5" onSubmit={handleSubmit}>
               <label className="block text-[11px] font-semibold text-slate-600">User Name<input name="user" required defaultValue={selected?.user} className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 px-3 text-xs outline-none" placeholder="Enter user name" /></label>
               <div className="grid gap-4 sm:grid-cols-2"><label className="block text-[11px] font-semibold text-slate-600">Username<input name="username" required defaultValue={selected?.username} className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 px-3 text-xs outline-none" placeholder="Enter username" /></label><label className="block text-[11px] font-semibold text-slate-600">Email<input name="email" required type="email" defaultValue={selected?.email} className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 px-3 text-xs outline-none" placeholder="name@example.com" /></label></div>
-              <label className="block text-[11px] font-semibold text-slate-600">Password Information<input name="password" required type="text" defaultValue={selected?.password} className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 px-3 text-xs outline-none" placeholder="Enter password information" /></label>
+              <label className="block text-[11px] font-semibold text-slate-600">Password Information<input name="passwordInformation" type="text" defaultValue={selected?.passwordInformation} maxLength={2000} className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 px-3 text-xs outline-none" placeholder="Enter password information" /></label>
               <label className="block text-[11px] font-semibold text-slate-600">Sync Folder Path<input name="syncPath" required defaultValue={selected?.syncPath} className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 px-3 font-mono text-xs outline-none" placeholder="C:\\Users\\Name\\Documents" /></label>
-              <label className="block text-[11px] font-semibold text-slate-600">Last Backup<input name="lastBackupIso" required type="datetime-local" defaultValue={selected?.lastBackupIso ?? "2026-07-13T09:00"} className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 px-3 text-xs outline-none" /></label>
+              <div className="block text-[11px] font-semibold text-slate-600"><span id="last-backup-label">Last Backup</span><div className="relative mt-1.5"><button type="button" onClick={openDateTimePicker} aria-labelledby="last-backup-label" className="flex h-10 w-full items-center rounded-xl border border-slate-200 bg-white px-3 text-left text-xs font-normal text-slate-700 outline-none"><span className="flex-1">{formatDayFirstDateTime(lastBackupDateTime)}</span><CalendarDays size={15} className="text-slate-400" /></button><input ref={dateTimeInputRef} required type="datetime-local" value={lastBackupDateTime} onChange={(event) => setLastBackupDateTime(event.target.value)} className="absolute bottom-0 left-0 h-px w-px opacity-0" tabIndex={-1} aria-hidden="true" /></div></div>
               <label className="block text-[11px] font-semibold text-slate-600">Status<select name="status" required defaultValue={selected?.status ?? "Success"} className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-xs outline-none"><option>Success</option><option>Overdue</option><option>Failed</option><option>Pending</option></select></label>
-              <div className="flex justify-end gap-2 pt-1"><button type="button" onClick={() => setMode(null)} className="h-10 rounded-xl border border-slate-200 px-4 text-xs font-semibold text-slate-600">Cancel</button><button className="h-10 rounded-xl bg-[#3157d5] px-4 text-xs font-semibold text-white">Save Record</button></div>
+              {formError ? <p className="rounded-xl bg-rose-50 p-3 text-[11px] font-semibold text-rose-700">{formError}</p> : null}
+              <div className="flex justify-end gap-2 pt-1"><button type="button" onClick={() => setMode(null)} className="h-10 rounded-xl border border-slate-200 px-4 text-xs font-semibold text-slate-600">Cancel</button><button disabled={saving} className="h-10 rounded-xl bg-[#3157d5] px-4 text-xs font-semibold text-white disabled:bg-slate-300">{saving ? "Saving..." : "Save Record"}</button></div>
             </form>
           </div>
         </div>
       ) : null}
 
       {pendingDelete ? (
-        <div className="fixed inset-0 z-[80] grid place-items-center bg-slate-950/50 p-4 backdrop-blur-sm" role="alertdialog" aria-modal="true"><div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-2xl"><h2 className="text-sm font-bold text-slate-900">Delete backup record?</h2><p className="mt-2 text-xs leading-5 text-slate-500">The record for <b>{pendingDelete.user}</b> will be removed from this frontend session.</p><div className="mt-5 flex justify-end gap-2"><button onClick={() => setPendingDelete(null)} className="h-9 rounded-xl border border-slate-200 px-4 text-xs font-semibold text-slate-600">Cancel</button><button onClick={() => { deleteBackup(pendingDelete.id); setPendingDelete(null); }} className="h-9 rounded-xl bg-rose-600 px-4 text-xs font-semibold text-white">Delete</button></div></div></div>
+        <div className="fixed inset-0 z-[80] grid place-items-center bg-slate-950/50 p-4 backdrop-blur-sm" role="alertdialog" aria-modal="true"><div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-2xl"><h2 className="text-sm font-bold text-slate-900">Delete backup record?</h2><p className="mt-2 text-xs leading-5 text-slate-500">The record for <b>{pendingDelete.user}</b> will be permanently removed from the database.</p>{formError ? <p className="mt-3 text-[11px] font-semibold text-rose-600">{formError}</p> : null}<div className="mt-5 flex justify-end gap-2"><button onClick={() => setPendingDelete(null)} className="h-9 rounded-xl border border-slate-200 px-4 text-xs font-semibold text-slate-600">Cancel</button><button disabled={saving} onClick={confirmDelete} className="h-9 rounded-xl bg-rose-600 px-4 text-xs font-semibold text-white disabled:bg-slate-300">{saving ? "Deleting..." : "Delete"}</button></div></div></div>
       ) : null}
     </>
   );

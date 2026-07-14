@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
 import { AppShell } from "@/components/app-shell";
-import { AppDataProvider } from "@/components/app-data-provider";
+import { getNavigationCounts } from "@/data/app-data";
 import "./globals.css";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -28,15 +28,16 @@ export async function generateMetadata(): Promise<Metadata> {
   };
 }
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const counts = await getNavigationCounts();
   return (
     <html lang="en">
       <body>
-        <AppDataProvider><AppShell>{children}</AppShell></AppDataProvider>
+        <AppShell counts={counts}>{children}</AppShell>
       </body>
     </html>
   );

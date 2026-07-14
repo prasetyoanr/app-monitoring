@@ -1,15 +1,18 @@
 import type { Metadata } from "next";
 import { Boxes, CircleDollarSign, Laptop, PackageCheck, Search, Wrench } from "lucide-react";
-import { assets } from "@/data/mock-data";
 import { Card, MetricCard, PageHeader, StatusBadge } from "@/components/ui";
+import { getAssetRecords } from "@/data/app-data";
 
 export const metadata: Metadata = { title: "IT Assets" };
 
-export default function AssetsPage() {
+export default async function AssetsPage() {
+  const assets = await getAssetRecords();
+  const active = assets.filter((asset) => asset.status === "Active").length;
+  const underRepair = assets.filter((asset) => asset.status === "Under Repair").length;
   return (
     <>
       <PageHeader eyebrow="Asset management" title="IT Asset Inventory" description="Track ownership, condition, location, and maintenance history for company equipment." />
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"><MetricCard label="Total Assets" value="486" icon={Boxes} detail="427 currently in use" /><MetricCard label="Active Assets" value="87.9%" icon={PackageCheck} tone="green" detail="Distributed across 8 divisions" /><MetricCard label="Under Repair" value="9" icon={Wrench} tone="amber" detail="3 awaiting spare parts" /><MetricCard label="Expiring Warranties" value="14" icon={CircleDollarSign} tone="red" detail="Within the next 60 days" /></div>
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"><MetricCard label="Total Assets" value={String(assets.length)} icon={Boxes} detail={`${active} currently in use`} /><MetricCard label="Active Assets" value={`${assets.length ? ((active / assets.length) * 100).toFixed(1) : "0.0"}%`} icon={PackageCheck} tone="green" detail="Based on registered assets" /><MetricCard label="Under Repair" value={String(underRepair)} icon={Wrench} tone="amber" detail="Requires IT follow-up" /><MetricCard label="Inactive Assets" value={String(assets.filter((asset) => asset.status === "Inactive").length)} icon={CircleDollarSign} tone="red" detail="Not currently assigned" /></div>
       <Card className="mt-5 overflow-hidden">
         <div className="flex flex-col gap-3 border-b border-slate-100 p-4 sm:flex-row sm:items-center sm:justify-between"><div><h2 className="text-sm font-bold text-slate-800">Asset List</h2><p className="mt-1 text-[11px] text-slate-500">Sample of registered equipment</p></div><label className="relative w-full sm:w-64"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={15} /><input className="h-9 w-full rounded-xl border border-slate-200 bg-slate-50 pl-9 pr-3 text-[11px] outline-none focus:border-blue-400 focus:bg-white" placeholder="Search code or equipment..." /></label></div>
         <div className="divide-y divide-slate-100 md:hidden">

@@ -1,15 +1,37 @@
 import Link from "next/link";
 import { Activity, ArrowRight, CircleCheck, Clock3, Server, TicketCheck, TriangleAlert } from "lucide-react";
 import { Card, MetricCard, PageHeader, SectionTitle, StatusBadge } from "@/components/ui";
-import { servers, tickets } from "@/data/mock-data";
+import { getBackupRecords, getServerRecords, getTicketRecords } from "@/data/app-data";
 
-const chart = [42, 58, 52, 71, 64, 86, 77, 92, 68, 82, 73, 88, 62, 74];
-
-export default function DashboardPage() {
+export default async function DashboardPage() {
+  const [servers, tickets, backups] = await Promise.all([
+    getServerRecords(),
+    getTicketRecords(),
+    getBackupRecords(),
+  ]);
+  const activeIssues = tickets.filter((ticket) => ticket.status !== "Completed").length;
+  const completedIssues = tickets.filter((ticket) => ticket.status === "Completed").length;
+  const healthyServers = servers.filter((server) => server.status === "Healthy").length;
+  const backupSuccess = backups.filter((backup) => backup.status === "Success").length;
+  const backupIssues = backups.length - backupSuccess;
+  const chart = Array.from({ length: 14 }, (_, offset) => {
+    const date = new Date();
+    date.setDate(date.getDate() - (13 - offset));
+    const key = date.toLocaleDateString("en-CA", { timeZone: "Asia/Jakarta" });
+    return tickets.filter((ticket) => ticket.reportedDate === key).length;
+  });
+  const maxChart = Math.max(1, ...chart);
+  const todayLabel = new Intl.DateTimeFormat("id-ID", {
+    timeZone: "Asia/Jakarta",
+    weekday: "long",
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+  }).format(new Date());
   return (
     <>
       <PageHeader
-        eyebrow="Monday, July 13, 2026"
+        eyebrow={todayLabel}
         title="IT Team Activity Log"
         description="Overview of today’s internal IT activities at the Head Office and Factory."
         action={
@@ -20,10 +42,10 @@ export default function DashboardPage() {
       />
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <MetricCard label="Active Issues" value="12" icon={TicketCheck} tone="blue" detail={<><b className="text-emerald-600">↓ 8%</b> from last week</>} />
-        <MetricCard label="Completed Today" value="8" icon={Clock3} tone="green" detail={<><b className="text-emerald-600">6 issues</b> completed on the same day</>} />
-        <MetricCard label="Healthy Servers" value="18 / 20" icon={Server} tone="amber" detail={<><b className="text-amber-600">2 servers</b> require attention</>} />
-        <MetricCard label="User Backups" value="96.8%" icon={CircleCheck} tone="red" detail={<><b className="text-rose-600">3 users</b> require follow-up</>} />
+        <MetricCard label="Active Issues" value={String(activeIssues)} icon={TicketCheck} tone="blue" detail="Not yet completed" />
+        <MetricCard label="Completed Issues" value={String(completedIssues)} icon={Clock3} tone="green" detail="Approved by clients" />
+        <MetricCard label="Healthy Servers" value={`${healthyServers} / ${servers.length}`} icon={Server} tone="amber" detail={`${servers.length - healthyServers} servers require attention`} />
+        <MetricCard label="User Backups" value={`${backups.length ? ((backupSuccess / backups.length) * 100).toFixed(1) : "0.0"}%`} icon={CircleCheck} tone="red" detail={`${backupIssues} users require follow-up`} />
       </div>
 
       <div className="mt-5 grid gap-5 xl:grid-cols-[1.55fr_1fr]">
@@ -31,13 +53,13 @@ export default function DashboardPage() {
           <SectionTitle title="Ticket Resolution Trend" subtitle="Service performance over the last 14 days" action={<select className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] text-slate-600 outline-none"><option>14 days</option><option>30 days</option></select>} />
           <div className="px-4 pb-5 pt-4 sm:px-5">
             <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-              <div><span className="text-2xl font-bold tracking-tight text-slate-900">137</span><span className="ml-2 text-xs text-slate-500">tickets completed</span></div>
+              <div><span className="text-2xl font-bold tracking-tight text-slate-900">{completedIssues}</span><span className="ml-2 text-xs text-slate-500">tickets completed</span></div>
               <div className="flex gap-4 text-[10px] text-slate-500"><span className="flex items-center gap-1.5"><i className="size-2 rounded-full bg-[#3157d5]" />Completed</span><span className="flex items-center gap-1.5"><i className="size-2 rounded-full bg-blue-200" />Received</span></div>
             </div>
             <div className="flex h-40 items-end gap-2 border-b border-slate-200 px-1 sm:gap-3">
-              {chart.map((height, index) => (
+              {chart.map((value, index) => (
                 <div key={index} className="group relative flex h-full flex-1 items-end">
-                  <div className="w-full rounded-t-md bg-gradient-to-t from-[#3157d5] to-[#6f8aeb] transition group-hover:from-[#2445b5]" style={{ height: `${height}%` }} />
+                  <div className="w-full rounded-t-md bg-gradient-to-t from-[#3157d5] to-[#6f8aeb] transition group-hover:from-[#2445b5]" style={{ height: `${Math.max(4, (value / maxChart) * 100)}%` }} title={`${value} issues`} />
                 </div>
               ))}
             </div>
@@ -86,9 +108,9 @@ export default function DashboardPage() {
           <SectionTitle title="Requires Attention" subtitle="Today’s action priorities" />
           <div className="space-y-3 p-4">
             {[
-              { icon: TriangleAlert, tone: "rose", title: "WEB-LEGACY CPU at 94%", desc: "Ongoing for 12 minutes" },
-              { icon: Clock3, tone: "amber", title: "2 unresolved issues", desc: "Recorded for more than 1 day" },
-              { icon: Activity, tone: "blue", title: "3 user backup issues", desc: "1 failed and 2 overdue" },
+              { icon: TriangleAlert, tone: "rose", title: `${servers.find((server) => server.status === "Critical")?.name ?? "No server"} critical alert`, desc: `${servers.filter((server) => server.status !== "Healthy").length} infrastructure items require attention` },
+              { icon: Clock3, tone: "amber", title: `${activeIssues} unresolved issues`, desc: "Troubleshooting records not yet completed" },
+              { icon: Activity, tone: "blue", title: `${backupIssues} user backup issues`, desc: `${backups.filter((backup) => backup.status === "Failed").length} failed and ${backups.filter((backup) => backup.status === "Overdue").length} overdue` },
             ].map((item) => <div key={item.title} className="flex gap-3 rounded-xl border border-slate-100 bg-slate-50/70 p-3"><span className={`grid size-9 shrink-0 place-items-center rounded-lg ${item.tone === "rose" ? "bg-rose-100 text-rose-600" : item.tone === "amber" ? "bg-amber-100 text-amber-600" : "bg-blue-100 text-blue-600"}`}><item.icon size={16} /></span><div><p className="text-xs font-semibold text-slate-800">{item.title}</p><p className="mt-1 text-[10px] leading-4 text-slate-500">{item.desc}</p></div></div>)}
           </div>
         </Card>

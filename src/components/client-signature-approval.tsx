@@ -4,20 +4,45 @@ import Image from "next/image";
 import { CheckCircle2, Download, Eraser, RotateCcw, ShieldCheck, XCircle } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent, PointerEvent as ReactPointerEvent } from "react";
-import type { TicketRecord } from "@/data/mock-data";
+import { approveIssueAction, rejectIssueAction } from "@/app/troubleshooting/actions";
+import type { ApprovalRecord } from "@/data/app-data";
 
-type ApprovalView = "approval" | "reject" | "approved" | "rejected";
+type ApprovalView = "approval" | "reject" | "approved" | "rejected" | "expired";
 
-export function ClientSignatureApproval({ ticket }: { ticket: TicketRecord }) {
+function formatDayFirstDateTime(value: string | Date) {
+  return new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Jakarta",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(new Date(value));
+}
+
+export function ClientSignatureApproval({ approval }: { approval: ApprovalRecord }) {
+  const { ticket, token } = approval;
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const drawingRef = useRef(false);
-  const [view, setView] = useState<ApprovalView>("approval");
-  const [clientName, setClientName] = useState(ticket.requester);
+  const [view, setView] = useState<ApprovalView>(
+    approval.status === "pending"
+      ? "approval"
+      : approval.status === "approved"
+        ? "approved"
+        : approval.status === "rejected"
+          ? "rejected"
+          : "expired",
+  );
+  const [clientName, setClientName] = useState(approval.clientName ?? ticket.requester);
   const [hasSignature, setHasSignature] = useState(false);
   const [signatureError, setSignatureError] = useState("");
-  const [signatureImage, setSignatureImage] = useState("");
-  const [submittedAt, setSubmittedAt] = useState("");
+  const [signatureImage, setSignatureImage] = useState(approval.signatureImage ?? "");
+  const [submittedAt, setSubmittedAt] = useState(
+    approval.respondedAt ? formatDayFirstDateTime(approval.respondedAt) : "",
+  );
   const [exportingPdf, setExportingPdf] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -77,21 +102,44 @@ export function ClientSignatureApproval({ ticket }: { ticket: TicketRecord }) {
     setSignatureError("");
   }
 
-  function approve(event: FormEvent<HTMLFormElement>) {
+  async function approve(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!hasSignature) {
       setSignatureError("Tanda tangan diperlukan sebelum pekerjaan disetujui.");
       return;
     }
     const signature = canvasRef.current?.toDataURL("image/png") ?? "";
+    setSubmitting(true);
+    const result = await approveIssueAction({
+      token,
+      clientName,
+      signatureDataUrl: signature,
+    });
+    setSubmitting(false);
+    if (!result.ok) {
+      setSignatureError(result.error);
+      return;
+    }
     setSignatureImage(signature);
-    setSubmittedAt(new Date().toLocaleString("id-ID"));
+    setSubmittedAt(formatDayFirstDateTime(result.data.respondedAt));
     setView("approved");
   }
 
-  function reject(event: FormEvent<HTMLFormElement>) {
+  async function reject(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setSubmittedAt(new Date().toLocaleString("id-ID"));
+    const data = new FormData(event.currentTarget);
+    setSubmitting(true);
+    const result = await rejectIssueAction({
+      token,
+      clientName,
+      reason: String(data.get("reason") ?? ""),
+    });
+    setSubmitting(false);
+    if (!result.ok) {
+      setSignatureError(result.error);
+      return;
+    }
+    setSubmittedAt(formatDayFirstDateTime(result.data.respondedAt));
     setView("rejected");
   }
 
@@ -182,6 +230,10 @@ export function ClientSignatureApproval({ ticket }: { ticket: TicketRecord }) {
     }
   }
 
+  if (view === "expired") {
+    return <main className="grid min-h-screen place-items-center bg-slate-50 p-4"><section className="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-6 text-center shadow-xl"><XCircle className="mx-auto text-amber-500" size={48} /><h1 className="mt-4 text-xl font-bold text-slate-900">Tautan sudah kedaluwarsa</h1><p className="mt-2 text-sm leading-6 text-slate-500">Minta teknisi membuat QR persetujuan yang baru.</p></section></main>;
+  }
+
   if (view === "approved" || view === "rejected") {
     const approved = view === "approved";
     return (
@@ -215,13 +267,13 @@ export function ClientSignatureApproval({ ticket }: { ticket: TicketRecord }) {
               <label className="block text-[11px] font-semibold text-slate-600">Nama client<input value={clientName} onChange={(event) => setClientName(event.target.value)} required className="mt-1.5 h-11 w-full rounded-xl border border-slate-200 px-3 text-sm outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-100" /></label>
               <div><div className="flex items-center justify-between"><label className="text-[11px] font-semibold text-slate-600" htmlFor="client-signature">Tanda tangan</label><button type="button" onClick={clearSignature} className="inline-flex items-center gap-1 text-[10px] font-semibold text-slate-500"><Eraser size={13} /> Hapus</button></div><canvas ref={canvasRef} id="client-signature" onPointerDown={startDrawing} onPointerMove={draw} onPointerUp={stopDrawing} onPointerCancel={stopDrawing} onPointerLeave={stopDrawing} className="mt-1.5 h-[180px] w-full touch-none rounded-xl border border-dashed border-slate-300 bg-slate-50" aria-label="Signature area" /><p className="mt-2 text-[10px] text-slate-400">Gunakan jari atau stylus pada area di atas.</p>{signatureError ? <p className="mt-2 text-[10px] font-semibold text-rose-600">{signatureError}</p> : null}</div>
               <p className="rounded-xl bg-blue-50 p-3 text-[10px] leading-5 text-blue-700">Dengan menandatangani, saya menyatakan pekerjaan di atas telah diperiksa dan selesai.</p>
-              <div className="grid gap-2"><button type="submit" className="inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-[#3157d5] text-sm font-semibold text-white shadow-lg shadow-blue-600/20"><CheckCircle2 size={17} /> Setujui & tanda tangani</button><button type="button" onClick={() => setView("reject")} className="h-11 rounded-xl border border-slate-200 text-xs font-semibold text-slate-600">Pekerjaan belum selesai</button></div>
+              <div className="grid gap-2"><button disabled={submitting} type="submit" className="inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-[#3157d5] text-sm font-semibold text-white shadow-lg shadow-blue-600/20 disabled:bg-slate-300"><CheckCircle2 size={17} /> {submitting ? "Mengirim..." : "Setujui & tanda tangani"}</button><button disabled={submitting} type="button" onClick={() => setView("reject")} className="h-11 rounded-xl border border-slate-200 text-xs font-semibold text-slate-600">Pekerjaan belum selesai</button></div>
             </form>
           ) : (
-            <form onSubmit={reject} className="space-y-5 p-5"><div><h3 className="text-sm font-bold text-slate-900">Pekerjaan belum selesai</h3><p className="mt-1.5 text-xs leading-5 text-slate-500">Jelaskan bagian yang masih perlu diperbaiki oleh tim IT.</p></div><label className="block text-[11px] font-semibold text-slate-600">Alasan<textarea name="reason" required rows={5} className="mt-1.5 w-full resize-none rounded-xl border border-slate-200 p-3 text-sm outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-100" placeholder="Tuliskan masalah yang masih terjadi..." /></label><div className="grid gap-2"><button type="submit" className="h-12 rounded-xl bg-amber-500 text-sm font-semibold text-white">Kirim untuk ditindaklanjuti</button><button type="button" onClick={() => setView("approval")} className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-600"><RotateCcw size={14} /> Kembali</button></div></form>
+            <form onSubmit={reject} className="space-y-5 p-5"><div><h3 className="text-sm font-bold text-slate-900">Pekerjaan belum selesai</h3><p className="mt-1.5 text-xs leading-5 text-slate-500">Jelaskan bagian yang masih perlu diperbaiki oleh tim IT.</p></div><label className="block text-[11px] font-semibold text-slate-600">Alasan<textarea name="reason" required rows={5} className="mt-1.5 w-full resize-none rounded-xl border border-slate-200 p-3 text-sm outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-100" placeholder="Tuliskan masalah yang masih terjadi..." /></label>{signatureError ? <p className="text-[10px] font-semibold text-rose-600">{signatureError}</p> : null}<div className="grid gap-2"><button disabled={submitting} type="submit" className="h-12 rounded-xl bg-amber-500 text-sm font-semibold text-white disabled:bg-slate-300">{submitting ? "Mengirim..." : "Kirim untuk ditindaklanjuti"}</button><button disabled={submitting} type="button" onClick={() => setView("approval")} className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-600"><RotateCcw size={14} /> Kembali</button></div></form>
           )}
         </section>
-        <p className="px-4 pt-5 text-center text-[9px] leading-4 text-slate-400">Prototipe frontend — penyimpanan dan verifikasi lintas perangkat memerlukan backend.</p>
+        <p className="px-4 pt-5 text-center text-[9px] leading-4 text-slate-400">Persetujuan disimpan secara aman dan token hanya dapat digunakan satu kali.</p>
       </div>
     </main>
   );
