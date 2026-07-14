@@ -20,7 +20,7 @@ import { useState } from "react";
 
 const navigation = [
   { label: "Overview", href: "/", icon: Gauge },
-  { label: "Troubleshooting", href: "/tickets", icon: TicketCheck, count: 12 },
+  { label: "Troubleshooting", href: "/troubleshooting", icon: TicketCheck, count: 12 },
   { label: "Backup User", href: "/backups", icon: HardDriveDownload, count: 3 },
   { label: "Monitoring", href: "/monitoring", icon: Server },
   { label: "Surveys", href: "/surveys", icon: ClipboardCheck },
@@ -30,6 +30,8 @@ const navigation = [
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
+
+  if (pathname.startsWith("/troubleshooting/approval/")) return <>{children}</>;
 
   return (
     <div className="min-h-screen">

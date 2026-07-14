@@ -51,7 +51,7 @@ export function ReportsCenter() {
 
   function exportTroubleshooting() {
     const rows: Array<Array<string | number | null>> = [
-      ["No.", "ID", "Date", "Location", "Requester", "Division", "Issue", "Category", "Priority", "Status", "Completion Time (Days)", "Description"],
+      ["No.", "ID", "Date", "Location", "Requester", "Division", "Issue", "Category", "Priority", "Status", "Completion Time (Days)", "Description", "Resolution Summary"],
       ...filteredTickets.map((ticket, index) => [
         index + 1,
         ticket.id,
@@ -65,6 +65,7 @@ export function ReportsCenter() {
         ticket.status,
         ticket.completedDays,
         ticket.description,
+        ticket.resolution,
       ]),
     ];
     downloadCsv(`troubleshooting-report-${filterLabel}.csv`, rows);
@@ -87,7 +88,7 @@ export function ReportsCenter() {
 
   return (
     <div className="space-y-5">
-      <Card className="p-5">
+      <Card className="p-4 sm:p-5">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <div className="flex items-center gap-2 text-sm font-bold text-slate-800"><CalendarRange size={17} className="text-[#3157d5]" /> Report Period</div>
@@ -95,7 +96,7 @@ export function ReportsCenter() {
           </div>
 
           <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-            <label className="text-[11px] font-semibold text-slate-600">Filter Type
+            <label className="w-full text-[11px] font-semibold text-slate-600 sm:w-auto">Filter Type
               <select value={mode} onChange={(event) => setMode(event.target.value as FilterMode)} className="mt-1.5 h-10 w-full min-w-44 rounded-xl border border-slate-200 bg-white px-3 text-xs outline-none">
                 <option value="month">By Month</option>
                 <option value="range">Date Range</option>
@@ -103,22 +104,22 @@ export function ReportsCenter() {
             </label>
 
             {mode === "month" ? (
-              <label className="text-[11px] font-semibold text-slate-600">Month
+              <label className="w-full text-[11px] font-semibold text-slate-600 sm:w-auto">Month
                 <input type="month" value={month} onChange={(event) => setMonth(event.target.value)} className="mt-1.5 h-10 w-full min-w-44 rounded-xl border border-slate-200 bg-white px-3 text-xs outline-none" />
               </label>
             ) : (
               <>
-                <label className="text-[11px] font-semibold text-slate-600">Start Date
+                <label className="w-full text-[11px] font-semibold text-slate-600 sm:w-auto">Start Date
                   <input type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-xs outline-none" />
                 </label>
-                <label className="text-[11px] font-semibold text-slate-600">End Date
+                <label className="w-full text-[11px] font-semibold text-slate-600 sm:w-auto">End Date
                   <input type="date" value={endDate} onChange={(event) => setEndDate(event.target.value)} className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-xs outline-none" />
                 </label>
               </>
             )}
           </div>
         </div>
-        {invalidRange ? <p className="mt-3 text-right text-[11px] font-semibold text-rose-600">The end date must be on or after the start date.</p> : null}
+        {invalidRange ? <p className="mt-3 text-left text-[11px] font-semibold text-rose-600 sm:text-right">The end date must be on or after the start date.</p> : null}
       </Card>
 
       <div className="grid gap-5 lg:grid-cols-2">

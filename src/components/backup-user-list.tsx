@@ -21,6 +21,22 @@ function formatDateTime(value: string) {
   return `${day}/${month}/${year.slice(-2)} ${time}`;
 }
 
+function AccountDataIndicator({ record }: { record: BackupRecord }) {
+  const complete = Boolean(record.username.trim() && record.password.trim());
+
+  return complete ? (
+    <span className="grid size-8 place-items-center rounded-full bg-emerald-50 text-emerald-600" title="Username and password available">
+      <Check size={16} strokeWidth={2.5} />
+      <span className="sr-only">Username and password available</span>
+    </span>
+  ) : (
+    <span className="grid size-8 place-items-center rounded-full bg-rose-50 text-rose-600" title="Username or password unavailable">
+      <X size={16} strokeWidth={2.5} />
+      <span className="sr-only">Username or password unavailable</span>
+    </span>
+  );
+}
+
 export function BackupUserList() {
   const { backupRecords, addBackup, updateBackup, deleteBackup } = useAppData();
   const [query, setQuery] = useState("");
@@ -65,14 +81,36 @@ export function BackupUserList() {
       <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex flex-1 flex-col gap-3 sm:flex-row">
           <label className="relative max-w-md flex-1"><Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={16} /><input value={query} onChange={(event) => setQuery(event.target.value)} className="h-10 w-full rounded-xl border border-slate-200 bg-white pl-10 pr-3 text-xs outline-none" placeholder="Search user or sync path..." /></label>
-          <label className="relative"><Filter className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={15} /><select value={status} onChange={(event) => setStatus(event.target.value)} className="h-10 min-w-40 appearance-none rounded-xl border border-slate-200 bg-white pl-9 pr-8 text-xs text-slate-600 outline-none"><option>All Status</option><option>Success</option><option>Overdue</option><option>Failed</option><option>Pending</option></select></label>
+          <label className="relative"><Filter className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={15} /><select value={status} onChange={(event) => setStatus(event.target.value)} className="h-10 w-full min-w-40 appearance-none rounded-xl border border-slate-200 bg-white pl-9 pr-8 text-xs text-slate-600 outline-none sm:w-auto"><option>All Status</option><option>Success</option><option>Overdue</option><option>Failed</option><option>Pending</option></select></label>
         </div>
         <button onClick={() => openForm("create")} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-[#3157d5] px-4 text-xs font-semibold text-white shadow-lg shadow-blue-600/15 hover:bg-[#2445b5]"><Plus size={16} /> Add Record</button>
       </div>
 
       <Card className="overflow-hidden">
-        <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4"><div><h2 className="text-sm font-bold text-slate-800">Backup User Records</h2><p className="mt-1 text-[11px] text-slate-500">Maintained manually by the IT team</p></div><span className="rounded-lg bg-blue-50 px-2.5 py-1 text-[10px] font-semibold text-blue-700">{filtered.length} records</span></div>
-        <div className="overflow-x-auto">
+        <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-4 py-4 sm:px-5"><div><h2 className="text-sm font-bold text-slate-800">Backup User Records</h2><p className="mt-1 text-[11px] text-slate-500">Maintained manually by the IT team</p></div><span className="shrink-0 rounded-lg bg-blue-50 px-2.5 py-1 text-[10px] font-semibold text-blue-700">{filtered.length} records</span></div>
+
+        <div className="divide-y divide-slate-100 md:hidden">
+          {filtered.map((record) => (
+            <article key={record.id} className="p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0"><h3 className="truncate text-sm font-bold text-slate-800">{record.user}</h3><p className="mt-1 font-mono text-[9px] text-slate-400">{record.id}</p></div>
+                <StatusBadge tone={statusTone(record.status)}>{record.status}</StatusBadge>
+              </div>
+              <div className="mt-4 rounded-xl bg-slate-50 p-3"><p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Sync Folder Path</p><p className="mt-1.5 flex items-start gap-2 break-all font-mono text-[10px] leading-5 text-slate-600"><FolderSync size={14} className="mt-0.5 shrink-0 text-slate-400" />{record.syncPath}</p></div>
+              <div className="mt-4 grid grid-cols-2 gap-3">
+                <div><p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Last Backup</p><p className="mt-1.5 text-[11px] font-medium text-slate-700">{record.lastBackup}</p></div>
+                <div className="flex items-center justify-between rounded-xl border border-slate-100 px-3 py-2"><p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Account Data</p><AccountDataIndicator record={record} /></div>
+              </div>
+              <div className="mt-4 grid grid-cols-3 gap-2 border-t border-slate-100 pt-4">
+                <button onClick={() => setDetailRecord(record)} className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-[#3157d5] px-2 text-[10px] font-semibold text-white" aria-label={`View details ${record.user}`}><Eye size={13} /> Detail</button>
+                <button onClick={() => openForm("edit", record)} className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-amber-500 px-2 text-[10px] font-semibold text-white" aria-label={`Edit ${record.user}`}><Pencil size={13} /> Edit</button>
+                <button onClick={() => setPendingDelete(record)} className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-rose-600 px-2 text-[10px] font-semibold text-white" aria-label={`Delete ${record.user}`}><Trash2 size={13} /> Delete</button>
+              </div>
+            </article>
+          ))}
+        </div>
+
+        <div className="hidden overflow-x-auto md:block">
           <table className="w-full min-w-[1120px] text-left">
             <thead className="bg-slate-50/90 text-[9px] font-bold uppercase tracking-wider text-slate-400"><tr><th className="w-16 px-5 py-3.5 text-center">No.</th><th className="px-4 py-3.5">User</th><th className="px-4 py-3.5">Sync Folder Path</th><th className="px-4 py-3.5">Last Backup</th><th className="px-4 py-3.5">Status</th><th className="w-32 px-4 py-3.5 text-center">Account Data</th><th className="w-36 px-5 py-3.5 text-center">Action</th></tr></thead>
             <tbody className="divide-y divide-slate-100">
@@ -83,7 +121,7 @@ export function BackupUserList() {
                   <td className="px-4 py-4"><span className="inline-flex items-center gap-2 font-mono text-[10px] text-slate-600"><FolderSync size={14} className="shrink-0 text-slate-400" />{record.syncPath}</span></td>
                   <td className="px-4 py-4 text-[11px] text-slate-600">{record.lastBackup}</td>
                   <td className="px-4 py-4"><StatusBadge tone={statusTone(record.status)}>{record.status}</StatusBadge></td>
-                  <td className="px-4 py-4 text-center">{record.username.trim() && record.password.trim() ? <span className="mx-auto grid size-8 place-items-center rounded-full bg-emerald-50 text-emerald-600" title="Username and password available"><Check size={16} strokeWidth={2.5} /><span className="sr-only">Username and password available</span></span> : <span className="mx-auto grid size-8 place-items-center rounded-full bg-rose-50 text-rose-600" title="Username or password unavailable"><X size={16} strokeWidth={2.5} /><span className="sr-only">Username or password unavailable</span></span>}</td>
+                  <td className="px-4 py-4"><div className="flex justify-center"><AccountDataIndicator record={record} /></div></td>
                   <td className="px-5 py-4"><div className="flex justify-center gap-2"><button onClick={() => setDetailRecord(record)} className="grid size-8 place-items-center rounded-lg bg-[#3157d5] text-white shadow-sm transition hover:bg-[#2445b5]" aria-label={`View details ${record.user}`} title="Detail"><Eye size={14} /></button><button onClick={() => openForm("edit", record)} className="grid size-8 place-items-center rounded-lg bg-amber-500 text-white shadow-sm transition hover:bg-amber-600" aria-label={`Edit ${record.user}`} title="Edit"><Pencil size={14} /></button><button onClick={() => setPendingDelete(record)} className="grid size-8 place-items-center rounded-lg bg-rose-600 text-white shadow-sm transition hover:bg-rose-700" aria-label={`Delete ${record.user}`} title="Delete"><Trash2 size={14} /></button></div></td>
                 </tr>
               ))}

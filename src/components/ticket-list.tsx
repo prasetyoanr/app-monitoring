@@ -1,7 +1,8 @@
 "use client";
 
-import { CalendarDays, Eye, Filter, MapPin, Pencil, Plus, Search, Trash2, X } from "lucide-react";
+import { CalendarDays, Eye, Filter, MapPin, Pencil, Plus, QrCode, Search, Trash2, X } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
+import { ApprovalQrModal } from "@/components/approval-qr-modal";
 import { useAppData } from "@/components/app-data-provider";
 import { Card, StatusBadge } from "@/components/ui";
 import type { TicketRecord } from "@/data/mock-data";
@@ -20,6 +21,10 @@ function formatCompactDate(value: string) {
   return `${day}/${month}/${year.slice(-2)}`;
 }
 
+function canRequestApproval(ticket: TicketRecord) {
+  return ticket.status === "Waiting for Client Approval" && Boolean(ticket.resolution.trim());
+}
+
 export function TicketList() {
   const { ticketRecords, addTicket, updateTicket, deleteTicket } = useAppData();
   const [query, setQuery] = useState("");
@@ -28,6 +33,7 @@ export function TicketList() {
   const [mode, setMode] = useState<FormMode>(null);
   const [selected, setSelected] = useState<TicketRecord | null>(null);
   const [detailRecord, setDetailRecord] = useState<TicketRecord | null>(null);
+  const [approvalRecord, setApprovalRecord] = useState<TicketRecord | null>(null);
   const [pendingDelete, setPendingDelete] = useState<TicketRecord | null>(null);
   const [requestDate, setRequestDate] = useState("2026-07-13");
   const dateInputRef = useRef<HTMLInputElement>(null);
@@ -68,6 +74,7 @@ export function TicketList() {
       status: recordStatus,
       completedDays: recordStatus === "Completed" ? Number(data.get("completedDays") || 0) : null,
       description: String(data.get("description")),
+      resolution: String(data.get("resolution")),
     };
     if (mode === "edit") updateTicket(record); else addTicket(record);
     setMode(null);
@@ -77,27 +84,44 @@ export function TicketList() {
     <>
       <div className="mb-5 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex flex-1 flex-col gap-3 sm:flex-row sm:flex-wrap">
-          <label className="relative min-w-64 max-w-md flex-1"><Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={16} /><input value={query} onChange={(event) => setQuery(event.target.value)} className="h-10 w-full rounded-xl border border-slate-200 bg-white pl-10 pr-3 text-xs outline-none" placeholder="Search records or requester..." /></label>
-          <label className="relative"><MapPin className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={15} /><select value={location} onChange={(event) => setLocation(event.target.value)} className="h-10 min-w-40 appearance-none rounded-xl border border-slate-200 bg-white pl-9 pr-8 text-xs text-slate-600 outline-none"><option>All Locations</option><option>HO</option><option>Factory</option></select></label>
-          <label className="relative"><Filter className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={15} /><select value={status} onChange={(event) => setStatus(event.target.value)} className="h-10 min-w-44 appearance-none rounded-xl border border-slate-200 bg-white pl-9 pr-8 text-xs text-slate-600 outline-none"><option>All Statuses</option><option>New</option><option>In Progress</option><option>Waiting for Client</option><option>Completed</option></select></label>
+          <label className="relative min-w-0 max-w-md flex-1 sm:min-w-64"><Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={16} /><input value={query} onChange={(event) => setQuery(event.target.value)} className="h-10 w-full rounded-xl border border-slate-200 bg-white pl-10 pr-3 text-xs outline-none" placeholder="Search records or requester..." /></label>
+          <label className="relative"><MapPin className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={15} /><select value={location} onChange={(event) => setLocation(event.target.value)} className="h-10 w-full min-w-40 appearance-none rounded-xl border border-slate-200 bg-white pl-9 pr-8 text-xs text-slate-600 outline-none sm:w-auto"><option>All Locations</option><option>HO</option><option>Factory</option></select></label>
+          <label className="relative"><Filter className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={15} /><select value={status} onChange={(event) => setStatus(event.target.value)} className="h-10 w-full min-w-44 appearance-none rounded-xl border border-slate-200 bg-white pl-9 pr-8 text-xs text-slate-600 outline-none sm:w-auto"><option>All Statuses</option><option>New</option><option>In Progress</option><option>Waiting for Client Approval</option><option>Completed</option></select></label>
         </div>
         <button onClick={() => openForm("create")} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-[#3157d5] px-4 text-xs font-semibold text-white shadow-lg shadow-blue-600/15 hover:bg-[#2445b5]"><Plus size={16} /> Add Issue</button>
       </div>
 
       <Card className="overflow-hidden">
-        <div className="flex items-center justify-between border-b border-slate-100 px-5 py-3.5"><div><p className="text-xs font-bold text-slate-800">Troubleshooting Records</p><p className="mt-1 text-[10px] text-slate-400">Internal IT records for the Head Office and Factory</p></div><span className="rounded-lg bg-blue-50 px-2.5 py-1 text-[10px] font-semibold text-blue-700">{filtered.length} records</span></div>
-        <div className="overflow-x-auto">
+        <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-4 py-3.5 sm:px-5"><div><p className="text-xs font-bold text-slate-800">Troubleshooting Records</p><p className="mt-1 text-[10px] text-slate-400">Internal IT records for the Head Office and Factory</p></div><span className="shrink-0 rounded-lg bg-blue-50 px-2.5 py-1 text-[10px] font-semibold text-blue-700">{filtered.length} records</span></div>
+
+        <div className="divide-y divide-slate-100 md:hidden">
+          {filtered.map((ticket) => (
+            <article key={ticket.id} className="p-4">
+              <div className="flex items-start justify-between gap-3"><div className="min-w-0"><h3 className="text-sm font-bold leading-5 text-slate-800">{ticket.title}</h3><p className="mt-1 font-mono text-[9px] text-slate-400">{ticket.id} · {ticket.category}</p></div><StatusBadge tone={ticket.status === "Completed" ? "green" : ticket.status === "In Progress" ? "blue" : ticket.status === "New" ? "gray" : "amber"}>{ticket.status}</StatusBadge></div>
+              <div className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 rounded-xl bg-slate-50 p-3">
+                <div><p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Requester</p><p className="mt-1 text-[11px] font-medium text-slate-700">{ticket.requester}</p></div>
+                <div><p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Location</p><p className="mt-1 text-[11px] font-medium text-slate-700">{ticket.location}</p></div>
+                <div><p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Division</p><p className="mt-1 text-[11px] font-medium text-slate-700">{ticket.division}</p></div>
+                <div><p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Request Date</p><p className="mt-1 text-[11px] font-medium text-slate-700">{ticket.reportedAt}</p></div>
+              </div>
+              <div className="mt-4 flex items-center justify-between gap-3"><StatusBadge tone={ticket.priority === "Critical" ? "red" : ticket.priority === "High" ? "amber" : "gray"}>{ticket.priority}</StatusBadge><span className={`text-[10px] font-semibold ${ticket.completedDays === null ? "text-slate-400" : "text-emerald-600"}`}>{completionLabel(ticket.completedDays)}</span></div>
+              <div className="mt-4 grid grid-cols-2 gap-2 border-t border-slate-100 pt-4"><button onClick={() => setDetailRecord(ticket)} className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-[#3157d5] px-2 text-[10px] font-semibold text-white" aria-label={`View details ${ticket.id}`}><Eye size={13} /> Detail</button><button disabled={!canRequestApproval(ticket)} onClick={() => setApprovalRecord(ticket)} className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-violet-600 px-2 text-[10px] font-semibold text-white disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400" aria-label={`Request client signature ${ticket.id}`} title={canRequestApproval(ticket) ? "QR Signature" : "Set status to Waiting for Client Approval and fill the resolution summary"}><QrCode size={13} /> QR Signature</button><button onClick={() => openForm("edit", ticket)} className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-amber-500 px-2 text-[10px] font-semibold text-white" aria-label={`Edit ${ticket.id}`}><Pencil size={13} /> Edit</button><button onClick={() => setPendingDelete(ticket)} className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-rose-600 px-2 text-[10px] font-semibold text-white" aria-label={`Delete ${ticket.id}`}><Trash2 size={13} /> Delete</button></div>
+            </article>
+          ))}
+        </div>
+
+        <div className="hidden overflow-x-auto md:block">
           <table className="w-full min-w-[1280px] text-left">
-            <thead className="bg-slate-50/90 text-[9px] font-bold uppercase tracking-wider text-slate-400"><tr><th className="w-12 px-4 py-3.5 text-center">No.</th><th className="px-4 py-3.5">Issue</th><th className="px-4 py-3.5">Location</th><th className="px-4 py-3.5">Requester</th><th className="px-4 py-3.5">Division</th><th className="px-4 py-3.5">Date</th><th className="px-4 py-3.5">Priority</th><th className="px-4 py-3.5">Completion Time</th><th className="px-4 py-3.5">Status</th><th className="w-36 px-5 py-3.5 text-center">Action</th></tr></thead>
+            <thead className="bg-slate-50/90 text-[9px] font-bold uppercase tracking-wider text-slate-400"><tr><th className="w-12 px-4 py-3.5 text-center">No.</th><th className="px-4 py-3.5">Issue</th><th className="px-4 py-3.5">Location</th><th className="px-4 py-3.5">Requester</th><th className="px-4 py-3.5">Division</th><th className="px-4 py-3.5">Date</th><th className="px-4 py-3.5">Priority</th><th className="px-4 py-3.5">Completion Time</th><th className="px-4 py-3.5">Status</th><th className="w-44 px-5 py-3.5 text-center">Action</th></tr></thead>
             <tbody className="divide-y divide-slate-100">
               {filtered.map((ticket, index) => (
                 <tr key={ticket.id} className="text-xs hover:bg-slate-50/70">
                   <td className="px-4 py-4 text-center text-[11px] font-semibold text-slate-400">{index + 1}</td>
-                  <td className="px-4 py-4"><div className="flex items-center gap-3"><span className={`size-2 shrink-0 rounded-full ${ticket.priority === "Critical" ? "bg-rose-500" : ticket.priority === "High" ? "bg-amber-500" : "bg-blue-400"}`} /><div><p className="font-semibold text-slate-800">{ticket.title}</p><p className="mt-1 font-mono text-[9px] text-slate-400">{ticket.id} · {ticket.category}</p></div></div></td>
+                  <td className="px-4 py-4"><div><p className="font-semibold text-slate-800">{ticket.title}</p><p className="mt-1 font-mono text-[9px] text-slate-400">{ticket.id} · {ticket.category}</p></div></td>
                   <td className="px-4 py-4"><span className={`inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-[10px] font-bold ${ticket.location === "HO" ? "bg-indigo-50 text-indigo-700" : "bg-cyan-50 text-cyan-700"}`}><MapPin size={11} />{ticket.location}</span></td>
                   <td className="px-4 py-4 text-slate-600">{ticket.requester}</td><td className="px-4 py-4"><span className="rounded-md bg-slate-100 px-2 py-1 text-[10px] font-semibold text-slate-600">{ticket.division}</span></td><td className="px-4 py-4 text-[11px] text-slate-500">{ticket.reportedAt}</td>
                   <td className="px-4 py-4"><StatusBadge tone={ticket.priority === "Critical" ? "red" : ticket.priority === "High" ? "amber" : "gray"}>{ticket.priority}</StatusBadge></td><td className="px-4 py-4"><span className={`text-[11px] font-semibold ${ticket.completedDays === null ? "text-slate-400" : "text-emerald-600"}`}>{completionLabel(ticket.completedDays)}</span></td><td className="px-4 py-4"><StatusBadge tone={ticket.status === "Completed" ? "green" : ticket.status === "In Progress" ? "blue" : ticket.status === "New" ? "gray" : "amber"}>{ticket.status}</StatusBadge></td>
-                  <td className="px-5 py-4"><div className="flex justify-center gap-2"><button onClick={() => setDetailRecord(ticket)} className="grid size-8 place-items-center rounded-lg bg-[#3157d5] text-white shadow-sm transition hover:bg-[#2445b5]" aria-label={`View details ${ticket.id}`} title="Detail"><Eye size={14} /></button><button onClick={() => openForm("edit", ticket)} className="grid size-8 place-items-center rounded-lg bg-amber-500 text-white shadow-sm transition hover:bg-amber-600" aria-label={`Edit ${ticket.id}`} title="Edit"><Pencil size={14} /></button><button onClick={() => setPendingDelete(ticket)} className="grid size-8 place-items-center rounded-lg bg-rose-600 text-white shadow-sm transition hover:bg-rose-700" aria-label={`Delete ${ticket.id}`} title="Delete"><Trash2 size={14} /></button></div></td>
+                  <td className="px-5 py-4"><div className="flex justify-center gap-2"><button onClick={() => setDetailRecord(ticket)} className="grid size-8 place-items-center rounded-lg bg-[#3157d5] text-white shadow-sm transition hover:bg-[#2445b5]" aria-label={`View details ${ticket.id}`} title="Detail"><Eye size={14} /></button><button disabled={!canRequestApproval(ticket)} onClick={() => setApprovalRecord(ticket)} className="grid size-8 place-items-center rounded-lg bg-violet-600 text-white shadow-sm transition hover:bg-violet-700 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400" aria-label={`Request client signature ${ticket.id}`} title={canRequestApproval(ticket) ? "QR Signature" : "Set status to Waiting for Client Approval and fill the resolution summary"}><QrCode size={14} /></button><button onClick={() => openForm("edit", ticket)} className="grid size-8 place-items-center rounded-lg bg-amber-500 text-white shadow-sm transition hover:bg-amber-600" aria-label={`Edit ${ticket.id}`} title="Edit"><Pencil size={14} /></button><button onClick={() => setPendingDelete(ticket)} className="grid size-8 place-items-center rounded-lg bg-rose-600 text-white shadow-sm transition hover:bg-rose-700" aria-label={`Delete ${ticket.id}`} title="Delete"><Trash2 size={14} /></button></div></td>
                 </tr>
               ))}
             </tbody>
@@ -106,6 +130,8 @@ export function TicketList() {
         {filtered.length === 0 ? <div className="px-5 py-14 text-center text-xs text-slate-500">No records match your search.</div> : null}
         <div className="border-t border-slate-100 px-5 py-3 text-[10px] text-slate-500">Showing {filtered.length} of {ticketRecords.length} records</div>
       </Card>
+
+      {approvalRecord ? <ApprovalQrModal record={approvalRecord} onClose={() => setApprovalRecord(null)} /> : null}
 
       {detailRecord ? (
         <div className="fixed inset-0 z-[70] overflow-y-auto bg-slate-950/55 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="issue-document-title">
@@ -140,6 +166,8 @@ export function TicketList() {
                 <p className="mt-3 whitespace-pre-wrap text-xs leading-6 text-slate-600">{detailRecord.description}</p>
               </section>
 
+              {detailRecord.resolution ? <section className="mt-8" aria-labelledby="resolution-summary-title"><h3 id="resolution-summary-title" className="border-b border-slate-300 pb-2 text-xs font-bold uppercase tracking-wider text-slate-900">Resolution Summary</h3><p className="mt-4 whitespace-pre-wrap text-xs leading-6 text-slate-600">{detailRecord.resolution}</p></section> : null}
+
               <footer className="mt-12 border-t border-slate-300 pt-4 text-[10px] leading-5 text-slate-400">
                 This document is an internal troubleshooting record generated from the IT Monitoring System.
               </footer>
@@ -157,8 +185,9 @@ export function TicketList() {
               <div className="grid gap-4 sm:grid-cols-2"><label className="block text-[11px] font-semibold text-slate-600">Location<select name="location" defaultValue={selected?.location ?? "HO"} className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 px-3 text-xs outline-none"><option>HO</option><option>Factory</option></select></label><div className="block text-[11px] font-semibold text-slate-600"><span id="request-date-label">Request Date</span><div className="relative mt-1.5"><button type="button" onClick={openDatePicker} aria-labelledby="request-date-label" className="flex h-10 w-full items-center rounded-xl border border-slate-200 bg-white px-3 text-left text-xs font-normal text-slate-700 outline-none"><span className="flex-1">{formatCompactDate(requestDate)}</span><CalendarDays size={15} className="text-slate-400" /></button><input ref={dateInputRef} type="date" value={requestDate} onChange={(event) => setRequestDate(event.target.value)} className="absolute bottom-0 left-0 h-px w-px opacity-0" tabIndex={-1} aria-hidden="true" /></div></div></div>
               <div className="grid gap-4 sm:grid-cols-2"><label className="block text-[11px] font-semibold text-slate-600">Requester Name<input name="requester" required defaultValue={selected?.requester} className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 px-3 text-xs outline-none" /></label><label className="block text-[11px] font-semibold text-slate-600">Division<select name="division" required defaultValue={selected?.division ?? "Finance"} className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-xs outline-none"><option>Finance</option><option>Legal</option><option>Purchase</option><option>Human Resources</option><option>Production</option><option>Marketing</option><option>Warehouse</option></select></label></div>
               <div className="grid gap-4 sm:grid-cols-2"><label className="block text-[11px] font-semibold text-slate-600">Category<select name="category" defaultValue={selected?.category ?? "Software"} className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 px-3 text-xs outline-none"><option>Software</option><option>Hardware</option><option>Network</option><option>Server</option><option>Other</option></select></label><label className="block text-[11px] font-semibold text-slate-600">Priority<select name="priority" defaultValue={selected?.priority ?? "Low"} className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 px-3 text-xs outline-none"><option>Low</option><option>Medium</option><option>High</option><option>Critical</option></select></label></div>
-              <div className="grid gap-4 sm:grid-cols-2"><label className="block text-[11px] font-semibold text-slate-600">Status<select name="status" defaultValue={selected?.status ?? "New"} className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 px-3 text-xs outline-none"><option>New</option><option>In Progress</option><option>Waiting for Client</option><option>Completed</option></select></label><label className="block text-[11px] font-semibold text-slate-600">Completion Time (Days)<input name="completedDays" type="number" min="0" defaultValue={selected?.completedDays ?? 0} className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 px-3 text-xs outline-none" /></label></div>
+              <div className="grid gap-4 sm:grid-cols-2"><label className="block text-[11px] font-semibold text-slate-600">Status<select name="status" defaultValue={selected?.status ?? "New"} className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 px-3 text-xs outline-none"><option>New</option><option>In Progress</option><option>Waiting for Client Approval</option><option>Completed</option></select></label><label className="block text-[11px] font-semibold text-slate-600">Completion Time (Days)<input name="completedDays" type="number" min="0" defaultValue={selected?.completedDays ?? 0} className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 px-3 text-xs outline-none" /></label></div>
               <label className="block text-[11px] font-semibold text-slate-600">Issue Description<textarea name="description" required rows={4} defaultValue={selected?.description} className="mt-1.5 w-full resize-none rounded-xl border border-slate-200 p-3 text-xs outline-none" /></label>
+              <label className="block text-[11px] font-semibold text-slate-600">Resolution Summary<textarea name="resolution" rows={4} defaultValue={selected?.resolution} className="mt-1.5 w-full resize-none rounded-xl border border-slate-200 p-3 text-xs outline-none" placeholder="Describe the work completed before requesting client approval." /></label>
               <div className="flex justify-end gap-2 pt-1"><button type="button" onClick={() => setMode(null)} className="h-10 rounded-xl border border-slate-200 px-4 text-xs font-semibold text-slate-600">Cancel</button><button className="h-10 rounded-xl bg-[#3157d5] px-4 text-xs font-semibold text-white">Save Record</button></div>
             </form>
           </div>

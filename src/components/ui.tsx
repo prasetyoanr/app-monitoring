@@ -2,13 +2,13 @@ import { LucideIcon } from "lucide-react";
 
 export function PageHeader({ eyebrow, title, description, action }: { eyebrow?: string; title: string; description: string; action?: React.ReactNode }) {
   return (
-    <div className="mb-6 flex flex-col justify-between gap-4 md:flex-row md:items-end">
+    <div className="mb-5 flex flex-col justify-between gap-4 sm:mb-6 md:flex-row md:items-end">
       <div>
         {eyebrow ? <p className="mb-1 text-[11px] font-bold uppercase tracking-[0.15em] text-[#3157d5]">{eyebrow}</p> : null}
         <h1 className="text-2xl font-bold tracking-[-0.035em] text-[#14213d] sm:text-[28px]">{title}</h1>
         <p className="mt-1.5 max-w-2xl text-[13px] leading-5 text-slate-500">{description}</p>
       </div>
-      {action}
+      {action ? <div className="w-full md:w-auto [&>*]:w-full md:[&>*]:w-auto">{action}</div> : null}
     </div>
   );
 }
@@ -36,7 +36,7 @@ export function MetricCard({ label, value, detail, icon: Icon, tone = "blue" }: 
     red: "bg-rose-50 text-rose-600",
   };
   return (
-    <Card className="p-5">
+    <Card className="p-4 sm:p-5">
       <div className="flex items-start justify-between">
         <div>
           <p className="text-xs font-medium text-slate-500">{label}</p>
@@ -51,7 +51,7 @@ export function MetricCard({ label, value, detail, icon: Icon, tone = "blue" }: 
 
 export function SectionTitle({ title, subtitle, action }: { title: string; subtitle?: string; action?: React.ReactNode }) {
   return (
-    <div className="flex items-start justify-between gap-4 border-b border-slate-100 px-5 py-4">
+    <div className="flex items-start justify-between gap-3 border-b border-slate-100 px-4 py-4 sm:px-5">
       <div>
         <h2 className="text-sm font-bold text-slate-800">{title}</h2>
         {subtitle ? <p className="mt-1 text-[11px] text-slate-500">{subtitle}</p> : null}

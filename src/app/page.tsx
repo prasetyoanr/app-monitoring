@@ -13,14 +13,14 @@ export default function DashboardPage() {
         title="IT Team Activity Log"
         description="Overview of today’s internal IT activities at the Head Office and Factory."
         action={
-          <Link href="/tickets" className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-[#3157d5] px-4 text-xs font-semibold text-white shadow-lg shadow-blue-600/15 transition hover:bg-[#2445b5]">
-            <TicketCheck size={16} /> Manage Tickets
+          <Link href="/troubleshooting" className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-[#3157d5] px-4 text-xs font-semibold text-white shadow-lg shadow-blue-600/15 transition hover:bg-[#2445b5]">
+            <TicketCheck size={16} /> Manage Troubleshooting
           </Link>
         }
       />
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <MetricCard label="Active Tickets" value="12" icon={TicketCheck} tone="blue" detail={<><b className="text-emerald-600">↓ 8%</b> from last week</>} />
+        <MetricCard label="Active Issues" value="12" icon={TicketCheck} tone="blue" detail={<><b className="text-emerald-600">↓ 8%</b> from last week</>} />
         <MetricCard label="Completed Today" value="8" icon={Clock3} tone="green" detail={<><b className="text-emerald-600">6 issues</b> completed on the same day</>} />
         <MetricCard label="Healthy Servers" value="18 / 20" icon={Server} tone="amber" detail={<><b className="text-amber-600">2 servers</b> require attention</>} />
         <MetricCard label="User Backups" value="96.8%" icon={CircleCheck} tone="red" detail={<><b className="text-rose-600">3 users</b> require follow-up</>} />
@@ -29,8 +29,8 @@ export default function DashboardPage() {
       <div className="mt-5 grid gap-5 xl:grid-cols-[1.55fr_1fr]">
         <Card>
           <SectionTitle title="Ticket Resolution Trend" subtitle="Service performance over the last 14 days" action={<select className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] text-slate-600 outline-none"><option>14 days</option><option>30 days</option></select>} />
-          <div className="px-5 pb-5 pt-4">
-            <div className="mb-5 flex items-end justify-between">
+          <div className="px-4 pb-5 pt-4 sm:px-5">
+            <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
               <div><span className="text-2xl font-bold tracking-tight text-slate-900">137</span><span className="ml-2 text-xs text-slate-500">tickets completed</span></div>
               <div className="flex gap-4 text-[10px] text-slate-500"><span className="flex items-center gap-1.5"><i className="size-2 rounded-full bg-[#3157d5]" />Completed</span><span className="flex items-center gap-1.5"><i className="size-2 rounded-full bg-blue-200" />Received</span></div>
             </div>
@@ -61,8 +61,16 @@ export default function DashboardPage() {
 
       <div className="mt-5 grid gap-5 xl:grid-cols-[1.55fr_1fr]">
         <Card className="overflow-hidden">
-          <SectionTitle title="Latest Tickets" subtitle="Recent troubleshooting activity" action={<Link href="/tickets" className="flex items-center gap-1 text-[11px] font-semibold text-[#3157d5]">All tickets <ArrowRight size={13} /></Link>} />
-          <div className="overflow-x-auto">
+          <SectionTitle title="Latest Issues" subtitle="Recent troubleshooting activity" action={<Link href="/troubleshooting" className="flex items-center gap-1 text-[11px] font-semibold text-[#3157d5]">All records <ArrowRight size={13} /></Link>} />
+          <div className="divide-y divide-slate-100 md:hidden">
+            {tickets.slice(0, 4).map((ticket) => (
+              <article key={ticket.id} className="p-4">
+                <div className="flex items-start justify-between gap-3"><div className="min-w-0"><h3 className="text-xs font-semibold leading-5 text-slate-800">{ticket.title}</h3><p className="mt-1 font-mono text-[9px] text-slate-400">{ticket.id}</p></div><StatusBadge tone={ticket.status === "Completed" ? "green" : ticket.status === "In Progress" ? "blue" : "amber"}>{ticket.status}</StatusBadge></div>
+                <div className="mt-3 flex flex-wrap items-center gap-2"><StatusBadge tone={ticket.location === "HO" ? "blue" : "gray"}>{ticket.location}</StatusBadge><span className="text-[10px] text-slate-500">{ticket.category}</span><span className="ml-auto text-[10px] font-semibold text-slate-600">{ticket.completedDays === null ? "Not completed" : ticket.completedDays === 0 ? "Same day" : `${ticket.completedDays} days`}</span></div>
+              </article>
+            ))}
+          </div>
+          <div className="hidden overflow-x-auto md:block">
             <table className="w-full min-w-[720px] text-left">
               <thead className="bg-slate-50/80 text-[9px] font-bold uppercase tracking-wider text-slate-400"><tr><th className="px-5 py-3">Record</th><th className="px-4 py-3">Location</th><th className="px-4 py-3">Category</th><th className="px-4 py-3">Status</th><th className="px-5 py-3">Completion Time</th></tr></thead>
               <tbody className="divide-y divide-slate-100">
