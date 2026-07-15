@@ -11,5 +11,5 @@ export default async function TroubleshootingPage() {
     getTicketRecords(),
     requireAuthenticatedUser(),
   ]);
-  return <><PageHeader eyebrow="Internal IT records" title="Troubleshooting" description="Record every support request from the Head Office and Factory for periodic activity reports to management." /><TicketList initialRecords={records} canManage={currentUser.role === "administrator"} /></>;
+  return <><TicketList initialRecords={records} canManage={currentUser.role === "administrator"} /></>;
 }

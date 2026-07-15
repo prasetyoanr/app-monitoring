@@ -23,14 +23,13 @@ export default async function LoginPage({
   const { next } = await searchParams;
 
   return (
-    <main className="relative min-h-screen overflow-hidden bg-[#eef2ff] px-4 py-6 sm:grid sm:place-items-center sm:px-6">
-      <div className="pointer-events-none absolute -left-32 top-[-8rem] size-96 rounded-full bg-blue-300/35 blur-3xl" />
-      <div className="pointer-events-none absolute -bottom-32 -right-24 size-[30rem] rounded-full bg-indigo-300/30 blur-3xl" />
-
-      <section className="relative mx-auto grid w-full max-w-5xl overflow-hidden rounded-[1.75rem] border border-white/70 bg-white shadow-2xl shadow-blue-950/10 lg:grid-cols-[1.05fr_1fr]">
-        <div className="hidden min-h-[620px] flex-col justify-between bg-gradient-to-br from-[#172554] via-[#2445b5] to-[#5274e8] p-10 text-white lg:flex">
+    <main className="relative min-h-screen overflow-hidden bg-indigo-50 px-4 py-6 sm:grid sm:place-items-center sm:px-6">
+      <section className="relative mx-auto grid w-full max-w-5xl overflow-hidden rounded-[1.75rem] border border-white/80 bg-white shadow-2xl shadow-indigo-950/20 lg:grid-cols-[1.05fr_1fr]">
+        <div className="relative hidden min-h-[620px] flex-col justify-between overflow-hidden bg-indigo-950 p-10 text-white lg:flex">
+          <div className="pointer-events-none absolute -right-24 top-16 size-72 rounded-full border border-white/15 bg-cyan-300/15 blur-sm" />
+          <div className="pointer-events-none absolute -bottom-28 -left-16 size-72 rounded-full bg-fuchsia-400/15" />
           <div className="flex items-center gap-3">
-            <span className="grid size-11 place-items-center rounded-2xl bg-white/15 ring-1 ring-white/20 backdrop-blur">
+            <span className="brand-mark grid size-11 place-items-center rounded-2xl text-white">
               <Activity size={22} strokeWidth={2.5} />
             </span>
             <div>
@@ -62,7 +61,7 @@ export default async function LoginPage({
 
         <div className="flex min-h-[calc(100vh-3rem)] flex-col justify-center p-6 sm:min-h-0 sm:p-10 lg:p-12">
           <div className="mb-10 flex items-center gap-3 lg:hidden">
-            <span className="grid size-10 place-items-center rounded-xl bg-[#3157d5] text-white shadow-lg shadow-blue-600/20">
+            <span className="brand-mark grid size-10 place-items-center rounded-xl text-white">
               <Activity size={20} strokeWidth={2.5} />
             </span>
             <div><p className="text-sm font-bold text-slate-900">IT Activity Log</p><p className="text-[9px] font-semibold uppercase tracking-[0.16em] text-slate-400">Internal Workspace</p></div>

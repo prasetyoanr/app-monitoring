@@ -108,7 +108,7 @@ export function AccountManager({
 
       {error && !createOpen && !resetTarget && !deleteTarget ? <p role="alert" className="mb-4 rounded-xl border border-rose-100 bg-rose-50 px-4 py-3 text-xs font-semibold text-rose-700">{error}</p> : null}
 
-      <Card className="overflow-hidden">
+      <Card className="table-card overflow-hidden">
         <div className="border-b border-slate-100 px-4 py-4 sm:px-5"><h2 className="text-sm font-bold text-slate-800">Account List</h2><p className="mt-1 text-[11px] text-slate-500">Only administrators can manage account access.</p></div>
 
         <div className="divide-y divide-slate-100 md:hidden">
@@ -130,7 +130,7 @@ export function AccountManager({
             <thead className="bg-slate-50/90 text-[9px] font-bold uppercase tracking-wider text-slate-400"><tr><th className="px-5 py-3.5">User</th><th className="px-4 py-3.5">Username</th><th className="px-4 py-3.5">Role</th><th className="px-4 py-3.5">Created</th><th className="px-4 py-3.5">Status</th><th className="px-5 py-3.5 text-center">Actions</th></tr></thead>
             <tbody className="divide-y divide-slate-100">
               {initialAccounts.map((account) => (
-                <tr key={account.id} className="text-xs hover:bg-slate-50/70">
+                <tr key={account.id} className="text-xs">
                   <td className="px-5 py-4"><div className="flex items-center gap-3"><span className={`grid size-9 shrink-0 place-items-center rounded-xl ${account.role === "administrator" ? "bg-blue-50 text-blue-600" : "bg-violet-50 text-violet-600"}`}><UserCog size={16} /></span><div><p className="font-semibold text-slate-800">{account.name} {account.id === currentUserId ? <span className="ml-1 rounded bg-blue-50 px-1.5 py-0.5 text-[9px] text-blue-700">You</span> : null}</p></div></div></td>
                   <td className="px-4 py-4 font-mono text-[11px] text-slate-600">@{account.username}</td>
                   <td className="px-4 py-4"><span className={`rounded-lg px-2 py-1 text-[10px] font-bold ${account.role === "administrator" ? "bg-blue-50 text-blue-700" : "bg-violet-50 text-violet-700"}`}>{roleLabel(account.role)}</span></td>

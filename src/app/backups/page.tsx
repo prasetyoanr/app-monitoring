@@ -13,7 +13,6 @@ export default async function BackupsPage() {
   ]);
   return (
     <>
-      <PageHeader eyebrow="Internal IT Record" title="Backup User" description="Backup records entered by the IT team for periodic management reporting." />
       <BackupUserList initialRecords={records} canManage={currentUser.role === "administrator"} />
     </>
   );

@@ -129,7 +129,7 @@ export function BackupUserList({ initialRecords, canManage }: { initialRecords: 
         {canManage ? <button onClick={() => openForm("create")} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-[#3157d5] px-4 text-xs font-semibold text-white shadow-lg shadow-blue-600/15 hover:bg-[#2445b5]"><Plus size={16} /> Add Record</button> : null}
       </div>
 
-      <Card className="overflow-hidden">
+      <Card className="table-card overflow-hidden">
         <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-4 py-4 sm:px-5"><div><h2 className="text-sm font-bold text-slate-800">Backup User Records</h2><p className="mt-1 text-[11px] text-slate-500">Maintained manually by the IT team</p></div><span className="shrink-0 rounded-lg bg-blue-50 px-2.5 py-1 text-[10px] font-semibold text-blue-700">{filtered.length} records</span></div>
 
         <div className="divide-y divide-slate-100 md:hidden">
@@ -157,7 +157,7 @@ export function BackupUserList({ initialRecords, canManage }: { initialRecords: 
             <thead className="bg-slate-50/90 text-[9px] font-bold uppercase tracking-wider text-slate-400"><tr><th className="w-16 px-5 py-3.5 text-center">No.</th><th className="px-4 py-3.5">User</th><th className="px-4 py-3.5">Sync Folder Path</th><th className="px-4 py-3.5">Last Backup</th><th className="px-4 py-3.5">Status</th><th className="w-32 px-4 py-3.5 text-center">Account Data</th><th className="w-36 px-5 py-3.5 text-center">Action</th></tr></thead>
             <tbody className="divide-y divide-slate-100">
               {filtered.map((record, index) => (
-                <tr key={record.id} className="text-xs hover:bg-slate-50/70">
+                <tr key={record.id} className="text-xs">
                   <td className="px-5 py-4 text-center text-[11px] font-semibold text-slate-400">{index + 1}</td>
                   <td className="px-4 py-4"><p className="font-semibold text-slate-800">{record.user}</p><p className="mt-1 font-mono text-[9px] text-slate-400">{record.id}</p></td>
                   <td className="px-4 py-4"><span className="inline-flex items-center gap-2 font-mono text-[10px] text-slate-600"><FolderSync size={14} className="shrink-0 text-slate-400" />{record.syncPath}</span></td>

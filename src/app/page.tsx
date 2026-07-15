@@ -61,7 +61,7 @@ export default async function DashboardPage() {
             <div className="flex h-40 items-end gap-2 border-b border-slate-200 px-1 sm:gap-3">
               {chart.map((value, index) => (
                 <div key={index} className="group relative flex h-full flex-1 items-end">
-                  <div className="w-full rounded-t-md bg-gradient-to-t from-[#3157d5] to-[#6f8aeb] transition group-hover:from-[#2445b5]" style={{ height: `${Math.max(4, (value / maxChart) * 100)}%` }} title={`${value} issues`} />
+                  <div className="w-full rounded-t-md bg-indigo-500 transition group-hover:bg-indigo-700" style={{ height: `${Math.max(4, (value / maxChart) * 100)}%` }} title={`${value} issues`} />
                 </div>
               ))}
             </div>
@@ -84,7 +84,7 @@ export default async function DashboardPage() {
       </div>
 
       <div className="mt-5 grid gap-5 xl:grid-cols-[1.55fr_1fr]">
-        <Card className="overflow-hidden">
+        <Card className="table-card overflow-hidden">
           <SectionTitle title="Latest Issues" subtitle="Recent troubleshooting activity" action={<Link href="/troubleshooting" className="flex items-center gap-1 text-[11px] font-semibold text-[#3157d5]">All records <ArrowRight size={13} /></Link>} />
           <div className="divide-y divide-slate-100 md:hidden">
             {tickets.slice(0, 4).map((ticket) => (
@@ -99,7 +99,7 @@ export default async function DashboardPage() {
               <thead className="bg-slate-50/80 text-[9px] font-bold uppercase tracking-wider text-slate-400"><tr><th className="px-5 py-3">Record</th><th className="px-4 py-3">Location</th><th className="px-4 py-3">Category</th><th className="px-4 py-3">Status</th><th className="px-5 py-3">Completion Time</th></tr></thead>
               <tbody className="divide-y divide-slate-100">
                 {tickets.slice(0, 4).map((ticket) => (
-                  <tr key={ticket.id} className="text-xs transition hover:bg-slate-50/60"><td className="px-5 py-3.5"><p className="font-semibold text-slate-800">{ticket.title}</p><p className="mt-1 font-mono text-[9px] text-slate-400">{ticket.id}</p></td><td className="px-4 py-3.5"><StatusBadge tone={ticket.location === "HO" ? "blue" : "gray"}>{ticket.location}</StatusBadge></td><td className="px-4 py-3.5 text-slate-500">{ticket.category}</td><td className="px-4 py-3.5"><StatusBadge tone={ticket.status === "Completed" ? "green" : ticket.status === "In Progress" ? "blue" : "amber"}>{ticket.status}</StatusBadge></td><td className="px-5 py-3.5 text-[11px] font-semibold text-slate-600">{ticket.completedDays === null ? "Not completed" : ticket.completedDays === 0 ? "Same day" : `${ticket.completedDays} days`}</td></tr>
+                  <tr key={ticket.id} className="text-xs"><td className="px-5 py-3.5"><p className="font-semibold text-slate-800">{ticket.title}</p><p className="mt-1 font-mono text-[9px] text-slate-400">{ticket.id}</p></td><td className="px-4 py-3.5"><StatusBadge tone={ticket.location === "HO" ? "blue" : "gray"}>{ticket.location}</StatusBadge></td><td className="px-4 py-3.5 text-slate-500">{ticket.category}</td><td className="px-4 py-3.5"><StatusBadge tone={ticket.status === "Completed" ? "green" : ticket.status === "In Progress" ? "blue" : "amber"}>{ticket.status}</StatusBadge></td><td className="px-5 py-3.5 text-[11px] font-semibold text-slate-600">{ticket.completedDays === null ? "Not completed" : ticket.completedDays === 0 ? "Same day" : `${ticket.completedDays} days`}</td></tr>
                 ))}
               </tbody>
             </table>

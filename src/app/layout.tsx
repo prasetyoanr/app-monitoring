@@ -39,7 +39,7 @@ export default async function RootLayout({
     ? await getNavigationCounts()
     : { issues: 0, backups: 0 };
   return (
-    <html lang="id">
+    <html lang="en">
       <body>
         {user ? (
           <AppShell counts={counts} user={user}>{children}</AppShell>

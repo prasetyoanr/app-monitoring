@@ -103,7 +103,7 @@ export function TicketList({ initialRecords, canManage }: { initialRecords: Tick
         {canManage ? <button onClick={() => openForm("create")} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-[#3157d5] px-4 text-xs font-semibold text-white shadow-lg shadow-blue-600/15 hover:bg-[#2445b5]"><Plus size={16} /> Add Issue</button> : null}
       </div>
 
-      <Card className="overflow-hidden">
+      <Card className="table-card overflow-hidden">
         <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-4 py-3.5 sm:px-5"><div><p className="text-xs font-bold text-slate-800">Troubleshooting Records</p><p className="mt-1 text-[10px] text-slate-400">Internal IT records for the Head Office and Factory</p></div><span className="shrink-0 rounded-lg bg-blue-50 px-2.5 py-1 text-[10px] font-semibold text-blue-700">{filtered.length} records</span></div>
 
         <div className="divide-y divide-slate-100 md:hidden">
@@ -127,7 +127,7 @@ export function TicketList({ initialRecords, canManage }: { initialRecords: Tick
             <thead className="bg-slate-50/90 text-[9px] font-bold uppercase tracking-wider text-slate-400"><tr><th className="w-12 px-4 py-3.5 text-center">No.</th><th className="px-4 py-3.5">Issue</th><th className="px-4 py-3.5">Location</th><th className="px-4 py-3.5">Requester</th><th className="px-4 py-3.5">Division</th><th className="px-4 py-3.5">Date</th><th className="px-4 py-3.5">Priority</th><th className="px-4 py-3.5">Completion Time</th><th className="px-4 py-3.5">Status</th><th className="w-44 px-5 py-3.5 text-center">Action</th></tr></thead>
             <tbody className="divide-y divide-slate-100">
               {filtered.map((ticket, index) => (
-                <tr key={ticket.id} className="text-xs hover:bg-slate-50/70">
+                <tr key={ticket.id} className="text-xs">
                   <td className="px-4 py-4 text-center text-[11px] font-semibold text-slate-400">{index + 1}</td>
                   <td className="px-4 py-4"><div><p className="font-semibold text-slate-800">{ticket.title}</p><p className="mt-1 font-mono text-[9px] text-slate-400">{ticket.id} · {ticket.category}</p></div></td>
                   <td className="px-4 py-4"><span className={`inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-[10px] font-bold ${ticket.location === "HO" ? "bg-indigo-50 text-indigo-700" : "bg-cyan-50 text-cyan-700"}`}><MapPin size={11} />{ticket.location}</span></td>

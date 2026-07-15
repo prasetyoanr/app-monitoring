@@ -78,7 +78,7 @@ export function LoginForm({ nextPath }: { nextPath: string }) {
       <button
         type="submit"
         disabled={pending}
-        className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#3157d5] px-5 text-sm font-bold text-white shadow-lg shadow-blue-600/20 transition hover:bg-[#2445b5] disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none"
+        className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-indigo-600 px-5 text-sm font-bold text-white shadow-lg shadow-indigo-600/25 transition hover:-translate-y-0.5 hover:bg-indigo-700 hover:shadow-xl hover:shadow-indigo-600/25 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none"
       >
         {pending ? <LoaderCircle size={17} className="animate-spin" /> : null}
         {pending ? "Checking..." : "Login"}
