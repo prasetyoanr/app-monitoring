@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
+import { getCurrentUser } from "@/auth/session";
 import { AppShell } from "@/components/app-shell";
 import { getNavigationCounts } from "@/data/app-data";
 import "./globals.css";
@@ -33,11 +34,18 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const counts = await getNavigationCounts();
+  const user = await getCurrentUser();
+  const counts = user
+    ? await getNavigationCounts()
+    : { issues: 0, backups: 0 };
   return (
-    <html lang="en">
+    <html lang="id">
       <body>
-        <AppShell counts={counts}>{children}</AppShell>
+        {user ? (
+          <AppShell counts={counts} user={user}>{children}</AppShell>
+        ) : (
+          children
+        )}
       </body>
     </html>
   );

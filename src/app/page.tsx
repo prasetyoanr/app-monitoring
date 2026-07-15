@@ -1,13 +1,15 @@
 import Link from "next/link";
 import { Activity, ArrowRight, CircleCheck, Clock3, Server, TicketCheck, TriangleAlert } from "lucide-react";
+import { requireAuthenticatedUser } from "@/auth/session";
 import { Card, MetricCard, PageHeader, SectionTitle, StatusBadge } from "@/components/ui";
 import { getBackupRecords, getServerRecords, getTicketRecords } from "@/data/app-data";
 
 export default async function DashboardPage() {
-  const [servers, tickets, backups] = await Promise.all([
+  const [servers, tickets, backups, currentUser] = await Promise.all([
     getServerRecords(),
     getTicketRecords(),
     getBackupRecords(),
+    requireAuthenticatedUser(),
   ]);
   const activeIssues = tickets.filter((ticket) => ticket.status !== "Completed").length;
   const completedIssues = tickets.filter((ticket) => ticket.status === "Completed").length;
@@ -21,7 +23,7 @@ export default async function DashboardPage() {
     return tickets.filter((ticket) => ticket.reportedDate === key).length;
   });
   const maxChart = Math.max(1, ...chart);
-  const todayLabel = new Intl.DateTimeFormat("id-ID", {
+  const todayLabel = new Intl.DateTimeFormat("en-GB", {
     timeZone: "Asia/Jakarta",
     weekday: "long",
     day: "2-digit",
@@ -36,7 +38,7 @@ export default async function DashboardPage() {
         description="Overview of today’s internal IT activities at the Head Office and Factory."
         action={
           <Link href="/troubleshooting" className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-[#3157d5] px-4 text-xs font-semibold text-white shadow-lg shadow-blue-600/15 transition hover:bg-[#2445b5]">
-            <TicketCheck size={16} /> Manage Troubleshooting
+            <TicketCheck size={16} /> {currentUser.role === "administrator" ? "Manage Troubleshooting" : "View Troubleshooting"}
           </Link>
         }
       />

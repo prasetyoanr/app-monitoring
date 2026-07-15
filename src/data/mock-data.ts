@@ -51,11 +51,3 @@ export const backupJobs: BackupRecord[] = [
   { id: "BKU-2026-0081", user: "Bima Pratama", username: "bima.pratama", email: "bima.pratama@example.com", password: "Operations archive key", syncPath: "D:\\Operational Data", lastBackup: "12/07/26 18:02", lastBackupIso: "2026-07-12T18:02", status: "Failed" },
   { id: "BKU-2026-0080", user: "Lina Wijaya", username: "", email: "lina.wijaya@example.com", password: "Legal archive key", syncPath: "C:\\Users\\Lina\\Legal Documents", lastBackup: "13/07/26 06:38", lastBackupIso: "2026-07-13T06:38", status: "Success" },
 ];
-
-export const assets = [
-  { code: "AST-LTP-0284", name: "Lenovo ThinkPad T14 Gen 4", type: "Laptop", user: "Sinta Maharani", department: "Finance", status: "Active", health: 92 },
-  { code: "AST-LTP-0271", name: "Dell Latitude 5440", type: "Laptop", user: "Ayu Lestari", department: "Human Resources", status: "Active", health: 87 },
-  { code: "AST-SWT-0012", name: "Cisco CBS350-48P", type: "Network", user: "Infrastructure", department: "IT", status: "Active", health: 98 },
-  { code: "AST-PRN-0038", name: "Zebra ZT411", type: "Printer", user: "Dodi Firmansyah", department: "Warehouse", status: "Under Repair", health: 54 },
-  { code: "AST-AP-0047", name: "UniFi U6 Enterprise", type: "Access Point", user: "Meeting Room L3", department: "General", status: "Active", health: 83 },
-];

@@ -10,13 +10,16 @@ import {
   Gauge,
   HardDriveDownload,
   FileBarChart,
+  LogOut,
   Menu,
   Search,
   Server,
   TicketCheck,
+  UserCog,
   X,
 } from "lucide-react";
 import { useState } from "react";
+import { logoutAction } from "@/app/login/actions";
 
 const navigationBase = [
   { label: "Overview", href: "/", icon: Gauge },
@@ -27,9 +30,29 @@ const navigationBase = [
   { label: "Reports", href: "/reports", icon: FileBarChart },
 ];
 
-export function AppShell({ children, counts }: { children: React.ReactNode; counts: { issues: number; backups: number } }) {
+export function AppShell({
+  children,
+  counts,
+  user,
+}: {
+  children: React.ReactNode;
+  counts: { issues: number; backups: number };
+  user: {
+    name: string;
+    username: string;
+    role: "administrator" | "boss";
+  };
+}) {
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const roleLabel = user.role === "administrator" ? "Administrator" : "Boss";
+  const initials = user.name
+    .split(" ")
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join("")
+    .toUpperCase();
   const navigation = navigationBase.map((item) => ({
     ...item,
     count: item.href === "/troubleshooting" ? counts.issues : item.href === "/backups" ? counts.backups : undefined,
@@ -78,11 +101,28 @@ export function AppShell({ children, counts }: { children: React.ReactNode; coun
               <Bell size={17} />
               <span className="absolute right-1.5 top-1.5 size-2 rounded-full border-2 border-white bg-rose-500" />
             </button>
-            <button className="hidden items-center gap-2 rounded-xl border border-slate-200 py-1 pl-1 pr-2.5 text-left hover:bg-slate-50 sm:flex">
-              <span className="grid size-7 place-items-center rounded-lg bg-gradient-to-br from-[#3157d5] to-[#7690ee] text-[9px] font-bold text-white">IT</span>
-              <span><span className="block text-[10px] font-semibold leading-3 text-slate-800">IT Team</span><span className="block text-[9px] text-slate-400">Workspace</span></span>
-              <ChevronDown size={13} className="text-slate-400" />
-            </button>
+            <div className="relative hidden sm:block">
+              <button
+                onClick={() => setUserMenuOpen((open) => !open)}
+                className="flex items-center gap-2 rounded-xl border border-slate-200 py-1 pl-1 pr-2.5 text-left hover:bg-slate-50"
+                aria-expanded={userMenuOpen}
+                aria-haspopup="menu"
+              >
+                <span className="grid size-7 place-items-center rounded-lg bg-gradient-to-br from-[#3157d5] to-[#7690ee] text-[9px] font-bold text-white">{initials}</span>
+                <span><span className="block max-w-28 truncate text-[10px] font-semibold leading-3 text-slate-800">{user.name}</span><span className="block text-[9px] text-slate-400">{roleLabel}</span></span>
+                <ChevronDown size={13} className={`text-slate-400 transition ${userMenuOpen ? "rotate-180" : ""}`} />
+              </button>
+              {userMenuOpen ? (
+                <div className="absolute right-0 top-12 z-50 w-56 rounded-xl border border-slate-200 bg-white p-2 shadow-xl" role="menu">
+                  {user.role === "administrator" ? <Link href="/accounts" onClick={() => setUserMenuOpen(false)} className="mt-1 flex h-10 items-center gap-2.5 rounded-lg px-3 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 hover:text-[#3157d5]" role="menuitem"><UserCog size={15} /> Account</Link> : null}
+                  <form action={logoutAction}>
+                    <button type="submit" className="mt-1 flex h-10 w-full items-center gap-2.5 rounded-lg px-3 text-xs font-semibold text-rose-600 transition hover:bg-rose-50" role="menuitem">
+                      <LogOut size={15} /> Logout
+                    </button>
+                  </form>
+                </div>
+              ) : null}
+            </div>
             <button onClick={() => setMenuOpen((open) => !open)} className="grid size-9 place-items-center rounded-xl border border-slate-200 text-slate-600 xl:hidden" aria-label={menuOpen ? "Close menu" : "Open menu"} aria-expanded={menuOpen}>
               {menuOpen ? <X size={18} /> : <Menu size={18} />}
             </button>
@@ -97,6 +137,10 @@ export function AppShell({ children, counts }: { children: React.ReactNode; coun
                 const Icon = item.icon;
                 return <Link key={item.href} href={item.href} onClick={() => setMenuOpen(false)} className={`flex h-11 items-center gap-3 rounded-xl px-3 text-xs font-semibold ${active ? "bg-blue-50 text-[#3157d5]" : "text-slate-600 hover:bg-slate-50"}`}><Icon size={17} /><span className="flex-1">{item.label}</span>{item.count ? <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[9px]">{item.count}</span> : null}</Link>;
               })}
+              {user.role === "administrator" ? <Link href="/accounts" onClick={() => setMenuOpen(false)} className="flex h-11 items-center gap-3 rounded-xl px-3 text-xs font-semibold text-slate-600 hover:bg-slate-50 sm:hidden"><UserCog size={17} /><span>Account Management</span></Link> : null}
+              <form action={logoutAction} className="sm:hidden">
+                <button type="submit" className="flex h-11 w-full items-center gap-3 rounded-xl px-3 text-xs font-semibold text-rose-600 hover:bg-rose-50"><LogOut size={17} /><span>Logout</span></button>
+              </form>
             </div>
           </nav>
         ) : null}

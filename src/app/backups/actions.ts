@@ -4,6 +4,7 @@ import { randomInt } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
+import { requireAdministrator } from "@/auth/session";
 import { db } from "@/db";
 import { auditLogs, backupUsers } from "@/db/schema";
 import type { ActionResult, BackupStatus } from "@/data/types";
@@ -25,6 +26,7 @@ function nextBackupId() {
 export async function saveBackupAction(
   formData: FormData,
 ): Promise<ActionResult<{ id: string }>> {
+  const currentUser = await requireAdministrator();
   try {
     const id = value(formData, "id", 32, false) || nextBackupId();
     const fullName = value(formData, "user", 120);
@@ -65,7 +67,7 @@ export async function saveBackupAction(
     }
     await db.insert(auditLogs).values({
       actorType: "technician",
-      actorId: "internal-application",
+      actorId: currentUser.id,
       action: existing ? "backup_user.updated" : "backup_user.created",
       entityType: "backup_user",
       entityId: id,
@@ -83,6 +85,7 @@ export async function saveBackupAction(
 }
 
 export async function deleteBackupAction(id: string): Promise<ActionResult> {
+  const currentUser = await requireAdministrator();
   try {
     if (!/^BKU-[0-9]{4}-[0-9]{4,6}$/.test(id)) throw new Error("Invalid ID.");
     const [deleted] = await db
@@ -92,7 +95,7 @@ export async function deleteBackupAction(id: string): Promise<ActionResult> {
     if (!deleted) throw new Error("Backup record was not found.");
     await db.insert(auditLogs).values({
       actorType: "technician",
-      actorId: "internal-application",
+      actorId: currentUser.id,
       action: "backup_user.deleted",
       entityType: "backup_user",
       entityId: id,

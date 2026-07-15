@@ -1,10 +1,9 @@
 import "dotenv/config";
 
-import { assets, backupJobs, servers, tickets } from "../data/mock-data";
+import { backupJobs, servers, tickets } from "../data/mock-data";
 import { db, pool } from "./connection";
 import {
   backupUsers,
-  itAssets,
   monitoredServers,
   surveyResponses,
   technicians,
@@ -19,7 +18,6 @@ async function seed() {
     .values({
       id: technicianId,
       name: "IT Team",
-      email: "it.team@example.com",
       role: "administrator",
     })
     .onConflictDoNothing();
@@ -82,21 +80,6 @@ async function seed() {
         memoryPercent: server.memory,
         diskPercent: server.disk,
         uptimeDays: Number.parseInt(server.uptime, 10),
-      })),
-    )
-    .onConflictDoNothing();
-
-  await db
-    .insert(itAssets)
-    .values(
-      assets.map((asset) => ({
-        code: asset.code,
-        name: asset.name,
-        type: asset.type,
-        assignedTo: asset.user,
-        department: asset.department,
-        status: asset.status as "Active" | "Under Repair" | "Inactive",
-        healthPercent: asset.health,
       })),
     )
     .onConflictDoNothing();

@@ -16,8 +16,8 @@ import {
 } from "drizzle-orm/pg-core";
 
 export const technicianRoleEnum = pgEnum("technician_role", [
-  "technician",
   "administrator",
+  "boss",
 ]);
 
 export const issuePriorityEnum = pgEnum("issue_priority", [
@@ -61,20 +61,17 @@ export const serverStatusEnum = pgEnum("server_status", [
   "Critical",
 ]);
 
-export const assetStatusEnum = pgEnum("asset_status", [
-  "Active",
-  "Under Repair",
-  "Inactive",
-]);
-
 export const technicians = pgTable(
   "technicians",
   {
     id: uuid("id").defaultRandom().primaryKey(),
     name: varchar("name", { length: 120 }).notNull(),
-    email: varchar("email", { length: 254 }).notNull(),
-    role: technicianRoleEnum("role").notNull().default("technician"),
+    username: varchar("username", { length: 80 }),
+    passwordHash: text("password_hash"),
+    role: technicianRoleEnum("role").notNull().default("boss"),
     isActive: boolean("is_active").notNull().default(true),
+    failedLoginAttempts: integer("failed_login_attempts").notNull().default(0),
+    lockedUntil: timestamp("locked_until", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -83,7 +80,41 @@ export const technicians = pgTable(
       .defaultNow(),
   },
   (table) => [
-    uniqueIndex("technicians_email_unique").on(table.email),
+    uniqueIndex("technicians_username_unique").on(table.username),
+    check(
+      "technicians_failed_login_attempts_check",
+      sql`${table.failedLoginAttempts} >= 0`,
+    ),
+  ],
+);
+
+export const authSessions = pgTable(
+  "auth_sessions",
+  {
+    // Only the SHA-256 hash is stored. The raw session token stays in the cookie.
+    tokenHash: varchar("token_hash", { length: 64 }).primaryKey(),
+    technicianId: uuid("technician_id")
+      .notNull()
+      .references(() => technicians.id, { onDelete: "cascade" }),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    lastUsedAt: timestamp("last_used_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("auth_sessions_technician_idx").on(table.technicianId),
+    index("auth_sessions_expires_at_idx").on(table.expiresAt),
+    check(
+      "auth_sessions_token_hash_format_check",
+      sql`${table.tokenHash} ~ '^[0-9a-f]{64}$'`,
+    ),
+    check(
+      "auth_sessions_expiry_check",
+      sql`${table.expiresAt} > ${table.createdAt}`,
+    ),
   ],
 );
 
@@ -259,33 +290,6 @@ export const monitoredServers = pgTable(
   ],
 );
 
-export const itAssets = pgTable(
-  "it_assets",
-  {
-    code: varchar("code", { length: 40 }).primaryKey(),
-    name: varchar("name", { length: 180 }).notNull(),
-    type: varchar("type", { length: 80 }).notNull(),
-    assignedTo: varchar("assigned_to", { length: 120 }).notNull(),
-    department: varchar("department", { length: 120 }).notNull(),
-    status: assetStatusEnum("status").notNull().default("Active"),
-    healthPercent: integer("health_percent").notNull().default(100),
-    createdAt: timestamp("created_at", { withTimezone: true })
-      .notNull()
-      .defaultNow(),
-    updatedAt: timestamp("updated_at", { withTimezone: true })
-      .notNull()
-      .defaultNow(),
-  },
-  (table) => [
-    index("it_assets_status_idx").on(table.status),
-    index("it_assets_department_idx").on(table.department),
-    check(
-      "it_assets_health_check",
-      sql`${table.healthPercent} between 0 and 100`,
-    ),
-  ],
-);
-
 export const surveyResponses = pgTable(
   "survey_responses",
   {
@@ -308,6 +312,7 @@ export const surveyResponses = pgTable(
 
 export type Technician = typeof technicians.$inferSelect;
 export type NewTechnician = typeof technicians.$inferInsert;
+export type AuthSession = typeof authSessions.$inferSelect;
 export type TroubleshootingIssue = typeof troubleshootingIssues.$inferSelect;
 export type NewTroubleshootingIssue = typeof troubleshootingIssues.$inferInsert;
 export type TroubleshootingApproval =
@@ -317,5 +322,4 @@ export type NewTroubleshootingApproval =
 export type BackupUser = typeof backupUsers.$inferSelect;
 export type NewBackupUser = typeof backupUsers.$inferInsert;
 export type MonitoredServer = typeof monitoredServers.$inferSelect;
-export type ItAsset = typeof itAssets.$inferSelect;
 export type SurveyResponse = typeof surveyResponses.$inferSelect;

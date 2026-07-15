@@ -39,7 +39,7 @@ function statusTone(status: string): "green" | "amber" | "red" | "gray" {
 
 function AccountDataIndicator({ record }: { record: BackupRecord }) {
   const complete = Boolean(
-    record.username.trim() && record.passwordInformation.trim(),
+    record.username.trim() && record.hasPasswordInformation,
   );
 
   return complete ? (
@@ -55,7 +55,7 @@ function AccountDataIndicator({ record }: { record: BackupRecord }) {
   );
 }
 
-export function BackupUserList({ initialRecords }: { initialRecords: BackupRecord[] }) {
+export function BackupUserList({ initialRecords, canManage }: { initialRecords: BackupRecord[]; canManage: boolean }) {
   const router = useRouter();
   const backupRecords = initialRecords;
   const [query, setQuery] = useState("");
@@ -126,7 +126,7 @@ export function BackupUserList({ initialRecords }: { initialRecords: BackupRecor
           <label className="relative max-w-md flex-1"><Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={16} /><input value={query} onChange={(event) => setQuery(event.target.value)} className="h-10 w-full rounded-xl border border-slate-200 bg-white pl-10 pr-3 text-xs outline-none" placeholder="Search user or sync path..." /></label>
           <label className="relative"><Filter className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={15} /><select value={status} onChange={(event) => setStatus(event.target.value)} className="h-10 w-full min-w-40 appearance-none rounded-xl border border-slate-200 bg-white pl-9 pr-8 text-xs text-slate-600 outline-none sm:w-auto"><option>All Status</option><option>Success</option><option>Overdue</option><option>Failed</option><option>Pending</option></select></label>
         </div>
-        <button onClick={() => openForm("create")} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-[#3157d5] px-4 text-xs font-semibold text-white shadow-lg shadow-blue-600/15 hover:bg-[#2445b5]"><Plus size={16} /> Add Record</button>
+        {canManage ? <button onClick={() => openForm("create")} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-[#3157d5] px-4 text-xs font-semibold text-white shadow-lg shadow-blue-600/15 hover:bg-[#2445b5]"><Plus size={16} /> Add Record</button> : null}
       </div>
 
       <Card className="overflow-hidden">
@@ -144,10 +144,9 @@ export function BackupUserList({ initialRecords }: { initialRecords: BackupRecor
                 <div><p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Last Backup</p><p className="mt-1.5 text-[11px] font-medium text-slate-700">{record.lastBackup}</p></div>
                 <div className="flex items-center justify-between rounded-xl border border-slate-100 px-3 py-2"><p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Account Data</p><AccountDataIndicator record={record} /></div>
               </div>
-              <div className="mt-4 grid grid-cols-3 gap-2 border-t border-slate-100 pt-4">
+              <div className={`mt-4 gap-2 border-t border-slate-100 pt-4 ${canManage ? "grid grid-cols-3" : "flex"}`}>
                 <button onClick={() => setDetailRecord(record)} className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-[#3157d5] px-2 text-[10px] font-semibold text-white" aria-label={`View details ${record.user}`}><Eye size={13} /> Detail</button>
-                <button onClick={() => openForm("edit", record)} className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-amber-500 px-2 text-[10px] font-semibold text-white" aria-label={`Edit ${record.user}`}><Pencil size={13} /> Edit</button>
-                <button onClick={() => setPendingDelete(record)} className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-rose-600 px-2 text-[10px] font-semibold text-white" aria-label={`Delete ${record.user}`}><Trash2 size={13} /> Delete</button>
+                {canManage ? <><button onClick={() => openForm("edit", record)} className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-amber-500 px-2 text-[10px] font-semibold text-white" aria-label={`Edit ${record.user}`}><Pencil size={13} /> Edit</button><button onClick={() => setPendingDelete(record)} className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-rose-600 px-2 text-[10px] font-semibold text-white" aria-label={`Delete ${record.user}`}><Trash2 size={13} /> Delete</button></> : null}
               </div>
             </article>
           ))}
@@ -165,7 +164,7 @@ export function BackupUserList({ initialRecords }: { initialRecords: BackupRecor
                   <td className="px-4 py-4 text-[11px] text-slate-600">{record.lastBackup}</td>
                   <td className="px-4 py-4"><StatusBadge tone={statusTone(record.status)}>{record.status}</StatusBadge></td>
                   <td className="px-4 py-4"><div className="flex justify-center"><AccountDataIndicator record={record} /></div></td>
-                  <td className="px-5 py-4"><div className="flex justify-center gap-2"><button onClick={() => setDetailRecord(record)} className="grid size-8 place-items-center rounded-lg bg-[#3157d5] text-white shadow-sm transition hover:bg-[#2445b5]" aria-label={`View details ${record.user}`} title="Detail"><Eye size={14} /></button><button onClick={() => openForm("edit", record)} className="grid size-8 place-items-center rounded-lg bg-amber-500 text-white shadow-sm transition hover:bg-amber-600" aria-label={`Edit ${record.user}`} title="Edit"><Pencil size={14} /></button><button onClick={() => setPendingDelete(record)} className="grid size-8 place-items-center rounded-lg bg-rose-600 text-white shadow-sm transition hover:bg-rose-700" aria-label={`Delete ${record.user}`} title="Delete"><Trash2 size={14} /></button></div></td>
+                  <td className="px-5 py-4"><div className="flex justify-center gap-2"><button onClick={() => setDetailRecord(record)} className="grid size-8 place-items-center rounded-lg bg-[#3157d5] text-white shadow-sm transition hover:bg-[#2445b5]" aria-label={`View details ${record.user}`} title="Detail"><Eye size={14} /></button>{canManage ? <><button onClick={() => openForm("edit", record)} className="grid size-8 place-items-center rounded-lg bg-amber-500 text-white shadow-sm transition hover:bg-amber-600" aria-label={`Edit ${record.user}`} title="Edit"><Pencil size={14} /></button><button onClick={() => setPendingDelete(record)} className="grid size-8 place-items-center rounded-lg bg-rose-600 text-white shadow-sm transition hover:bg-rose-700" aria-label={`Delete ${record.user}`} title="Delete"><Trash2 size={14} /></button></> : null}</div></td>
                 </tr>
               ))}
             </tbody>
@@ -187,7 +186,7 @@ export function BackupUserList({ initialRecords }: { initialRecords: BackupRecor
                   <div><dt className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">User</dt><dd className="mt-1 font-medium text-slate-800">{detailRecord.user}</dd></div>
                   <div><dt className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Username</dt><dd className="mt-1 font-medium text-slate-800">{detailRecord.username}</dd></div>
                   <div><dt className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Email</dt><dd className="mt-1 break-all font-medium text-slate-800">{detailRecord.email}</dd></div>
-                  <div><dt className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Password Information</dt><dd className="mt-1 whitespace-pre-wrap break-words font-medium text-slate-800">{detailRecord.passwordInformation || "Not available"}</dd></div>
+                  <div><dt className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Password Information</dt><dd className="mt-1 whitespace-pre-wrap break-words font-medium text-slate-800">{canManage ? (detailRecord.passwordInformation || "Not available") : detailRecord.hasPasswordInformation ? "Available — restricted to administrator" : "Not available"}</dd></div>
                 </dl>
               </section>
               <section className="mt-8" aria-labelledby="backup-information-title">

@@ -30,10 +30,23 @@ export interface BackupRecord {
   username: string;
   email: string;
   passwordInformation: string;
+  hasPasswordInformation: boolean;
   syncPath: string;
   lastBackup: string;
   lastBackupIso: string;
   status: BackupStatus;
+}
+
+export type AccountRole = "administrator" | "boss";
+
+export interface AccountRecord {
+  id: string;
+  name: string;
+  username: string;
+  role: AccountRole;
+  isActive: boolean;
+  isLocked: boolean;
+  createdAt: string;
 }
 
 export interface ServerRecord {
@@ -45,16 +58,6 @@ export interface ServerRecord {
   memory: number;
   disk: number;
   uptime: string;
-}
-
-export interface AssetRecord {
-  code: string;
-  name: string;
-  type: string;
-  user: string;
-  department: string;
-  status: "Active" | "Under Repair" | "Inactive";
-  health: number;
 }
 
 export interface SurveyRecord {

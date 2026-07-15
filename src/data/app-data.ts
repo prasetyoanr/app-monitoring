@@ -3,17 +3,16 @@ import "server-only";
 import { createHash } from "node:crypto";
 import { count, desc, eq } from "drizzle-orm";
 
+import { requireAuthenticatedUser } from "@/auth/session";
 import { db } from "@/db";
 import {
   backupUsers,
-  itAssets,
   monitoredServers,
   surveyResponses,
   troubleshootingApprovals,
   troubleshootingIssues,
 } from "@/db/schema";
 import type {
-  AssetRecord,
   BackupRecord,
   ServerRecord,
   SurveyRecord,
@@ -70,13 +69,19 @@ function toTicketRecord(
   };
 }
 
-function toBackupRecord(row: typeof backupUsers.$inferSelect): BackupRecord {
+function toBackupRecord(
+  row: typeof backupUsers.$inferSelect,
+  includeSensitiveInformation: boolean,
+): BackupRecord {
   return {
     id: row.id,
     user: row.fullName,
     username: row.username ?? "",
     email: row.email ?? "",
-    passwordInformation: row.passwordInformation ?? "",
+    passwordInformation: includeSensitiveInformation
+      ? (row.passwordInformation ?? "")
+      : "",
+    hasPasswordInformation: Boolean(row.passwordInformation?.trim()),
     syncPath: row.syncPath,
     lastBackup: row.lastBackupAt
       ? jakartaDateTime.format(row.lastBackupAt).replace(",", "")
@@ -87,6 +92,7 @@ function toBackupRecord(row: typeof backupUsers.$inferSelect): BackupRecord {
 }
 
 export async function getTicketRecords(): Promise<TicketRecord[]> {
+  await requireAuthenticatedUser();
   const rows = await db
     .select()
     .from(troubleshootingIssues)
@@ -95,14 +101,18 @@ export async function getTicketRecords(): Promise<TicketRecord[]> {
 }
 
 export async function getBackupRecords(): Promise<BackupRecord[]> {
+  const currentUser = await requireAuthenticatedUser();
   const rows = await db
     .select()
     .from(backupUsers)
     .orderBy(desc(backupUsers.lastBackupAt), desc(backupUsers.id));
-  return rows.map(toBackupRecord);
+  return rows.map((row) =>
+    toBackupRecord(row, currentUser.role === "administrator"),
+  );
 }
 
 export async function getNavigationCounts() {
+  await requireAuthenticatedUser();
   const [[issues], [backups]] = await Promise.all([
     db.select({ value: count() }).from(troubleshootingIssues),
     db.select({ value: count() }).from(backupUsers),
@@ -111,6 +121,7 @@ export async function getNavigationCounts() {
 }
 
 export async function getServerRecords(): Promise<ServerRecord[]> {
+  await requireAuthenticatedUser();
   const rows = await db
     .select()
     .from(monitoredServers)
@@ -127,20 +138,8 @@ export async function getServerRecords(): Promise<ServerRecord[]> {
   }));
 }
 
-export async function getAssetRecords(): Promise<AssetRecord[]> {
-  const rows = await db.select().from(itAssets).orderBy(itAssets.code);
-  return rows.map((row) => ({
-    code: row.code,
-    name: row.name,
-    type: row.type,
-    user: row.assignedTo,
-    department: row.department,
-    status: row.status,
-    health: row.healthPercent,
-  }));
-}
-
 export async function getSurveyRecords(): Promise<SurveyRecord[]> {
+  await requireAuthenticatedUser();
   const rows = await db
     .select()
     .from(surveyResponses)

@@ -4,6 +4,7 @@ import { createHash, randomBytes, randomInt } from "node:crypto";
 import { and, eq, gt } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
+import { requireAdministrator } from "@/auth/session";
 import { db } from "@/db";
 import {
   auditLogs,
@@ -45,6 +46,7 @@ function nextIssueId() {
 export async function saveIssueAction(
   formData: FormData,
 ): Promise<ActionResult<{ id: string }>> {
+  const currentUser = await requireAdministrator();
   try {
     const id = optionalField(formData, "id", 32) || nextIssueId();
     const title = field(formData, "title", 200);
@@ -104,7 +106,7 @@ export async function saveIssueAction(
 
     await db.insert(auditLogs).values({
       actorType: "technician",
-      actorId: "internal-application",
+      actorId: currentUser.id,
       action: existing ? "issue.updated" : "issue.created",
       entityType: "troubleshooting_issue",
       entityId: id,
@@ -123,6 +125,7 @@ export async function saveIssueAction(
 }
 
 export async function deleteIssueAction(id: string): Promise<ActionResult> {
+  const currentUser = await requireAdministrator();
   try {
     if (!/^INC-[0-9]{4}-[0-9]{4,6}$/.test(id)) throw new Error("Invalid issue ID.");
     const [deleted] = await db
@@ -132,7 +135,7 @@ export async function deleteIssueAction(id: string): Promise<ActionResult> {
     if (!deleted) throw new Error("Issue was not found.");
     await db.insert(auditLogs).values({
       actorType: "technician",
-      actorId: "internal-application",
+      actorId: currentUser.id,
       action: "issue.deleted",
       entityType: "troubleshooting_issue",
       entityId: id,
@@ -150,6 +153,7 @@ export async function deleteIssueAction(id: string): Promise<ActionResult> {
 export async function requestApprovalAction(
   issueId: string,
 ): Promise<ActionResult<{ token: string; expiresAt: string }>> {
+  const currentUser = await requireAdministrator();
   try {
     const [issue] = await db
       .select({ status: troubleshootingIssues.status, resolution: troubleshootingIssues.resolution })
@@ -175,12 +179,13 @@ export async function requestApprovalAction(
         );
       await tx.insert(troubleshootingApprovals).values({
         issueId,
+        requestedByTechnicianId: currentUser.id,
         tokenHash,
         expiresAt,
       });
       await tx.insert(auditLogs).values({
         actorType: "technician",
-        actorId: "internal-application",
+        actorId: currentUser.id,
         action: "approval.requested",
         entityType: "troubleshooting_issue",
         entityId: issueId,

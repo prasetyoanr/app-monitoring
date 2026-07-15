@@ -24,7 +24,19 @@ The application uses Drizzle ORM with PostgreSQL through `node-postgres`.
    bun run db:seed
    ```
 
-6. Optionally inspect the database:
+6. Create or reset the administrator login. Without an argument, this command
+   generates a strong temporary password and prints it once:
+
+   ```bash
+   bun run db:create-admin
+   ```
+
+   To supply the password without committing it, set
+   `INITIAL_ADMIN_PASSWORD` in the server environment before running the
+   command. The password must contain 6 to 128 characters, including at least
+   one letter and one number. A longer password is strongly recommended.
+
+7. Optionally inspect the database:
 
    ```bash
    bun run db:studio
@@ -34,6 +46,11 @@ The application uses Drizzle ORM with PostgreSQL through `node-postgres`.
 
 - QR approval URLs must contain a random, short-lived token. Only its SHA-256
   hash is stored in `troubleshooting_approvals`.
+- Login passwords use Node.js scrypt with an individual random salt. Plaintext
+  login passwords are never stored in PostgreSQL.
+- Login sessions expire after eight hours. Only a SHA-256 hash of the random
+  session token is stored in PostgreSQL; the browser cookie is HttpOnly,
+  SameSite=Lax, and Secure in production.
 - Client signatures are stored as binary data so they can be included in the
   exported troubleshooting document.
 - Backup password information is operational descriptive text, not an
