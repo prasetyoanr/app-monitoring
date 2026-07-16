@@ -49,6 +49,39 @@ export const backupStatusEnum = pgEnum("backup_status", [
   "Pending",
 ]);
 
+export const backupInvitationStatusEnum = pgEnum(
+  "backup_invitation_status",
+  ["pending", "submitted", "expired", "revoked"],
+);
+
+export const masterDivisions = pgTable(
+  "master_divisions",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    name: varchar("name", { length: 120 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("master_divisions_name_unique").on(sql`lower(${table.name})`),
+  ],
+);
+
+export const masterLocations = pgTable(
+  "master_locations",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    name: varchar("name", { length: 120 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("master_locations_name_unique").on(sql`lower(${table.name})`),
+  ],
+);
+
 export const auditActorTypeEnum = pgEnum("audit_actor_type", [
   "technician",
   "client",
@@ -221,6 +254,9 @@ export const backupUsers = pgTable(
   {
     id: varchar("id", { length: 32 }).primaryKey(),
     fullName: varchar("full_name", { length: 120 }).notNull(),
+    division: varchar("division", { length: 120 })
+      .notNull()
+      .default("Unassigned"),
     username: varchar("username", { length: 120 }),
     email: varchar("email", { length: 254 }),
     // Operational text for backup needs, not an application login credential.
@@ -238,6 +274,47 @@ export const backupUsers = pgTable(
   (table) => [
     index("backup_users_status_idx").on(table.status),
     index("backup_users_last_backup_at_idx").on(table.lastBackupAt),
+  ],
+);
+
+export const backupUserInvitations = pgTable(
+  "backup_user_invitations",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    // Only the SHA-256 hash is stored. The raw invitation token stays in the link.
+    tokenHash: varchar("token_hash", { length: 64 }).notNull(),
+    status: backupInvitationStatusEnum("status").notNull().default("pending"),
+    createdByTechnicianId: uuid("created_by_technician_id").references(
+      () => technicians.id,
+      { onDelete: "set null" },
+    ),
+    backupUserId: varchar("backup_user_id", { length: 32 }).references(
+      () => backupUsers.id,
+      { onDelete: "set null" },
+    ),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    submittedAt: timestamp("submitted_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("backup_user_invitations_token_hash_unique").on(
+      table.tokenHash,
+    ),
+    index("backup_user_invitations_status_expiry_idx").on(
+      table.status,
+      table.expiresAt,
+    ),
+    index("backup_user_invitations_backup_user_idx").on(table.backupUserId),
+    check(
+      "backup_user_invitations_token_hash_format_check",
+      sql`${table.tokenHash} ~ '^[0-9a-f]{64}$'`,
+    ),
+    check(
+      "backup_user_invitations_expiry_check",
+      sql`${table.expiresAt} > ${table.createdAt}`,
+    ),
   ],
 );
 
@@ -309,17 +386,3 @@ export const surveyResponses = pgTable(
     check("survey_responses_score_check", sql`${table.score} between 1 and 5`),
   ],
 );
-
-export type Technician = typeof technicians.$inferSelect;
-export type NewTechnician = typeof technicians.$inferInsert;
-export type AuthSession = typeof authSessions.$inferSelect;
-export type TroubleshootingIssue = typeof troubleshootingIssues.$inferSelect;
-export type NewTroubleshootingIssue = typeof troubleshootingIssues.$inferInsert;
-export type TroubleshootingApproval =
-  typeof troubleshootingApprovals.$inferSelect;
-export type NewTroubleshootingApproval =
-  typeof troubleshootingApprovals.$inferInsert;
-export type BackupUser = typeof backupUsers.$inferSelect;
-export type NewBackupUser = typeof backupUsers.$inferInsert;
-export type MonitoredServer = typeof monitoredServers.$inferSelect;
-export type SurveyResponse = typeof surveyResponses.$inferSelect;

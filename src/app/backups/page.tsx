@@ -1,19 +1,20 @@
 import type { Metadata } from "next";
 import { requireAuthenticatedUser } from "@/auth/session";
 import { BackupUserList } from "@/components/backup-user-list";
-import { PageHeader } from "@/components/ui";
 import { getBackupRecords } from "@/data/app-data";
+import { getDivisionOptions } from "@/data/master-data";
 
 export const metadata: Metadata = { title: "Backup User" };
 
 export default async function BackupsPage() {
-  const [records, currentUser] = await Promise.all([
+  const [records, currentUser, divisionOptions] = await Promise.all([
     getBackupRecords(),
     requireAuthenticatedUser(),
+    getDivisionOptions(),
   ]);
   return (
     <>
-      <BackupUserList initialRecords={records} canManage={currentUser.role === "administrator"} />
+      <BackupUserList initialRecords={records} canManage={currentUser.role === "administrator"} divisionOptions={divisionOptions} />
     </>
   );
 }

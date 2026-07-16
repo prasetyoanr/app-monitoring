@@ -189,7 +189,6 @@ export function ClientSignatureApproval({ approval }: { approval: ApprovalRecord
 
       addField("Issue", ticket.title);
       addField("Reporter", `${ticket.requester} - ${ticket.division} - ${ticket.location}`);
-      addField("Resolution Summary", ticket.resolution);
 
       y += 2;
       document.setFont("helvetica", "bold");
@@ -254,7 +253,7 @@ export function ClientSignatureApproval({ approval }: { approval: ApprovalRecord
   return (
     <main className="min-h-screen bg-slate-50 pb-8">
       <div className="bg-[#14213d] px-4 pb-10 pt-6 text-white">
-        <div className="mx-auto max-w-md"><div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-blue-200"><ShieldCheck size={15} /> Client Confirmation</div><h1 className="mt-3 text-2xl font-bold tracking-tight">Confirm IT work completion</h1><p className="mt-2 text-xs leading-5 text-slate-300">Review the work summary before submitting your decision.</p></div>
+        <div className="mx-auto max-w-md"><div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-blue-200"><ShieldCheck size={15} /> Client Confirmation</div><h1 className="mt-3 text-2xl font-bold tracking-tight">Confirm IT work completion</h1><p className="mt-2 text-xs leading-5 text-slate-300">Review the issue information before submitting your decision.</p></div>
       </div>
 
       <div className="mx-auto -mt-5 max-w-md px-4">
@@ -263,10 +262,9 @@ export function ClientSignatureApproval({ approval }: { approval: ApprovalRecord
 
           {view === "approval" ? (
             <form onSubmit={approve} className="space-y-5 p-5">
-              <div><h3 className="text-xs font-bold text-slate-900">Work Summary</h3><p className="mt-2 rounded-xl bg-slate-50 p-3 text-xs leading-6 text-slate-600">{ticket.resolution}</p></div>
               <label className="block text-[11px] font-semibold text-slate-600">Client Name<input value={clientName} onChange={(event) => setClientName(event.target.value)} required className="mt-1.5 h-11 w-full rounded-xl border border-slate-200 px-3 text-sm outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-100" /></label>
               <div><div className="flex items-center justify-between"><label className="text-[11px] font-semibold text-slate-600" htmlFor="client-signature">Signature</label><button type="button" onClick={clearSignature} className="inline-flex items-center gap-1 text-[10px] font-semibold text-slate-500"><Eraser size={13} /> Clear</button></div><canvas ref={canvasRef} id="client-signature" onPointerDown={startDrawing} onPointerMove={draw} onPointerUp={stopDrawing} onPointerCancel={stopDrawing} onPointerLeave={stopDrawing} className="mt-1.5 h-[180px] w-full touch-none rounded-xl border border-dashed border-slate-300 bg-slate-50" aria-label="Signature area" /><p className="mt-2 text-[10px] text-slate-400">Use your finger or a stylus in the area above.</p>{signatureError ? <p className="mt-2 text-[10px] font-semibold text-rose-600">{signatureError}</p> : null}</div>
-              <p className="rounded-xl bg-blue-50 p-3 text-[10px] leading-5 text-blue-700">By signing, I confirm that the work above has been inspected and completed.</p>
+              <p className="rounded-xl bg-blue-50 p-3 text-[10px] leading-5 text-blue-700">By signing, I confirm that the troubleshooting work has been inspected and completed.</p>
               <div className="grid gap-2"><button disabled={submitting} type="submit" className="inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-[#3157d5] text-sm font-semibold text-white shadow-lg shadow-blue-600/20 disabled:bg-slate-300"><CheckCircle2 size={17} /> {submitting ? "Submitting..." : "Approve & Sign"}</button><button disabled={submitting} type="button" onClick={() => setView("reject")} className="h-11 rounded-xl border border-slate-200 text-xs font-semibold text-slate-600">Work is not complete</button></div>
             </form>
           ) : (

@@ -1,6 +1,6 @@
 "use server";
 
-import { createHash, randomBytes, randomInt } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { and, eq, gt } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
@@ -16,6 +16,7 @@ import type {
   IssuePriority,
   IssueStatus,
 } from "@/data/types";
+import { generateRecordId } from "@/lib/record-id";
 
 const priorities: IssuePriority[] = ["Low", "Medium", "High", "Critical"];
 const editableStatuses: IssueStatus[] = [
@@ -39,8 +40,17 @@ function optionalField(formData: FormData, name: string, maxLength: number) {
   return value;
 }
 
-function nextIssueId() {
-  return `INC-${new Date().getFullYear()}-${String(randomInt(0, 1_000_000)).padStart(6, "0")}`;
+async function nextIssueId() {
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    const id = generateRecordId("TR");
+    const [existing] = await db
+      .select({ id: troubleshootingIssues.id })
+      .from(troubleshootingIssues)
+      .where(eq(troubleshootingIssues.id, id))
+      .limit(1);
+    if (!existing) return id;
+  }
+  throw new Error("Unable to generate a unique troubleshooting ID.");
 }
 
 export async function saveIssueAction(
@@ -48,14 +58,13 @@ export async function saveIssueAction(
 ): Promise<ActionResult<{ id: string }>> {
   const currentUser = await requireAdministrator();
   try {
-    const id = optionalField(formData, "id", 32) || nextIssueId();
+    const id = optionalField(formData, "id", 32) || (await nextIssueId());
     const title = field(formData, "title", 200);
     const requesterName = field(formData, "requester", 120);
     const division = field(formData, "division", 120);
     const location = field(formData, "location", 160);
     const category = field(formData, "category", 80);
     const description = field(formData, "description", 10_000);
-    const resolution = optionalField(formData, "resolution", 10_000);
     const reportedDate = field(formData, "reportedDate", 10);
     const priority = field(formData, "priority", 20) as IssuePriority;
     const requestedStatus = field(formData, "status", 40) as IssueStatus;
@@ -73,10 +82,6 @@ export async function saveIssueAction(
     if (!editableStatuses.includes(requestedStatus) && !mayKeepCompleted) {
       throw new Error("Completed status can only be set through client approval.");
     }
-    if (requestedStatus === "Waiting for Client Approval" && !resolution) {
-      throw new Error("Resolution summary is required before client approval.");
-    }
-
     const reportedAt = new Date(`${reportedDate}T00:00:00+07:00`);
     if (Number.isNaN(reportedAt.getTime())) throw new Error("Invalid request date.");
 
@@ -87,7 +92,6 @@ export async function saveIssueAction(
       location,
       category,
       description,
-      resolution,
       reportedAt,
       priority,
       status: requestedStatus,
@@ -127,7 +131,9 @@ export async function saveIssueAction(
 export async function deleteIssueAction(id: string): Promise<ActionResult> {
   const currentUser = await requireAdministrator();
   try {
-    if (!/^INC-[0-9]{4}-[0-9]{4,6}$/.test(id)) throw new Error("Invalid issue ID.");
+    if (!/^(?:INC-[0-9]{4}-[0-9]{4,6}|TR-[0-9]{4}-[0-9]{4})$/.test(id)) {
+      throw new Error("Invalid issue ID.");
+    }
     const [deleted] = await db
       .delete(troubleshootingIssues)
       .where(eq(troubleshootingIssues.id, id))
@@ -156,11 +162,11 @@ export async function requestApprovalAction(
   const currentUser = await requireAdministrator();
   try {
     const [issue] = await db
-      .select({ status: troubleshootingIssues.status, resolution: troubleshootingIssues.resolution })
+      .select({ status: troubleshootingIssues.status })
       .from(troubleshootingIssues)
       .where(eq(troubleshootingIssues.id, issueId))
       .limit(1);
-    if (!issue || issue.status !== "Waiting for Client Approval" || !issue.resolution.trim()) {
+    if (!issue || issue.status !== "Waiting for Client Approval") {
       throw new Error("Issue is not ready for client approval.");
     }
 

@@ -4,15 +4,14 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Activity,
-  Bell,
   ChevronDown,
   ClipboardCheck,
+  Database,
   Gauge,
   HardDriveDownload,
   FileBarChart,
   LogOut,
   Menu,
-  Search,
   Server,
   TicketCheck,
   UserCog,
@@ -72,7 +71,13 @@ export function AppShell({
     count: item.href === "/troubleshooting" ? counts.issues : item.href === "/backups" ? counts.backups : undefined,
   }));
 
-  if (pathname.startsWith("/troubleshooting/approval/")) return <>{children}</>;
+  if (
+    pathname.startsWith("/b/") ||
+    pathname.startsWith("/troubleshooting/approval/") ||
+    pathname.startsWith("/backups/submit/")
+  ) {
+    return <>{children}</>;
+  }
 
   return (
     <div className="app-shell">
@@ -108,14 +113,6 @@ export function AppShell({
           </nav>
 
           <div className="ml-auto flex items-center gap-2">
-            <label className="relative hidden w-52 lg:block">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-cyan-200/70" size={15} />
-              <input className="h-10 w-full rounded-xl border border-white/10 bg-white/10 pl-9 pr-3 text-[11px] text-white outline-none placeholder:text-indigo-200/55 focus:border-cyan-300/50 focus:bg-white/15 focus:ring-4 focus:ring-cyan-300/10" placeholder="Search records..." aria-label="Global search" />
-            </label>
-            <button className="relative grid size-10 place-items-center rounded-xl border border-white/10 bg-white/10 text-indigo-100 hover:border-cyan-300/30 hover:bg-white/15 hover:text-white" aria-label="Notifications">
-              <Bell size={17} />
-              <span className="absolute right-1.5 top-1.5 size-2.5 rounded-full border-2 border-indigo-950 bg-rose-500 shadow shadow-rose-400/60" />
-            </button>
             <div ref={userMenuRef} className="relative hidden sm:block">
               <button
                 onClick={() => setUserMenuOpen((open) => !open)}
@@ -129,7 +126,7 @@ export function AppShell({
               </button>
               {userMenuOpen ? (
                 <div className="absolute right-0 top-12 z-50 w-56 overflow-hidden rounded-2xl border border-indigo-100 bg-white p-2 text-slate-700 shadow-2xl shadow-indigo-950/25" role="menu">
-              {user.role === "administrator" ? <Link href="/accounts" onClick={() => setUserMenuOpen(false)} className="mt-1 flex h-10 items-center gap-2.5 rounded-lg px-3 text-xs font-semibold text-slate-600 transition hover:bg-indigo-50 hover:text-indigo-700" role="menuitem"><UserCog size={15} /> Account</Link> : null}
+                  {user.role === "administrator" ? <><Link href="/master-data" onClick={() => setUserMenuOpen(false)} className="mt-1 flex h-10 items-center gap-2.5 rounded-lg px-3 text-xs font-semibold text-slate-600 transition hover:bg-indigo-50 hover:text-indigo-700" role="menuitem"><Database size={15} /> Master Data</Link><Link href="/accounts" onClick={() => setUserMenuOpen(false)} className="mt-1 flex h-10 items-center gap-2.5 rounded-lg px-3 text-xs font-semibold text-slate-600 transition hover:bg-indigo-50 hover:text-indigo-700" role="menuitem"><UserCog size={15} /> Account Settings</Link></> : null}
                   <form action={logoutAction}>
                     <button type="submit" className="mt-1 flex h-10 w-full items-center gap-2.5 rounded-lg px-3 text-xs font-semibold text-rose-600 transition hover:bg-rose-50" role="menuitem">
                       <LogOut size={15} /> Logout
@@ -152,7 +149,7 @@ export function AppShell({
                 const Icon = item.icon;
                 return <Link key={item.href} href={item.href} onClick={() => setMenuOpen(false)} className={`flex h-11 items-center gap-3 rounded-xl px-3 text-xs font-semibold ${active ? "bg-white text-indigo-700 shadow-lg" : "text-indigo-100/75 hover:bg-white/10 hover:text-white"}`}><Icon size={17} /><span className="flex-1">{item.label}</span>{item.count ? <span className={`rounded-md px-1.5 py-0.5 text-[9px] ${active ? "bg-indigo-100" : "bg-white/10"}`}>{item.count}</span> : null}</Link>;
               })}
-              {user.role === "administrator" ? <Link href="/accounts" onClick={() => setMenuOpen(false)} className="flex h-11 items-center gap-3 rounded-xl px-3 text-xs font-semibold text-indigo-100 hover:bg-white/10 sm:hidden"><UserCog size={17} /><span>Account Management</span></Link> : null}
+              {user.role === "administrator" ? <><Link href="/master-data" onClick={() => setMenuOpen(false)} className="flex h-11 items-center gap-3 rounded-xl px-3 text-xs font-semibold text-indigo-100 hover:bg-white/10 sm:hidden"><Database size={17} /><span>Master Data</span></Link><Link href="/accounts" onClick={() => setMenuOpen(false)} className="flex h-11 items-center gap-3 rounded-xl px-3 text-xs font-semibold text-indigo-100 hover:bg-white/10 sm:hidden"><UserCog size={17} /><span>Account Settings</span></Link></> : null}
               <form action={logoutAction} className="sm:hidden">
                 <button type="submit" className="flex h-11 w-full items-center gap-3 rounded-xl px-3 text-xs font-semibold text-rose-200 hover:bg-rose-500/10 hover:text-white"><LogOut size={17} /><span>Logout</span></button>
               </form>

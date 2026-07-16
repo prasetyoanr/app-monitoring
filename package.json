@@ -11,6 +11,7 @@
     "db:migrate": "drizzle-kit migrate",
     "db:seed": "tsx src/db/seed.ts",
     "db:create-admin": "tsx src/db/create-admin.ts",
+    "db:encrypt-backup-credentials": "tsx src/db/encrypt-backup-credentials.ts",
     "db:studio": "drizzle-kit studio",
     "db:check": "drizzle-kit check"
   },

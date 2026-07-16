@@ -1,6 +1,6 @@
 import "server-only";
 
-import { asc } from "drizzle-orm";
+import { asc, isNotNull } from "drizzle-orm";
 
 import { requireAdministrator } from "@/auth/session";
 import { db } from "@/db";
@@ -22,22 +22,19 @@ export async function getAccountRecords(): Promise<AccountRecord[]> {
       name: technicians.name,
       username: technicians.username,
       role: technicians.role,
-      isActive: technicians.isActive,
       lockedUntil: technicians.lockedUntil,
       createdAt: technicians.createdAt,
     })
     .from(technicians)
+    .where(isNotNull(technicians.username))
     .orderBy(asc(technicians.name));
 
   const now = new Date();
-  return rows
-    .filter((row) => Boolean(row.username))
-    .map((row) => ({
+  return rows.map((row) => ({
       id: row.id,
       name: row.name,
       username: row.username ?? "",
       role: row.role,
-      isActive: row.isActive,
       isLocked: Boolean(row.lockedUntil && row.lockedUntil > now),
       createdAt: jakartaDate.format(row.createdAt),
     }));

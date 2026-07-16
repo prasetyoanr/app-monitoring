@@ -41,7 +41,13 @@ export async function loginAction(
   }
 
   const [account] = await db
-    .select()
+    .select({
+      id: technicians.id,
+      passwordHash: technicians.passwordHash,
+      isActive: technicians.isActive,
+      failedLoginAttempts: technicians.failedLoginAttempts,
+      lockedUntil: technicians.lockedUntil,
+    })
     .from(technicians)
     .where(eq(technicians.username, username))
     .limit(1);

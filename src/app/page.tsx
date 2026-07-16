@@ -1,28 +1,42 @@
 import Link from "next/link";
 import { Activity, ArrowRight, CircleCheck, Clock3, Server, TicketCheck, TriangleAlert } from "lucide-react";
-import { requireAuthenticatedUser } from "@/auth/session";
 import { Card, MetricCard, PageHeader, SectionTitle, StatusBadge } from "@/components/ui";
-import { getBackupRecords, getServerRecords, getTicketRecords } from "@/data/app-data";
+import { getDashboardData } from "@/data/dashboard-data";
+import { jakartaDateInput } from "@/lib/jakarta-date";
 
 export default async function DashboardPage() {
-  const [servers, tickets, backups, currentUser] = await Promise.all([
-    getServerRecords(),
-    getTicketRecords(),
-    getBackupRecords(),
-    requireAuthenticatedUser(),
-  ]);
-  const activeIssues = tickets.filter((ticket) => ticket.status !== "Completed").length;
-  const completedIssues = tickets.filter((ticket) => ticket.status === "Completed").length;
+  const {
+    servers,
+    recentIssues: tickets,
+    currentUser,
+    activeIssues,
+    completedIssues,
+    backupTotal,
+    backupSuccess,
+    failedBackups,
+    overdueBackups,
+    trend,
+  } = await getDashboardData();
   const healthyServers = servers.filter((server) => server.status === "Healthy").length;
-  const backupSuccess = backups.filter((backup) => backup.status === "Success").length;
-  const backupIssues = backups.length - backupSuccess;
-  const chart = Array.from({ length: 14 }, (_, offset) => {
-    const date = new Date();
-    date.setDate(date.getDate() - (13 - offset));
-    const key = date.toLocaleDateString("en-CA", { timeZone: "Asia/Jakarta" });
-    return tickets.filter((ticket) => ticket.reportedDate === key).length;
+  const backupIssues = backupTotal - backupSuccess;
+  const trendMap = new Map(trend.map((row) => [row.date, row.total]));
+  const todayStart = new Date(`${jakartaDateInput()}T00:00:00+07:00`);
+  const chartEntries = Array.from({ length: 14 }, (_, offset) => {
+    const date = new Date(todayStart.getTime() - (13 - offset) * 86_400_000);
+    const key = jakartaDateInput(date);
+    return { key, value: trendMap.get(key) ?? 0 };
   });
+  const chart = chartEntries.map((entry) => entry.value);
+  const issuesInPeriod = chart.reduce((sum, value) => sum + value, 0);
   const maxChart = Math.max(1, ...chart);
+  const chartLabel = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Jakarta",
+    day: "numeric",
+    month: "short",
+  });
+  const chartLabels = [0, 3, 6, 9, 13].map((index) =>
+    chartLabel.format(new Date(`${chartEntries[index].key}T00:00:00+07:00`)),
+  );
   const todayLabel = new Intl.DateTimeFormat("en-GB", {
     timeZone: "Asia/Jakarta",
     weekday: "long",
@@ -47,16 +61,16 @@ export default async function DashboardPage() {
         <MetricCard label="Active Issues" value={String(activeIssues)} icon={TicketCheck} tone="blue" detail="Not yet completed" />
         <MetricCard label="Completed Issues" value={String(completedIssues)} icon={Clock3} tone="green" detail="Approved by clients" />
         <MetricCard label="Healthy Servers" value={`${healthyServers} / ${servers.length}`} icon={Server} tone="amber" detail={`${servers.length - healthyServers} servers require attention`} />
-        <MetricCard label="User Backups" value={`${backups.length ? ((backupSuccess / backups.length) * 100).toFixed(1) : "0.0"}%`} icon={CircleCheck} tone="red" detail={`${backupIssues} users require follow-up`} />
+        <MetricCard label="User Backups" value={`${backupTotal ? ((backupSuccess / backupTotal) * 100).toFixed(1) : "0.0"}%`} icon={CircleCheck} tone="red" detail={`${backupIssues} users require follow-up`} />
       </div>
 
       <div className="mt-5 grid gap-5 xl:grid-cols-[1.55fr_1fr]">
         <Card>
-          <SectionTitle title="Ticket Resolution Trend" subtitle="Service performance over the last 14 days" action={<select className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] text-slate-600 outline-none"><option>14 days</option><option>30 days</option></select>} />
+          <SectionTitle title="Issue Activity Trend" subtitle="Issues received over the last 14 days" />
           <div className="px-4 pb-5 pt-4 sm:px-5">
             <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-              <div><span className="text-2xl font-bold tracking-tight text-slate-900">{completedIssues}</span><span className="ml-2 text-xs text-slate-500">tickets completed</span></div>
-              <div className="flex gap-4 text-[10px] text-slate-500"><span className="flex items-center gap-1.5"><i className="size-2 rounded-full bg-[#3157d5]" />Completed</span><span className="flex items-center gap-1.5"><i className="size-2 rounded-full bg-blue-200" />Received</span></div>
+              <div><span className="text-2xl font-bold tracking-tight text-slate-900">{issuesInPeriod}</span><span className="ml-2 text-xs text-slate-500">issues received</span></div>
+              <div className="text-[10px] text-slate-500"><span className="flex items-center gap-1.5"><i className="size-2 rounded-full bg-[#3157d5]" />Received</span></div>
             </div>
             <div className="flex h-40 items-end gap-2 border-b border-slate-200 px-1 sm:gap-3">
               {chart.map((value, index) => (
@@ -65,7 +79,7 @@ export default async function DashboardPage() {
                 </div>
               ))}
             </div>
-            <div className="mt-2 flex justify-between text-[9px] text-slate-400"><span>Jun 30</span><span>Jul 3</span><span>Jul 6</span><span>Jul 9</span><span>Jul 13</span></div>
+            <div className="mt-2 flex justify-between text-[9px] text-slate-400">{chartLabels.map((label) => <span key={label}>{label}</span>)}</div>
           </div>
         </Card>
 
@@ -112,7 +126,7 @@ export default async function DashboardPage() {
             {[
               { icon: TriangleAlert, tone: "rose", title: `${servers.find((server) => server.status === "Critical")?.name ?? "No server"} critical alert`, desc: `${servers.filter((server) => server.status !== "Healthy").length} infrastructure items require attention` },
               { icon: Clock3, tone: "amber", title: `${activeIssues} unresolved issues`, desc: "Troubleshooting records not yet completed" },
-              { icon: Activity, tone: "blue", title: `${backupIssues} user backup issues`, desc: `${backups.filter((backup) => backup.status === "Failed").length} failed and ${backups.filter((backup) => backup.status === "Overdue").length} overdue` },
+              { icon: Activity, tone: "blue", title: `${backupIssues} user backup issues`, desc: `${failedBackups} failed and ${overdueBackups} overdue` },
             ].map((item) => <div key={item.title} className="flex gap-3 rounded-xl border border-slate-100 bg-slate-50/70 p-3"><span className={`grid size-9 shrink-0 place-items-center rounded-lg ${item.tone === "rose" ? "bg-rose-100 text-rose-600" : item.tone === "amber" ? "bg-amber-100 text-amber-600" : "bg-blue-100 text-blue-600"}`}><item.icon size={16} /></span><div><p className="text-xs font-semibold text-slate-800">{item.title}</p><p className="mt-1 text-[10px] leading-4 text-slate-500">{item.desc}</p></div></div>)}
           </div>
         </Card>

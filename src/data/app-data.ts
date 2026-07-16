@@ -1,11 +1,12 @@
 import "server-only";
 
 import { createHash } from "node:crypto";
-import { count, desc, eq } from "drizzle-orm";
+import { count, desc, eq, sql } from "drizzle-orm";
 
 import { requireAuthenticatedUser } from "@/auth/session";
 import { db } from "@/db";
 import {
+  backupUserInvitations,
   backupUsers,
   monitoredServers,
   surveyResponses,
@@ -18,13 +19,7 @@ import type {
   SurveyRecord,
   TicketRecord,
 } from "@/data/types";
-
-const jakartaDate = new Intl.DateTimeFormat("en-CA", {
-  timeZone: "Asia/Jakarta",
-  year: "numeric",
-  month: "2-digit",
-  day: "2-digit",
-});
+import { jakartaDateInput } from "@/lib/jakarta-date";
 
 const jakartaDateTime = new Intl.DateTimeFormat("en-GB", {
   timeZone: "Asia/Jakarta",
@@ -36,12 +31,6 @@ const jakartaDateTime = new Intl.DateTimeFormat("en-GB", {
   hour12: false,
 });
 
-function dateInputValue(date: Date) {
-  const parts = jakartaDate.formatToParts(date);
-  const value = Object.fromEntries(parts.map((part) => [part.type, part.value]));
-  return `${value.year}-${value.month}-${value.day}`;
-}
-
 function dateTimeInputValue(date: Date) {
   const formatted = jakartaDateTime.format(date);
   const [datePart, timePart] = formatted.split(", ");
@@ -50,7 +39,20 @@ function dateTimeInputValue(date: Date) {
 }
 
 function toTicketRecord(
-  row: typeof troubleshootingIssues.$inferSelect,
+  row: Pick<
+    typeof troubleshootingIssues.$inferSelect,
+    | "id"
+    | "title"
+    | "category"
+    | "requesterName"
+    | "division"
+    | "location"
+    | "reportedAt"
+    | "priority"
+    | "status"
+    | "completedDays"
+    | "description"
+  >,
 ): TicketRecord {
   return {
     id: row.id,
@@ -60,55 +62,71 @@ function toTicketRecord(
     division: row.division,
     location: row.location,
     reportedAt: jakartaDateTime.format(row.reportedAt).split(",")[0],
-    reportedDate: dateInputValue(row.reportedAt),
+    reportedDate: jakartaDateInput(row.reportedAt),
     priority: row.priority,
     status: row.status,
     completedDays: row.completedDays,
     description: row.description,
-    resolution: row.resolution,
-  };
-}
-
-function toBackupRecord(
-  row: typeof backupUsers.$inferSelect,
-  includeSensitiveInformation: boolean,
-): BackupRecord {
-  return {
-    id: row.id,
-    user: row.fullName,
-    username: row.username ?? "",
-    email: row.email ?? "",
-    passwordInformation: includeSensitiveInformation
-      ? (row.passwordInformation ?? "")
-      : "",
-    hasPasswordInformation: Boolean(row.passwordInformation?.trim()),
-    syncPath: row.syncPath,
-    lastBackup: row.lastBackupAt
-      ? jakartaDateTime.format(row.lastBackupAt).replace(",", "")
-      : "-",
-    lastBackupIso: row.lastBackupAt ? dateTimeInputValue(row.lastBackupAt) : "",
-    status: row.status,
   };
 }
 
 export async function getTicketRecords(): Promise<TicketRecord[]> {
   await requireAuthenticatedUser();
   const rows = await db
-    .select()
+    .select({
+      id: troubleshootingIssues.id,
+      title: troubleshootingIssues.title,
+      category: troubleshootingIssues.category,
+      requesterName: troubleshootingIssues.requesterName,
+      division: troubleshootingIssues.division,
+      location: troubleshootingIssues.location,
+      reportedAt: troubleshootingIssues.reportedAt,
+      priority: troubleshootingIssues.priority,
+      status: troubleshootingIssues.status,
+      completedDays: troubleshootingIssues.completedDays,
+      description: troubleshootingIssues.description,
+    })
     .from(troubleshootingIssues)
     .orderBy(desc(troubleshootingIssues.reportedAt), desc(troubleshootingIssues.id));
   return rows.map(toTicketRecord);
 }
 
 export async function getBackupRecords(): Promise<BackupRecord[]> {
-  const currentUser = await requireAuthenticatedUser();
+  await requireAuthenticatedUser();
   const rows = await db
-    .select()
+    .select({
+      id: backupUsers.id,
+      fullName: backupUsers.fullName,
+      division: backupUsers.division,
+      username: backupUsers.username,
+      email: backupUsers.email,
+      hasPasswordInformation: sql<boolean>`${backupUsers.passwordInformation} is not null and length(${backupUsers.passwordInformation}) > 0`,
+      syncPath: backupUsers.syncPath,
+      status: backupUsers.status,
+      submittedAt: backupUserInvitations.submittedAt,
+    })
     .from(backupUsers)
-    .orderBy(desc(backupUsers.lastBackupAt), desc(backupUsers.id));
-  return rows.map((row) =>
-    toBackupRecord(row, currentUser.role === "administrator"),
-  );
+    .leftJoin(
+      backupUserInvitations,
+      eq(backupUserInvitations.backupUserId, backupUsers.id),
+    )
+    .orderBy(desc(backupUserInvitations.submittedAt), desc(backupUsers.id));
+  return rows.map((row) => ({
+    id: row.id,
+    user: row.fullName,
+    division: row.division,
+    username: row.username ?? "",
+    email: row.email ?? "",
+    hasPasswordInformation: row.hasPasswordInformation,
+    syncPath: row.syncPath,
+    submittedAt: row.submittedAt
+      ? jakartaDateTime.format(row.submittedAt).replace(",", "")
+      : "Not recorded",
+    submittedAtIso: row.submittedAt
+      ? dateTimeInputValue(row.submittedAt)
+      : "",
+    status: row.status,
+  }));
 }
 
 export async function getNavigationCounts() {

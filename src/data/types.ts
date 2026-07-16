@@ -19,7 +19,6 @@ export interface TicketRecord {
   status: IssueStatus;
   completedDays: number | null;
   description: string;
-  resolution: string;
 }
 
 export type BackupStatus = "Success" | "Failed" | "Overdue" | "Pending";
@@ -27,13 +26,13 @@ export type BackupStatus = "Success" | "Failed" | "Overdue" | "Pending";
 export interface BackupRecord {
   id: string;
   user: string;
+  division: string;
   username: string;
   email: string;
-  passwordInformation: string;
   hasPasswordInformation: boolean;
   syncPath: string;
-  lastBackup: string;
-  lastBackupIso: string;
+  submittedAt: string;
+  submittedAtIso: string;
   status: BackupStatus;
 }
 
@@ -44,7 +43,6 @@ export interface AccountRecord {
   name: string;
   username: string;
   role: AccountRole;
-  isActive: boolean;
   isLocked: boolean;
   createdAt: string;
 }

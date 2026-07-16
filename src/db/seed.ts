@@ -9,6 +9,7 @@ import {
   technicians,
   troubleshootingIssues,
 } from "./schema";
+import { encryptBackupCredential } from "../security/backup-credentials";
 
 const technicianId = "00000000-0000-4000-8000-000000000001";
 
@@ -46,7 +47,6 @@ async function seed() {
           | "Reopened",
         completedDays: ticket.completedDays,
         description: ticket.description,
-        resolution: ticket.resolution,
         assignedTechnicianId: technicianId,
       })),
     )
@@ -58,9 +58,12 @@ async function seed() {
       backupJobs.map((backup) => ({
         id: backup.id,
         fullName: backup.user,
+        division: backup.division,
         username: backup.username || null,
         email: backup.email || null,
-        passwordInformation: backup.password || null,
+        passwordInformation: backup.password
+          ? encryptBackupCredential(backup.password)
+          : null,
         syncPath: backup.syncPath,
         lastBackupAt: new Date(`${backup.lastBackupIso}+07:00`),
         status: backup.status as "Success" | "Failed" | "Overdue" | "Pending",

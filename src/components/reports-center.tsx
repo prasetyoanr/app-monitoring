@@ -4,6 +4,7 @@ import { CalendarRange, Download, FileSpreadsheet, FolderSync, Wrench } from "lu
 import { useMemo, useState } from "react";
 import { Card } from "@/components/ui";
 import type { BackupRecord, TicketRecord } from "@/data/types";
+import { currentJakartaMonth, monthInputRange } from "@/lib/jakarta-date";
 
 type FilterMode = "range" | "month";
 
@@ -30,10 +31,12 @@ function dateMatches(date: string, mode: FilterMode, startDate: string, endDate:
 }
 
 export function ReportsCenter({ ticketRecords, backupRecords }: { ticketRecords: TicketRecord[]; backupRecords: BackupRecord[] }) {
+  const initialMonth = currentJakartaMonth();
+  const initialRange = monthInputRange(initialMonth);
   const [mode, setMode] = useState<FilterMode>("month");
-  const [startDate, setStartDate] = useState("2026-07-01");
-  const [endDate, setEndDate] = useState("2026-07-31");
-  const [month, setMonth] = useState("2026-07");
+  const [startDate, setStartDate] = useState(initialRange.start);
+  const [endDate, setEndDate] = useState(initialRange.end);
+  const [month, setMonth] = useState(initialMonth);
 
   const filteredTickets = useMemo(
     () => ticketRecords.filter((ticket) => dateMatches(ticket.reportedDate, mode, startDate, endDate, month)),
@@ -41,7 +44,7 @@ export function ReportsCenter({ ticketRecords, backupRecords }: { ticketRecords:
   );
 
   const filteredBackups = useMemo(
-    () => backupRecords.filter((record) => dateMatches(record.lastBackupIso.slice(0, 10), mode, startDate, endDate, month)),
+    () => backupRecords.filter((record) => dateMatches(record.submittedAtIso.slice(0, 10), mode, startDate, endDate, month)),
     [backupRecords, mode, startDate, endDate, month],
   );
 
@@ -50,7 +53,7 @@ export function ReportsCenter({ ticketRecords, backupRecords }: { ticketRecords:
 
   function exportTroubleshooting() {
     const rows: Array<Array<string | number | null>> = [
-      ["No.", "ID", "Date", "Location", "Requester", "Division", "Issue", "Category", "Priority", "Status", "Completion Time (Days)", "Description", "Resolution Summary"],
+      ["No.", "ID", "Date", "Location", "Requester", "Division", "Issue", "Category", "Priority", "Status", "Completion Time (Days)", "Description"],
       ...filteredTickets.map((ticket, index) => [
         index + 1,
         ticket.id,
@@ -64,7 +67,6 @@ export function ReportsCenter({ ticketRecords, backupRecords }: { ticketRecords:
         ticket.status,
         ticket.completedDays,
         ticket.description,
-        ticket.resolution,
       ]),
     ];
     downloadCsv(`troubleshooting-report-${filterLabel}.csv`, rows);
@@ -72,13 +74,14 @@ export function ReportsCenter({ ticketRecords, backupRecords }: { ticketRecords:
 
   function exportBackupUsers() {
     const rows: Array<Array<string | number | null>> = [
-      ["No.", "ID", "User", "Sync Folder Path", "Last Backup", "Status"],
+      ["No.", "ID", "User", "Division", "Sync Folder Path", "Submitted At", "Status"],
       ...filteredBackups.map((record, index) => [
         index + 1,
         record.id,
         record.user,
+        record.division,
         record.syncPath,
-        record.lastBackup,
+        record.submittedAt,
         record.status,
       ]),
     ];
@@ -144,7 +147,7 @@ export function ReportsCenter({ ticketRecords, backupRecords }: { ticketRecords:
               <span className="rounded-lg bg-slate-100 px-2.5 py-1 text-[10px] font-bold text-slate-600">{invalidRange ? 0 : filteredBackups.length} records</span>
             </div>
             <h2 className="mt-4 text-base font-bold text-slate-900">Backup User Report</h2>
-            <p className="mt-1.5 text-[11px] leading-5 text-slate-500">Synced user folder records and their latest backup status.</p>
+            <p className="mt-1.5 text-[11px] leading-5 text-slate-500">Registered backup users and their current verification status.</p>
           </div>
           <div className="flex items-center justify-between gap-4 p-5">
             <div className="flex items-center gap-2 text-[11px] text-slate-500"><FileSpreadsheet size={15} /> CSV Format</div>

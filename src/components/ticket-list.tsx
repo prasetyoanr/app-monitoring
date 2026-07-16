@@ -2,11 +2,12 @@
 
 import { CalendarDays, Eye, Filter, MapPin, Pencil, Plus, QrCode, Search, Trash2, X } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useMemo, useRef, useState } from "react";
+import { useDeferredValue, useMemo, useRef, useState } from "react";
 import { deleteIssueAction, saveIssueAction } from "@/app/troubleshooting/actions";
 import { ApprovalQrModal } from "@/components/approval-qr-modal";
 import { Card, StatusBadge } from "@/components/ui";
 import type { TicketRecord } from "@/data/types";
+import { jakartaDateInput } from "@/lib/jakarta-date";
 
 type FormMode = "create" | "edit" | null;
 
@@ -23,11 +24,18 @@ function formatCompactDate(value: string) {
 }
 
 function canRequestApproval(ticket: TicketRecord) {
-  return ticket.status === "Waiting for Client Approval" && Boolean(ticket.resolution.trim());
+  return ticket.status === "Waiting for Client Approval";
 }
 
-export function TicketList({ initialRecords, canManage }: { initialRecords: TicketRecord[]; canManage: boolean }) {
+function optionsWithCurrent(options: string[], current?: string) {
+  return current && !options.includes(current) ? [current, ...options] : options;
+}
+
+export function TicketList({ initialRecords, canManage, divisionOptions, locationOptions }: { initialRecords: TicketRecord[]; canManage: boolean; divisionOptions: string[]; locationOptions: string[] }) {
   const router = useRouter();
+  const defaultLocation = locationOptions.includes("HO")
+    ? "HO"
+    : locationOptions[0];
   const ticketRecords = initialRecords;
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("All Statuses");
@@ -37,19 +45,20 @@ export function TicketList({ initialRecords, canManage }: { initialRecords: Tick
   const [detailRecord, setDetailRecord] = useState<TicketRecord | null>(null);
   const [approvalRecord, setApprovalRecord] = useState<TicketRecord | null>(null);
   const [pendingDelete, setPendingDelete] = useState<TicketRecord | null>(null);
-  const [requestDate, setRequestDate] = useState("2026-07-13");
+  const [requestDate, setRequestDate] = useState(jakartaDateInput);
   const [formError, setFormError] = useState("");
   const [saving, setSaving] = useState(false);
   const dateInputRef = useRef<HTMLInputElement>(null);
+  const deferredQuery = useDeferredValue(query.trim().toLowerCase());
 
   const filtered = useMemo(() => ticketRecords.filter((ticket) => {
-    const matchQuery = `${ticket.id} ${ticket.title} ${ticket.requester} ${ticket.division} ${ticket.category} ${ticket.location}`.toLowerCase().includes(query.toLowerCase());
+    const matchQuery = `${ticket.id} ${ticket.title} ${ticket.requester} ${ticket.division} ${ticket.category} ${ticket.location}`.toLowerCase().includes(deferredQuery);
     return matchQuery && (status === "All Statuses" || ticket.status === status) && (location === "All Locations" || ticket.location === location);
-  }), [ticketRecords, query, status, location]);
+  }), [ticketRecords, deferredQuery, status, location]);
 
   function openForm(nextMode: Exclude<FormMode, null>, record: TicketRecord | null = null) {
     setSelected(record);
-    setRequestDate(record?.reportedDate ?? "2026-07-13");
+    setRequestDate(record?.reportedDate ?? jakartaDateInput());
     setFormError("");
     setMode(nextMode);
   }
@@ -117,7 +126,7 @@ export function TicketList({ initialRecords, canManage }: { initialRecords: Tick
                 <div><p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Request Date</p><p className="mt-1 text-[11px] font-medium text-slate-700">{ticket.reportedAt}</p></div>
               </div>
               <div className="mt-4 flex items-center justify-between gap-3"><StatusBadge tone={ticket.priority === "Critical" ? "red" : ticket.priority === "High" ? "amber" : "gray"}>{ticket.priority}</StatusBadge><span className={`text-[10px] font-semibold ${ticket.completedDays === null ? "text-slate-400" : "text-emerald-600"}`}>{completionLabel(ticket.completedDays)}</span></div>
-              <div className={`mt-4 gap-2 border-t border-slate-100 pt-4 ${canManage ? "grid grid-cols-2" : "flex"}`}><button onClick={() => setDetailRecord(ticket)} className="inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-lg bg-[#3157d5] px-2 text-[10px] font-semibold text-white" aria-label={`View details ${ticket.id}`}><Eye size={13} /> Detail</button>{canManage ? <><button disabled={!canRequestApproval(ticket)} onClick={() => setApprovalRecord(ticket)} className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-violet-600 px-2 text-[10px] font-semibold text-white disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400" aria-label={`Request client signature ${ticket.id}`} title={canRequestApproval(ticket) ? "QR Signature" : "Set status to Waiting for Client Approval and fill the resolution summary"}><QrCode size={13} /> QR Signature</button><button onClick={() => openForm("edit", ticket)} className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-amber-500 px-2 text-[10px] font-semibold text-white" aria-label={`Edit ${ticket.id}`}><Pencil size={13} /> Edit</button><button onClick={() => setPendingDelete(ticket)} className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-rose-600 px-2 text-[10px] font-semibold text-white" aria-label={`Delete ${ticket.id}`}><Trash2 size={13} /> Delete</button></> : null}</div>
+              <div className={`mt-4 gap-2 border-t border-slate-100 pt-4 ${canManage ? "grid grid-cols-2" : "flex"}`}><button onClick={() => setDetailRecord(ticket)} className="inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-lg bg-[#3157d5] px-2 text-[10px] font-semibold text-white" aria-label={`View details ${ticket.id}`}><Eye size={13} /> Detail</button>{canManage ? <><button disabled={!canRequestApproval(ticket)} onClick={() => setApprovalRecord(ticket)} className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-violet-600 px-2 text-[10px] font-semibold text-white disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400" aria-label={`Request client signature ${ticket.id}`} title={canRequestApproval(ticket) ? "QR Signature" : "Set status to Waiting for Client Approval"}><QrCode size={13} /> QR Signature</button><button onClick={() => openForm("edit", ticket)} className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-amber-500 px-2 text-[10px] font-semibold text-white" aria-label={`Edit ${ticket.id}`}><Pencil size={13} /> Edit</button><button onClick={() => setPendingDelete(ticket)} className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-rose-600 px-2 text-[10px] font-semibold text-white" aria-label={`Delete ${ticket.id}`}><Trash2 size={13} /> Delete</button></> : null}</div>
             </article>
           ))}
         </div>
@@ -133,7 +142,7 @@ export function TicketList({ initialRecords, canManage }: { initialRecords: Tick
                   <td className="px-4 py-4"><span className={`inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-[10px] font-bold ${ticket.location === "HO" ? "bg-indigo-50 text-indigo-700" : "bg-cyan-50 text-cyan-700"}`}><MapPin size={11} />{ticket.location}</span></td>
                   <td className="px-4 py-4 text-slate-600">{ticket.requester}</td><td className="px-4 py-4"><span className="rounded-md bg-slate-100 px-2 py-1 text-[10px] font-semibold text-slate-600">{ticket.division}</span></td><td className="px-4 py-4 text-[11px] text-slate-500">{ticket.reportedAt}</td>
                   <td className="px-4 py-4"><StatusBadge tone={ticket.priority === "Critical" ? "red" : ticket.priority === "High" ? "amber" : "gray"}>{ticket.priority}</StatusBadge></td><td className="px-4 py-4"><span className={`text-[11px] font-semibold ${ticket.completedDays === null ? "text-slate-400" : "text-emerald-600"}`}>{completionLabel(ticket.completedDays)}</span></td><td className="px-4 py-4"><StatusBadge tone={ticket.status === "Completed" ? "green" : ticket.status === "In Progress" ? "blue" : ticket.status === "New" ? "gray" : "amber"}>{ticket.status}</StatusBadge></td>
-                  <td className="px-5 py-4"><div className="flex justify-center gap-2"><button onClick={() => setDetailRecord(ticket)} className="grid size-8 place-items-center rounded-lg bg-[#3157d5] text-white shadow-sm transition hover:bg-[#2445b5]" aria-label={`View details ${ticket.id}`} title="Detail"><Eye size={14} /></button>{canManage ? <><button disabled={!canRequestApproval(ticket)} onClick={() => setApprovalRecord(ticket)} className="grid size-8 place-items-center rounded-lg bg-violet-600 text-white shadow-sm transition hover:bg-violet-700 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400" aria-label={`Request client signature ${ticket.id}`} title={canRequestApproval(ticket) ? "QR Signature" : "Set status to Waiting for Client Approval and fill the resolution summary"}><QrCode size={14} /></button><button onClick={() => openForm("edit", ticket)} className="grid size-8 place-items-center rounded-lg bg-amber-500 text-white shadow-sm transition hover:bg-amber-600" aria-label={`Edit ${ticket.id}`} title="Edit"><Pencil size={14} /></button><button onClick={() => setPendingDelete(ticket)} className="grid size-8 place-items-center rounded-lg bg-rose-600 text-white shadow-sm transition hover:bg-rose-700" aria-label={`Delete ${ticket.id}`} title="Delete"><Trash2 size={14} /></button></> : null}</div></td>
+                  <td className="px-5 py-4"><div className="flex justify-center gap-2"><button onClick={() => setDetailRecord(ticket)} className="grid size-8 place-items-center rounded-lg bg-[#3157d5] text-white shadow-sm transition hover:bg-[#2445b5]" aria-label={`View details ${ticket.id}`} title="Detail"><Eye size={14} /></button>{canManage ? <><button disabled={!canRequestApproval(ticket)} onClick={() => setApprovalRecord(ticket)} className="grid size-8 place-items-center rounded-lg bg-violet-600 text-white shadow-sm transition hover:bg-violet-700 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400" aria-label={`Request client signature ${ticket.id}`} title={canRequestApproval(ticket) ? "QR Signature" : "Set status to Waiting for Client Approval"}><QrCode size={14} /></button><button onClick={() => openForm("edit", ticket)} className="grid size-8 place-items-center rounded-lg bg-amber-500 text-white shadow-sm transition hover:bg-amber-600" aria-label={`Edit ${ticket.id}`} title="Edit"><Pencil size={14} /></button><button onClick={() => setPendingDelete(ticket)} className="grid size-8 place-items-center rounded-lg bg-rose-600 text-white shadow-sm transition hover:bg-rose-700" aria-label={`Delete ${ticket.id}`} title="Delete"><Trash2 size={14} /></button></> : null}</div></td>
                 </tr>
               ))}
             </tbody>
@@ -178,8 +187,6 @@ export function TicketList({ initialRecords, canManage }: { initialRecords: Tick
                 <p className="mt-3 whitespace-pre-wrap text-xs leading-6 text-slate-600">{detailRecord.description}</p>
               </section>
 
-              {detailRecord.resolution ? <section className="mt-8" aria-labelledby="resolution-summary-title"><h3 id="resolution-summary-title" className="border-b border-slate-300 pb-2 text-xs font-bold uppercase tracking-wider text-slate-900">Resolution Summary</h3><p className="mt-4 whitespace-pre-wrap text-xs leading-6 text-slate-600">{detailRecord.resolution}</p></section> : null}
-
               <footer className="mt-12 border-t border-slate-300 pt-4 text-[10px] leading-5 text-slate-400">
                 This document is an internal troubleshooting record generated from the IT Monitoring System.
               </footer>
@@ -194,12 +201,11 @@ export function TicketList({ initialRecords, canManage }: { initialRecords: Tick
             <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4"><div><h2 id="ticket-title" className="text-sm font-bold text-slate-900">{mode === "create" ? "Add New Issue" : "Edit Issue Record"}</h2><p className="mt-1 text-[11px] text-slate-500">Recorded on behalf of the IT team for activity reporting.</p></div><button onClick={() => setMode(null)} className="rounded-lg p-2 text-slate-400 hover:bg-slate-100" aria-label="Close form"><X size={18} /></button></div>
             <form key={`${mode}-${selected?.id ?? "new"}`} className="space-y-4 p-5" onSubmit={handleSubmit}>
               <label className="block text-[11px] font-semibold text-slate-600">Issue Title<input name="title" required defaultValue={selected?.title} className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 px-3 text-xs outline-none" /></label>
-              <div className="grid gap-4 sm:grid-cols-2"><label className="block text-[11px] font-semibold text-slate-600">Location<select name="location" defaultValue={selected?.location ?? "HO"} className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 px-3 text-xs outline-none"><option>HO</option><option>Factory</option></select></label><div className="block text-[11px] font-semibold text-slate-600"><span id="request-date-label">Request Date</span><div className="relative mt-1.5"><button type="button" onClick={openDatePicker} aria-labelledby="request-date-label" className="flex h-10 w-full items-center rounded-xl border border-slate-200 bg-white px-3 text-left text-xs font-normal text-slate-700 outline-none"><span className="flex-1">{formatCompactDate(requestDate)}</span><CalendarDays size={15} className="text-slate-400" /></button><input ref={dateInputRef} type="date" value={requestDate} onChange={(event) => setRequestDate(event.target.value)} className="absolute bottom-0 left-0 h-px w-px opacity-0" tabIndex={-1} aria-hidden="true" /></div></div></div>
-              <div className="grid gap-4 sm:grid-cols-2"><label className="block text-[11px] font-semibold text-slate-600">Requester Name<input name="requester" required defaultValue={selected?.requester} className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 px-3 text-xs outline-none" /></label><label className="block text-[11px] font-semibold text-slate-600">Division<select name="division" required defaultValue={selected?.division ?? "Finance"} className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-xs outline-none"><option>Finance</option><option>Legal</option><option>Purchase</option><option>Human Resources</option><option>Production</option><option>Marketing</option><option>Warehouse</option></select></label></div>
+              <div className="grid gap-4 sm:grid-cols-2"><label className="block text-[11px] font-semibold text-slate-600">Location<select name="location" required defaultValue={selected?.location ?? defaultLocation} className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 px-3 text-xs outline-none">{optionsWithCurrent(locationOptions, selected?.location).map((option) => <option key={option} value={option}>{option}</option>)}</select></label><div className="block text-[11px] font-semibold text-slate-600"><span id="request-date-label">Request Date</span><div className="relative mt-1.5"><button type="button" onClick={openDatePicker} aria-labelledby="request-date-label" className="flex h-10 w-full items-center rounded-xl border border-slate-200 bg-white px-3 text-left text-xs font-normal text-slate-700 outline-none"><span className="flex-1">{formatCompactDate(requestDate)}</span><CalendarDays size={15} className="text-slate-400" /></button><input ref={dateInputRef} type="date" value={requestDate} onChange={(event) => setRequestDate(event.target.value)} className="absolute bottom-0 left-0 h-px w-px opacity-0" tabIndex={-1} aria-hidden="true" /></div></div></div>
+              <div className="grid gap-4 sm:grid-cols-2"><label className="block text-[11px] font-semibold text-slate-600">Requester Name<input name="requester" required defaultValue={selected?.requester} className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 px-3 text-xs outline-none" /></label><label className="block text-[11px] font-semibold text-slate-600">Division<select name="division" required defaultValue={selected?.division ?? divisionOptions[0]} className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-xs outline-none">{optionsWithCurrent(divisionOptions, selected?.division).map((option) => <option key={option} value={option}>{option}</option>)}</select></label></div>
               <div className="grid gap-4 sm:grid-cols-2"><label className="block text-[11px] font-semibold text-slate-600">Category<select name="category" defaultValue={selected?.category ?? "Software"} className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 px-3 text-xs outline-none"><option>Software</option><option>Hardware</option><option>Network</option><option>Server</option><option>Other</option></select></label><label className="block text-[11px] font-semibold text-slate-600">Priority<select name="priority" defaultValue={selected?.priority ?? "Low"} className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 px-3 text-xs outline-none"><option>Low</option><option>Medium</option><option>High</option><option>Critical</option></select></label></div>
               <div className="grid gap-4 sm:grid-cols-2"><label className="block text-[11px] font-semibold text-slate-600">Status<select name="status" defaultValue={selected?.status ?? "New"} className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 px-3 text-xs outline-none"><option>New</option><option>In Progress</option><option>Waiting for Client Approval</option><option>Reopened</option>{selected?.status === "Completed" ? <option>Completed</option> : null}</select></label><div><p className="text-[11px] font-semibold text-slate-600">Completion Time</p><p className="mt-1.5 rounded-xl bg-slate-50 px-3 py-2.5 text-[10px] leading-5 text-slate-500">Calculated automatically after client approval.</p></div></div>
               <label className="block text-[11px] font-semibold text-slate-600">Issue Description<textarea name="description" required rows={4} defaultValue={selected?.description} className="mt-1.5 w-full resize-none rounded-xl border border-slate-200 p-3 text-xs outline-none" /></label>
-              <label className="block text-[11px] font-semibold text-slate-600">Resolution Summary<textarea name="resolution" rows={4} defaultValue={selected?.resolution} className="mt-1.5 w-full resize-none rounded-xl border border-slate-200 p-3 text-xs outline-none" placeholder="Describe the work completed before requesting client approval." /></label>
               {formError ? <p className="rounded-xl bg-rose-50 p-3 text-[11px] font-semibold text-rose-700">{formError}</p> : null}
               <div className="flex justify-end gap-2 pt-1"><button type="button" onClick={() => setMode(null)} className="h-10 rounded-xl border border-slate-200 px-4 text-xs font-semibold text-slate-600">Cancel</button><button disabled={saving} className="h-10 rounded-xl bg-[#3157d5] px-4 text-xs font-semibold text-white disabled:bg-slate-300">{saving ? "Saving..." : "Save Record"}</button></div>
             </form>

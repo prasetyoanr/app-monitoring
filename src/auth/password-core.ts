@@ -33,9 +33,6 @@ export async function hashPassword(password: string) {
   if (password.length < 6 || password.length > 128) {
     throw new Error("Password must contain 6 to 128 characters.");
   }
-  if (!/[A-Za-z]/.test(password) || !/[0-9]/.test(password)) {
-    throw new Error("Password must contain at least one letter and one number.");
-  }
   const salt = randomBytes(16);
   const derivedKey = await deriveKey(password, salt);
   return [

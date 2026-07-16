@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
-import { ChartNoAxesCombined, MessageSquareText, Send, Star, Users } from "lucide-react";
-import { requireAuthenticatedUser } from "@/auth/session";
+import { ChartNoAxesCombined, MessageSquareText, Star, Users } from "lucide-react";
 import { Card, MetricCard, PageHeader, SectionTitle } from "@/components/ui";
 import { getSurveyRecords } from "@/data/app-data";
 
@@ -15,10 +14,7 @@ function relativeTime(value: string) {
 }
 
 export default async function SurveysPage() {
-  const [responses, currentUser] = await Promise.all([
-    getSurveyRecords(),
-    requireAuthenticatedUser(),
-  ]);
+  const responses = await getSurveyRecords();
   const average = responses.length ? responses.reduce((sum, row) => sum + row.score, 0) / responses.length : 0;
   const positive = responses.filter((row) => row.score >= 4).length;
   const followUp = responses.filter((row) => row.score < 3).length;
@@ -29,7 +25,7 @@ export default async function SurveysPage() {
 
   return (
     <>
-      <PageHeader eyebrow="Client experience" title="Client Satisfaction Survey" description="Measure IT service quality based on the client experience after a ticket is completed." action={currentUser.role === "administrator" ? <button className="inline-flex h-10 items-center gap-2 rounded-xl bg-[#3157d5] px-4 text-xs font-semibold text-white hover:bg-[#2445b5]"><Send size={15} /> Send Survey</button> : undefined} />
+      <PageHeader eyebrow="Client experience" title="Client Satisfaction Survey" description="Measure IT service quality based on the client experience after a ticket is completed." />
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"><MetricCard label="Satisfaction Score" value={`${average.toFixed(1)} / 5`} icon={Star} tone="amber" detail="From stored responses" /><MetricCard label="Responses" value={String(responses.length)} icon={Users} tone="green" detail="Completed client surveys" /><MetricCard label="Positive Responses" value={`${responses.length ? Math.round((positive / responses.length) * 100) : 0}%`} icon={MessageSquareText} detail="Score of 4 or 5" /><MetricCard label="Requires Follow-up" value={String(followUp)} icon={ChartNoAxesCombined} tone="red" detail="Score below 3" /></div>
       <div className="mt-5 grid gap-5 xl:grid-cols-[1.2fr_1fr]">
         <Card><SectionTitle title="Latest Responses" subtitle="Client feedback after ticket closure" /><div className="divide-y divide-slate-100 px-4 sm:px-5">{responses.map((response) => <article key={response.id} className="py-5"><div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-4"><div className="flex min-w-0 gap-3"><span className="grid size-9 shrink-0 place-items-center rounded-full bg-blue-100 text-[11px] font-bold text-[#3157d5]">{response.name.split(" ").map((word) => word[0]).join("")}</span><div className="min-w-0"><p className="text-xs font-semibold leading-5 text-slate-800">{response.name} <span className="font-normal text-slate-400">· {response.department}</span></p><div className="mt-1 flex gap-0.5">{Array.from({ length: 5 }).map((_, index) => <Star key={index} size={12} className={index < response.score ? "fill-amber-400 text-amber-400" : "text-slate-200"} />)}</div></div></div><span className="ml-12 text-[9px] text-slate-400 sm:ml-0">{relativeTime(response.respondedAt)}</span></div><p className="mt-3 text-[11px] leading-5 text-slate-600 sm:ml-12">“{response.comment}”</p><p className="mt-2 font-mono text-[9px] text-slate-400 sm:ml-12">{response.ticket}</p></article>)}</div></Card>
