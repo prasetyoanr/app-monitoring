@@ -5,26 +5,17 @@ import { useMemo, useState } from "react";
 import { Card } from "@/components/ui";
 import type { BackupRecord, TicketRecord } from "@/data/types";
 import type { SurveyAnswerValue, SurveyReportRecord } from "@/data/survey-types";
+import {
+  backupExcelColumns,
+  downloadExcelReport,
+  excelDate,
+  surveyExcelColumns,
+  troubleshootingExcelColumns,
+} from "@/lib/excel-export";
 import { currentJakartaMonth, monthInputRange } from "@/lib/jakarta-date";
 
 type FilterMode = "range" | "month";
-
-function csvCell(value: string | number | null) {
-  const text = value === null ? "" : String(value);
-  return `"${text.replaceAll('"', '""')}"`;
-}
-
-function downloadCsv(filename: string, rows: Array<Array<string | number | null>>) {
-  const content = `\uFEFF${rows.map((row) => row.map(csvCell).join(",")).join("\r\n")}`;
-  const url = URL.createObjectURL(new Blob([content], { type: "text/csv;charset=utf-8" }));
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  URL.revokeObjectURL(url);
-}
+type ExportType = "troubleshooting" | "backup" | "survey";
 
 function dateMatches(date: string, mode: FilterMode, startDate: string, endDate: string, month: string) {
   if (mode === "month") return date.slice(0, 7) === month;
@@ -32,7 +23,7 @@ function dateMatches(date: string, mode: FilterMode, startDate: string, endDate:
 }
 
 function surveyAnswerText(value: SurveyAnswerValue) {
-  return Array.isArray(value) ? value.join("; ") : String(value);
+  return Array.isArray(value) ? value.join(" | ") : String(value);
 }
 
 export function ReportsCenter({ ticketRecords, backupRecords, surveyRecords }: { ticketRecords: TicketRecord[]; backupRecords: BackupRecord[]; surveyRecords: SurveyReportRecord[] }) {
@@ -42,6 +33,8 @@ export function ReportsCenter({ ticketRecords, backupRecords, surveyRecords }: {
   const [startDate, setStartDate] = useState(initialRange.start);
   const [endDate, setEndDate] = useState(initialRange.end);
   const [month, setMonth] = useState(initialMonth);
+  const [exporting, setExporting] = useState<ExportType | null>(null);
+  const [exportError, setExportError] = useState("");
 
   const filteredTickets = useMemo(
     () => ticketRecords.filter((ticket) => dateMatches(ticket.reportedDate, mode, startDate, endDate, month)),
@@ -61,60 +54,87 @@ export function ReportsCenter({ ticketRecords, backupRecords, surveyRecords }: {
   const invalidRange = mode === "range" && Boolean(startDate && endDate && startDate > endDate);
   const filterLabel = mode === "month" ? month : `${startDate || "start"}_${endDate || "end"}`;
 
-  function exportTroubleshooting() {
-    const rows: Array<Array<string | number | null>> = [
-      ["No.", "ID", "Date", "Location", "Requester", "Division", "Issue", "Category", "Priority", "Status", "Completion Time (Days)", "Description"],
-      ...filteredTickets.map((ticket, index) => [
-        index + 1,
-        ticket.id,
-        ticket.reportedAt,
-        ticket.location,
-        ticket.requester,
-        ticket.division,
-        ticket.title,
-        ticket.category,
-        ticket.priority,
-        ticket.status,
-        ticket.completedDays,
-        ticket.description,
-      ]),
-    ];
-    downloadCsv(`troubleshooting-report-${filterLabel}.csv`, rows);
+  async function runExport(type: ExportType, callback: () => Promise<void>) {
+    setExporting(type);
+    setExportError("");
+    try {
+      await callback();
+    } catch (error) {
+      console.error(
+        "Unable to export Excel report.",
+        error instanceof Error ? error.message : "Unknown export error.",
+      );
+      setExportError("The Excel report could not be generated. Please try again.");
+    } finally {
+      setExporting(null);
+    }
   }
 
-  function exportBackupUsers() {
-    const rows: Array<Array<string | number | null>> = [
-      ["No.", "ID", "User", "Division", "Sync Folder Path", "Submitted At", "Status"],
-      ...filteredBackups.map((record, index) => [
-        index + 1,
-        record.id,
-        record.user,
-        record.division,
-        record.syncPath,
-        record.submittedAt,
-        record.status,
-      ]),
-    ];
-    downloadCsv(`backup-user-report-${filterLabel}.csv`, rows);
+  async function exportTroubleshooting() {
+    await runExport("troubleshooting", () =>
+      downloadExcelReport({
+        filename: `troubleshooting-report-${filterLabel}.xlsx`,
+        sheetName: "Troubleshooting",
+        columns: troubleshootingExcelColumns,
+        rows: filteredTickets.map((ticket, index) => ({
+          number: index + 1,
+          id: ticket.id,
+          date: excelDate(ticket.reportedDate),
+          location: ticket.location,
+          requester: ticket.requester,
+          division: ticket.division,
+          issue: ticket.title,
+          category: ticket.category,
+          priority: ticket.priority,
+          status: ticket.status,
+          completionDays: ticket.completedDays,
+          description: ticket.description,
+        })),
+      }),
+    );
   }
 
-  function exportSurveys() {
-    const rows: Array<Array<string | number | null>> = [
-      ["No.", "Survey", "Response ID", "Submitted At", "Client", "Division", "Question", "Question Type", "Answer"],
-    ];
+  async function exportBackupUsers() {
+    await runExport("backup", () =>
+      downloadExcelReport({
+        filename: `backup-user-report-${filterLabel}.xlsx`,
+        sheetName: "Backup Users",
+        columns: backupExcelColumns,
+        rows: filteredBackups.map((record, index) => ({
+          number: index + 1,
+          id: record.id,
+          user: record.user,
+          division: record.division,
+          syncPath: record.syncPath,
+          submittedAt: excelDate(record.submittedAtIso),
+          status: record.status,
+        })),
+      }),
+    );
+  }
+
+  async function exportSurveys() {
+    const rows: Array<Record<string, string | number | Date | null>> = [];
     let rowNumber = 1;
     for (const response of filteredSurveys) {
       if (response.answers.length === 0) {
-        rows.push([rowNumber, response.surveyTitle, response.responseId, response.submittedAt, response.clientName, response.division, "", "", ""]);
+        rows.push({ number: rowNumber, survey: response.surveyTitle, responseId: response.responseId, submittedAt: excelDate(response.submittedAtIso), client: response.clientName, division: response.division, question: "", questionType: "", answer: "", aiStatus: "", aiSentiment: "", aiScore: null, aiConfidence: null, aiSummary: "" });
         rowNumber += 1;
         continue;
       }
       for (const answer of response.answers) {
-        rows.push([rowNumber, response.surveyTitle, response.responseId, response.submittedAt, response.clientName, response.division, answer.questionTitle, answer.questionType, surveyAnswerText(answer.value)]);
+        rows.push({ number: rowNumber, survey: response.surveyTitle, responseId: response.responseId, submittedAt: excelDate(response.submittedAtIso), client: response.clientName, division: response.division, question: answer.questionTitle, questionType: answer.questionType, answer: surveyAnswerText(answer.value), aiStatus: answer.analysis?.status ?? "not_analyzed", aiSentiment: answer.analysis?.label ?? "", aiScore: answer.analysis?.manualScore ?? answer.analysis?.score ?? null, aiConfidence: answer.analysis?.confidencePercent ?? null, aiSummary: answer.analysis?.summary ?? "" });
         rowNumber += 1;
       }
     }
-    downloadCsv(`survey-response-report-${filterLabel}.csv`, rows);
+    await runExport("survey", () =>
+      downloadExcelReport({
+        filename: `survey-response-report-${filterLabel}.xlsx`,
+        sheetName: "Survey Responses",
+        columns: surveyExcelColumns,
+        rows,
+      }),
+    );
   }
 
   return (
@@ -151,6 +171,7 @@ export function ReportsCenter({ ticketRecords, backupRecords, surveyRecords }: {
           </div>
         </div>
         {invalidRange ? <p className="mt-3 text-left text-[11px] font-semibold text-rose-600 sm:text-right">The end date must be on or after the start date.</p> : null}
+        {exportError ? <p className="mt-3 text-left text-[11px] font-semibold text-rose-600 sm:text-right">{exportError}</p> : null}
       </Card>
 
       <div className="grid gap-5 lg:grid-cols-2">
@@ -164,8 +185,8 @@ export function ReportsCenter({ ticketRecords, backupRecords, surveyRecords }: {
             <p className="mt-1.5 text-[11px] leading-5 text-slate-500">Issue handling activities from the Head Office and Factory.</p>
           </div>
           <div className="flex items-center justify-between gap-4 p-5">
-            <div className="flex items-center gap-2 text-[11px] text-slate-500"><FileSpreadsheet size={15} /> CSV Format</div>
-            <button disabled={invalidRange || filteredTickets.length === 0} onClick={exportTroubleshooting} className="inline-flex h-10 items-center gap-2 rounded-xl bg-[#3157d5] px-4 text-xs font-semibold text-white hover:bg-[#2445b5] disabled:cursor-not-allowed disabled:bg-slate-300"><Download size={15} /> Export</button>
+            <div className="flex items-center gap-2 text-[11px] text-slate-500"><FileSpreadsheet size={15} /> Formatted XLSX</div>
+            <button disabled={invalidRange || filteredTickets.length === 0 || exporting !== null} onClick={() => void exportTroubleshooting()} className="inline-flex h-10 items-center gap-2 rounded-xl bg-[#3157d5] px-4 text-xs font-semibold text-white hover:bg-[#2445b5] disabled:cursor-not-allowed disabled:bg-slate-300"><Download size={15} /> {exporting === "troubleshooting" ? "Preparing..." : "Export"}</button>
           </div>
         </Card>
 
@@ -179,8 +200,8 @@ export function ReportsCenter({ ticketRecords, backupRecords, surveyRecords }: {
             <p className="mt-1.5 text-[11px] leading-5 text-slate-500">Registered backup users and their current verification status.</p>
           </div>
           <div className="flex items-center justify-between gap-4 p-5">
-            <div className="flex items-center gap-2 text-[11px] text-slate-500"><FileSpreadsheet size={15} /> CSV Format</div>
-            <button disabled={invalidRange || filteredBackups.length === 0} onClick={exportBackupUsers} className="inline-flex h-10 items-center gap-2 rounded-xl bg-[#3157d5] px-4 text-xs font-semibold text-white hover:bg-[#2445b5] disabled:cursor-not-allowed disabled:bg-slate-300"><Download size={15} /> Export</button>
+            <div className="flex items-center gap-2 text-[11px] text-slate-500"><FileSpreadsheet size={15} /> Formatted XLSX</div>
+            <button disabled={invalidRange || filteredBackups.length === 0 || exporting !== null} onClick={() => void exportBackupUsers()} className="inline-flex h-10 items-center gap-2 rounded-xl bg-[#3157d5] px-4 text-xs font-semibold text-white hover:bg-[#2445b5] disabled:cursor-not-allowed disabled:bg-slate-300"><Download size={15} /> {exporting === "backup" ? "Preparing..." : "Export"}</button>
           </div>
         </Card>
 
@@ -191,11 +212,11 @@ export function ReportsCenter({ ticketRecords, backupRecords, surveyRecords }: {
               <span className="rounded-lg bg-slate-100 px-2.5 py-1 text-[10px] font-bold text-slate-600">{invalidRange ? 0 : filteredSurveys.length} responses</span>
             </div>
             <h2 className="mt-4 text-base font-bold text-slate-900">Survey Response Report</h2>
-            <p className="mt-1.5 text-[11px] leading-5 text-slate-500">Client feedback, rating, and answers for every survey question.</p>
+            <p className="mt-1.5 text-[11px] leading-5 text-slate-500">Client feedback, rating, Gemini sentiment, confidence, and answers for every survey question.</p>
           </div>
           <div className="flex items-center justify-between gap-4 p-5">
-            <div className="flex items-center gap-2 text-[11px] text-slate-500"><FileSpreadsheet size={15} /> CSV Format</div>
-            <button disabled={invalidRange || filteredSurveys.length === 0} onClick={exportSurveys} className="inline-flex h-10 items-center gap-2 rounded-xl bg-[#3157d5] px-4 text-xs font-semibold text-white hover:bg-[#2445b5] disabled:cursor-not-allowed disabled:bg-slate-300"><Download size={15} /> Export</button>
+            <div className="flex items-center gap-2 text-[11px] text-slate-500"><FileSpreadsheet size={15} /> Formatted XLSX</div>
+            <button disabled={invalidRange || filteredSurveys.length === 0 || exporting !== null} onClick={() => void exportSurveys()} className="inline-flex h-10 items-center gap-2 rounded-xl bg-[#3157d5] px-4 text-xs font-semibold text-white hover:bg-[#2445b5] disabled:cursor-not-allowed disabled:bg-slate-300"><Download size={15} /> {exporting === "survey" ? "Preparing..." : "Export"}</button>
           </div>
         </Card>
       </div>

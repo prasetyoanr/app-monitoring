@@ -69,6 +69,21 @@ export const surveyQuestionTypeEnum = pgEnum("survey_question_type", [
   "linear_scale",
 ]);
 
+export const surveyAnalysisStatusEnum = pgEnum("survey_analysis_status", [
+  "pending",
+  "completed",
+  "failed",
+]);
+
+export const surveySentimentLabelEnum = pgEnum("survey_sentiment_label", [
+  "very_positive",
+  "positive",
+  "neutral",
+  "negative",
+  "very_negative",
+  "not_applicable",
+]);
+
 export const masterDivisions = pgTable(
   "master_divisions",
   {
@@ -101,12 +116,6 @@ export const auditActorTypeEnum = pgEnum("audit_actor_type", [
   "technician",
   "client",
   "system",
-]);
-
-export const serverStatusEnum = pgEnum("server_status", [
-  "Healthy",
-  "Warning",
-  "Critical",
 ]);
 
 export const technicians = pgTable(
@@ -353,35 +362,6 @@ export const auditLogs = pgTable(
   ],
 );
 
-export const monitoredServers = pgTable(
-  "monitored_servers",
-  {
-    name: varchar("name", { length: 120 }).primaryKey(),
-    role: varchar("role", { length: 160 }).notNull(),
-    ipAddress: varchar("ip_address", { length: 45 }).notNull(),
-    status: serverStatusEnum("status").notNull().default("Healthy"),
-    cpuPercent: integer("cpu_percent").notNull(),
-    memoryPercent: integer("memory_percent").notNull(),
-    diskPercent: integer("disk_percent").notNull(),
-    uptimeDays: integer("uptime_days").notNull().default(0),
-    measuredAt: timestamp("measured_at", { withTimezone: true })
-      .notNull()
-      .defaultNow(),
-    updatedAt: timestamp("updated_at", { withTimezone: true })
-      .notNull()
-      .defaultNow(),
-  },
-  (table) => [
-    uniqueIndex("monitored_servers_ip_unique").on(table.ipAddress),
-    index("monitored_servers_status_idx").on(table.status),
-    check(
-      "monitored_servers_usage_check",
-      sql`${table.cpuPercent} between 0 and 100 and ${table.memoryPercent} between 0 and 100 and ${table.diskPercent} between 0 and 100`,
-    ),
-    check("monitored_servers_uptime_check", sql`${table.uptimeDays} >= 0`),
-  ],
-);
-
 export const surveyForms = pgTable(
   "survey_forms",
   {
@@ -479,6 +459,48 @@ export const surveyAnswers = pgTable(
       table.questionId,
     ),
     index("survey_answers_question_idx").on(table.questionId),
+  ],
+);
+
+export const surveyAnswerAnalyses = pgTable(
+  "survey_answer_analyses",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    answerId: uuid("answer_id")
+      .notNull()
+      .references(() => surveyAnswers.id, { onDelete: "cascade" }),
+    status: surveyAnalysisStatusEnum("status").notNull().default("pending"),
+    provider: varchar("provider", { length: 32 }).notNull().default("gemini"),
+    model: varchar("model", { length: 120 }).notNull(),
+    sentimentLabel: surveySentimentLabelEnum("sentiment_label"),
+    sentimentScore: integer("sentiment_score"),
+    confidencePercent: integer("confidence_percent"),
+    summary: varchar("summary", { length: 500 }),
+    errorMessage: varchar("error_message", { length: 500 }),
+    manualScore: integer("manual_score"),
+    analyzedAt: timestamp("analyzed_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("survey_answer_analyses_answer_unique").on(table.answerId),
+    index("survey_answer_analyses_status_idx").on(table.status),
+    check(
+      "survey_answer_analyses_score_check",
+      sql`${table.sentimentScore} is null or ${table.sentimentScore} between 1 and 5`,
+    ),
+    check(
+      "survey_answer_analyses_confidence_check",
+      sql`${table.confidencePercent} is null or ${table.confidencePercent} between 0 and 100`,
+    ),
+    check(
+      "survey_answer_analyses_manual_score_check",
+      sql`${table.manualScore} is null or ${table.manualScore} between 1 and 5`,
+    ),
   ],
 );
 

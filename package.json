@@ -1,5 +1,5 @@
 {
-  "name": "app-monitoring",
+  "name": "it-activity-log",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -7,6 +7,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "typecheck": "tsc --noEmit --noUnusedLocals --noUnusedParameters",
+    "check": "bun run typecheck && bun run lint && bun run db:check",
+    "verify": "bun run check && bun run build",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:seed": "tsx src/db/seed.ts",
@@ -16,16 +19,19 @@
     "db:check": "drizzle-kit check"
   },
   "dependencies": {
+    "@google/genai": "^2.12.0",
     "@types/qrcode": "^1.5.6",
     "dotenv": "^17.4.2",
     "drizzle-orm": "^1.0.0-rc.4",
+    "exceljs": "^4.4.0",
     "jspdf": "^4.2.1",
     "lucide-react": "^1.24.0",
     "next": "16.2.10",
     "pg": "^8.22.0",
     "qrcode": "^1.5.4",
     "react": "19.2.4",
-    "react-dom": "19.2.4"
+    "react-dom": "19.2.4",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

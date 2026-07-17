@@ -5,7 +5,6 @@ import { count, desc, gte, sql } from "drizzle-orm";
 import { requireAuthenticatedUser } from "@/auth/session";
 import { db } from "@/db";
 import { backupUsers, troubleshootingIssues } from "@/db/schema";
-import { getServerRecords } from "@/data/app-data";
 import { jakartaDateInput } from "@/lib/jakarta-date";
 
 export async function getDashboardData() {
@@ -13,10 +12,9 @@ export async function getDashboardData() {
   const trendStart = new Date(todayStart.getTime() - 13 * 86_400_000);
   const trendDate = sql<string>`to_char(${troubleshootingIssues.reportedAt} at time zone 'Asia/Jakarta', 'YYYY-MM-DD')`;
 
-  const [currentUser, servers, issueCounts, backupCounts, recentIssues, trend] =
+  const [currentUser, issueCounts, backupCounts, recentIssues, trend] =
     await Promise.all([
       requireAuthenticatedUser(),
-      getServerRecords(),
       db
         .select({ status: troubleshootingIssues.status, total: count() })
         .from(troubleshootingIssues)
@@ -57,7 +55,6 @@ export async function getDashboardData() {
 
   return {
     currentUser,
-    servers,
     activeIssues: issueTotal - completedIssues,
     completedIssues,
     backupTotal,

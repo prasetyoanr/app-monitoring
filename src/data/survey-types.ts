@@ -10,6 +10,22 @@ export type SurveyQuestionType =
   | "linear_scale";
 
 export type SurveyAnswerValue = string | string[] | number;
+export type SurveySentimentLabel =
+  | "very_positive"
+  | "positive"
+  | "neutral"
+  | "negative"
+  | "very_negative"
+  | "not_applicable";
+
+export interface SurveyAnswerAnalysisRecord {
+  status: "pending" | "completed" | "failed";
+  label: SurveySentimentLabel | null;
+  score: number | null;
+  confidencePercent: number | null;
+  summary: string;
+  manualScore: number | null;
+}
 
 export interface SurveyQuestionInput {
   clientId: string;
@@ -49,6 +65,7 @@ export interface SurveySubmissionRecord {
   answers: Array<{
     questionId: string;
     value: SurveyAnswerValue;
+    analysis: SurveyAnswerAnalysisRecord | null;
   }>;
 }
 
@@ -76,9 +93,11 @@ export interface SurveyReportRecord {
   division: string;
   submittedAt: string;
   submittedDate: string;
+  submittedAtIso: string;
   answers: Array<{
     questionTitle: string;
     questionType: SurveyQuestionType;
     value: SurveyAnswerValue;
+    analysis: SurveyAnswerAnalysisRecord | null;
   }>;
 }

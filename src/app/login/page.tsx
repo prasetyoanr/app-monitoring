@@ -45,8 +45,8 @@ export default async function LoginPage({
               One workspace for every IT team activity.
             </p>
             <p className="mt-4 max-w-md text-sm leading-6 text-blue-100/80">
-              Manage troubleshooting, user backups, monitoring, and reports
-              from one internal dashboard.
+              Manage troubleshooting, user backups, surveys, and reports from
+              one internal dashboard.
             </p>
             <div className="mt-8 space-y-3 text-xs text-blue-50/90">
               <p className="flex items-center gap-2.5"><CheckCircle2 size={16} />Data connected directly to PostgreSQL</p>

@@ -188,7 +188,7 @@ export function TicketList({ initialRecords, canManage, divisionOptions, locatio
               </section>
 
               <footer className="mt-12 border-t border-slate-300 pt-4 text-[10px] leading-5 text-slate-400">
-                This document is an internal troubleshooting record generated from the IT Monitoring System.
+                This document is an internal troubleshooting record generated from IT Activity Log.
               </footer>
             </article>
           </div>

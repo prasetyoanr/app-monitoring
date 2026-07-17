@@ -12,7 +12,6 @@ import {
   FileBarChart,
   LogOut,
   Menu,
-  Server,
   TicketCheck,
   UserCog,
   X,
@@ -24,7 +23,6 @@ const navigationBase = [
   { label: "Overview", href: "/", icon: Gauge },
   { label: "Troubleshooting", href: "/troubleshooting", icon: TicketCheck },
   { label: "Backup User", href: "/backups", icon: HardDriveDownload },
-  { label: "Monitoring", href: "/monitoring", icon: Server },
   { label: "Surveys", href: "/surveys", icon: ClipboardCheck },
   { label: "Reports", href: "/reports", icon: FileBarChart },
 ];
@@ -107,7 +105,6 @@ export function AppShell({
                 >
                   <Icon size={15} strokeWidth={active ? 2.4 : 2} />
                   {item.label}
-                  {item.count ? <span className={`rounded-md px-1.5 py-0.5 text-[9px] ${active ? "bg-indigo-100 text-indigo-700" : "bg-white/10 text-cyan-100"}`}>{item.count}</span> : null}
                 </Link>
               );
             })}

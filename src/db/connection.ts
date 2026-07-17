@@ -8,18 +8,18 @@ if (!connectionString) {
 }
 
 const globalForDatabase = globalThis as typeof globalThis & {
-  appMonitoringPool?: Pool;
+  appDatabasePool?: Pool;
 };
 
 export const pool =
-  globalForDatabase.appMonitoringPool ??
+  globalForDatabase.appDatabasePool ??
   new Pool({
     connectionString,
     max: process.env.NODE_ENV === "production" ? 10 : 5,
   });
 
 if (process.env.NODE_ENV !== "production") {
-  globalForDatabase.appMonitoringPool = pool;
+  globalForDatabase.appDatabasePool = pool;
 }
 
 export const db = drizzle({ client: pool });

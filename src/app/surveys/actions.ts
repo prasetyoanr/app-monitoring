@@ -1,13 +1,19 @@
 "use server";
 
 import { randomBytes } from "node:crypto";
-import { count, eq } from "drizzle-orm";
+import { and, count, eq, ne } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 
+import {
+  analyzeSurveySubmission,
+  GEMINI_SENTIMENT_MODEL,
+} from "@/ai/gemini-survey-analysis";
 import { requireAdministrator, requireAuthenticatedUser } from "@/auth/session";
 import { db } from "@/db";
 import {
   auditLogs,
+  surveyAnswerAnalyses,
   surveyAnswers,
   surveyForms,
   surveyQuestions,
@@ -125,6 +131,89 @@ export async function createSurveyAction(input: {
     return {
       ok: false,
       error: error instanceof Error ? error.message : "Unable to create survey.",
+    };
+  }
+}
+
+export async function analyzeSurveyResponsesAction(
+  surveyId: string,
+): Promise<ActionResult<{ queuedResponses: number }>> {
+  const currentUser = await requireAdministrator();
+  try {
+    if (!validUuid(surveyId)) throw new Error("Invalid survey ID.");
+    if (!process.env.GEMINI_API_KEY?.trim()) {
+      throw new Error("GEMINI_API_KEY is not configured.");
+    }
+    const answers = await db
+      .select({
+        answerId: surveyAnswers.id,
+        submissionId: surveySubmissions.id,
+      })
+      .from(surveyAnswers)
+      .innerJoin(
+        surveySubmissions,
+        eq(surveyAnswers.submissionId, surveySubmissions.id),
+      )
+      .innerJoin(
+        surveyQuestions,
+        eq(surveyAnswers.questionId, surveyQuestions.id),
+      )
+      .where(
+        and(
+          eq(surveySubmissions.surveyId, surveyId),
+          ne(surveyQuestions.type, "linear_scale"),
+        ),
+      );
+    if (!answers.length) {
+      throw new Error("This survey has no text or choice answers to analyze.");
+    }
+    const now = new Date();
+    await db
+      .insert(surveyAnswerAnalyses)
+      .values(
+        answers.map((answer) => ({
+          answerId: answer.answerId,
+          model: GEMINI_SENTIMENT_MODEL,
+        })),
+      )
+      .onConflictDoUpdate({
+        target: surveyAnswerAnalyses.answerId,
+        set: {
+          status: "pending",
+          model: GEMINI_SENTIMENT_MODEL,
+          sentimentLabel: null,
+          sentimentScore: null,
+          confidencePercent: null,
+          summary: null,
+          errorMessage: null,
+          analyzedAt: null,
+          updatedAt: now,
+        },
+      });
+    const submissionIds = [...new Set(answers.map((answer) => answer.submissionId))];
+    after(async () => {
+      for (const submissionId of submissionIds) {
+        await analyzeSurveySubmission(submissionId);
+      }
+    });
+    await db.insert(auditLogs).values({
+      actorType: "technician",
+      actorId: currentUser.id,
+      action: "survey.ai_analysis_queued",
+      entityType: "survey",
+      entityId: surveyId,
+      metadata: { provider: "gemini", responseCount: submissionIds.length },
+    });
+    revalidateSurveys();
+    return { ok: true, data: { queuedResponses: submissionIds.length } };
+  } catch (error) {
+    console.error("Unable to queue Gemini survey analysis.", error);
+    return {
+      ok: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : "Unable to analyze survey responses.",
     };
   }
 }
@@ -260,7 +349,7 @@ export async function submitSurveyAction(input: {
     if (input.answers.length > 50) throw new Error("Too many answers.");
     const submittedAt = new Date();
 
-    const submissionId = await db.transaction(async (tx) => {
+    const { submissionId, analyzableAnswerCount } = await db.transaction(async (tx) => {
       const [survey] = await tx
         .select({
           id: surveyForms.id,
@@ -303,14 +392,35 @@ export async function submitSurveyAction(input: {
         .insert(surveySubmissions)
         .values({ surveyId: survey.id, clientName, division, submittedAt })
         .returning({ id: surveySubmissions.id });
+      let analyzableAnswerCount = 0;
       if (answers.length) {
-        await tx.insert(surveyAnswers).values(
+        const insertedAnswers = await tx.insert(surveyAnswers).values(
           answers.map((answer) => ({
             submissionId: submission.id,
             questionId: answer.questionId,
             value: answer.value,
           })),
+        ).returning({
+          id: surveyAnswers.id,
+          questionId: surveyAnswers.questionId,
+        });
+        const analyzableQuestionIds = new Set(
+          questions
+            .filter((question) => question.type !== "linear_scale")
+            .map((question) => question.id),
         );
+        const analyzableAnswers = insertedAnswers.filter((answer) =>
+          analyzableQuestionIds.has(answer.questionId),
+        );
+        analyzableAnswerCount = analyzableAnswers.length;
+        if (analyzableAnswers.length) {
+          await tx.insert(surveyAnswerAnalyses).values(
+            analyzableAnswers.map((answer) => ({
+              answerId: answer.id,
+              model: GEMINI_SENTIMENT_MODEL,
+            })),
+          );
+        }
       }
       await tx.insert(auditLogs).values({
         actorType: "client",
@@ -320,8 +430,11 @@ export async function submitSurveyAction(input: {
         entityId: survey.id,
         metadata: { submissionId: submission.id, division },
       });
-      return submission.id;
+      return { submissionId: submission.id, analyzableAnswerCount };
     });
+    if (analyzableAnswerCount) {
+      after(() => analyzeSurveySubmission(submissionId));
+    }
     revalidateSurveys();
     return { ok: true, data: { submissionId } };
   } catch (error) {

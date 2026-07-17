@@ -22,15 +22,6 @@ export const tickets: TicketRecord[] = [
   { id: "INC-2026-0143", title: "Design application installation request", category: "Software", requester: "Yoga Saputra", division: "Marketing", location: "Factory", reportedAt: "10/07/26", reportedDate: "2026-07-10", priority: "Low", status: "Completed", completedDays: 0, description: "Install a design application for business use." },
 ];
 
-export const servers = [
-  { name: "PROXMOX-01", role: "Primary hypervisor", ip: "10.10.1.11", status: "Healthy", cpu: 38, memory: 62, disk: 54, uptime: "128 days" },
-  { name: "APP-PROD-01", role: "Application server", ip: "10.10.1.24", status: "Healthy", cpu: 44, memory: 71, disk: 48, uptime: "42 days" },
-  { name: "DB-PROD-01", role: "PostgreSQL database", ip: "10.10.1.31", status: "Warning", cpu: 67, memory: 86, disk: 74, uptime: "91 days" },
-  { name: "FILE-SRV-01", role: "File server", ip: "10.10.1.42", status: "Healthy", cpu: 21, memory: 52, disk: 68, uptime: "67 days" },
-  { name: "DC-PRIMARY", role: "Domain controller", ip: "10.10.1.5", status: "Healthy", cpu: 18, memory: 43, disk: 31, uptime: "156 days" },
-  { name: "WEB-LEGACY", role: "Legacy web server", ip: "10.10.1.51", status: "Critical", cpu: 94, memory: 92, disk: 88, uptime: "19 days" },
-];
-
 export interface BackupRecord {
   id: string;
   user: string;

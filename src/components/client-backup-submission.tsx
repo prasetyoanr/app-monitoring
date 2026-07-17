@@ -69,7 +69,7 @@ export function ClientBackupSubmission({ invitation, divisionOptions }: { invita
       <div className="bg-indigo-950 px-4 pb-12 pt-7 text-white text-center">
         <div className="mx-auto max-w-md">
           <div className="flex items-center gap-2 text-[9px] font-semibold uppercase tracking-[0.16em] text-cyan-200"><ShieldCheck size={15} /> Secure Client Form</div>
-          <h1 className="mt-3 text-2xl font-bold tracking-tight">Monitoring Synology Account</h1>
+          <h1 className="mt-3 text-2xl font-bold tracking-tight">Synology Account Information</h1>
         </div>
       </div>
 

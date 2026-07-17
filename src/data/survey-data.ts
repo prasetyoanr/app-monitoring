@@ -6,6 +6,7 @@ import { requireAuthenticatedUser } from "@/auth/session";
 import { db } from "@/db";
 import {
   surveyAnswers,
+  surveyAnswerAnalyses,
   surveyForms,
   surveyQuestions,
   surveySubmissions,
@@ -18,7 +19,7 @@ import type {
   SurveyResponseData,
   SurveyStatus,
 } from "@/data/survey-types";
-import { jakartaDateInput } from "@/lib/jakarta-date";
+import { jakartaDateInput, jakartaDateTimeInput } from "@/lib/jakarta-date";
 
 const displayDateTime = new Intl.DateTimeFormat("en-GB", {
   timeZone: "Asia/Jakarta",
@@ -148,8 +149,18 @@ export async function getSurveyResponseData(
           submissionId: surveyAnswers.submissionId,
           questionId: surveyAnswers.questionId,
           value: surveyAnswers.value,
+          analysisStatus: surveyAnswerAnalyses.status,
+          sentimentLabel: surveyAnswerAnalyses.sentimentLabel,
+          sentimentScore: surveyAnswerAnalyses.sentimentScore,
+          confidencePercent: surveyAnswerAnalyses.confidencePercent,
+          analysisSummary: surveyAnswerAnalyses.summary,
+          manualScore: surveyAnswerAnalyses.manualScore,
         })
         .from(surveyAnswers)
+        .leftJoin(
+          surveyAnswerAnalyses,
+          eq(surveyAnswerAnalyses.answerId, surveyAnswers.id),
+        )
         .where(
           inArray(
             surveyAnswers.submissionId,
@@ -163,7 +174,20 @@ export async function getSurveyResponseData(
   >();
   for (const answer of answers) {
     const values = answersBySubmission.get(answer.submissionId) ?? [];
-    values.push({ questionId: answer.questionId, value: answer.value });
+    values.push({
+      questionId: answer.questionId,
+      value: answer.value,
+      analysis: answer.analysisStatus
+        ? {
+            status: answer.analysisStatus,
+            label: answer.sentimentLabel,
+            score: answer.sentimentScore,
+            confidencePercent: answer.confidencePercent,
+            summary: answer.analysisSummary ?? "",
+            manualScore: answer.manualScore,
+          }
+        : null,
+    });
     answersBySubmission.set(answer.submissionId, values);
   }
 
@@ -204,11 +228,21 @@ export async function getSurveyReportRecords(): Promise<SurveyReportRecord[]> {
           questionType: surveyQuestions.type,
           questionPosition: surveyQuestions.position,
           value: surveyAnswers.value,
+          analysisStatus: surveyAnswerAnalyses.status,
+          sentimentLabel: surveyAnswerAnalyses.sentimentLabel,
+          sentimentScore: surveyAnswerAnalyses.sentimentScore,
+          confidencePercent: surveyAnswerAnalyses.confidencePercent,
+          analysisSummary: surveyAnswerAnalyses.summary,
+          manualScore: surveyAnswerAnalyses.manualScore,
         })
         .from(surveyAnswers)
         .innerJoin(
           surveyQuestions,
           eq(surveyAnswers.questionId, surveyQuestions.id),
+        )
+        .leftJoin(
+          surveyAnswerAnalyses,
+          eq(surveyAnswerAnalyses.answerId, surveyAnswers.id),
         )
         .where(
           inArray(
@@ -228,6 +262,16 @@ export async function getSurveyReportRecords(): Promise<SurveyReportRecord[]> {
       questionTitle: answer.questionTitle,
       questionType: answer.questionType,
       value: answer.value,
+      analysis: answer.analysisStatus
+        ? {
+            status: answer.analysisStatus,
+            label: answer.sentimentLabel,
+            score: answer.sentimentScore,
+            confidencePercent: answer.confidencePercent,
+            summary: answer.analysisSummary ?? "",
+            manualScore: answer.manualScore,
+          }
+        : null,
     });
     answersBySubmission.set(answer.submissionId, values);
   }
@@ -240,6 +284,7 @@ export async function getSurveyReportRecords(): Promise<SurveyReportRecord[]> {
     division: submission.division ?? "Not provided",
     submittedAt: displayDateTime.format(submission.submittedAt),
     submittedDate: jakartaDateInput(submission.submittedAt),
+    submittedAtIso: jakartaDateTimeInput(submission.submittedAt),
     answers: answersBySubmission.get(submission.responseId) ?? [],
   }));
 }

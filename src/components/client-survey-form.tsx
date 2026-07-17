@@ -127,7 +127,7 @@ export function ClientSurveyForm({
             <button disabled={submitting} className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#3157d5] px-5 text-sm font-semibold text-white shadow-lg shadow-blue-600/20 disabled:bg-slate-300 sm:w-auto"><Send size={16} /> {submitting ? "Submitting..." : "Submit Response"}</button>
           </div>
         </form>
-        <p className="px-4 pt-5 text-center text-[9px] leading-4 text-slate-400">Your response is stored in the internal IT monitoring system.</p>
+        <p className="px-4 pt-5 text-center text-[9px] leading-4 text-slate-400">Your response is stored in the internal IT service system. Survey answers may be analyzed by Gemini to measure service sentiment; your name and division are not sent for AI analysis.</p>
       </div>
     </main>
   );

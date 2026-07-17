@@ -1,10 +1,9 @@
 import "dotenv/config";
 
-import { backupJobs, servers, tickets } from "../data/mock-data";
+import { backupJobs, tickets } from "../data/mock-data";
 import { db, pool } from "./connection";
 import {
   backupUsers,
-  monitoredServers,
   surveyAnswers,
   surveyForms,
   surveyQuestions,
@@ -70,22 +69,6 @@ async function seed() {
         syncPath: backup.syncPath,
         lastBackupAt: new Date(`${backup.lastBackupIso}+07:00`),
         status: backup.status as "Success" | "Failed" | "Overdue" | "Pending",
-      })),
-    )
-    .onConflictDoNothing();
-
-  await db
-    .insert(monitoredServers)
-    .values(
-      servers.map((server) => ({
-        name: server.name,
-        role: server.role,
-        ipAddress: server.ip,
-        status: server.status as "Healthy" | "Warning" | "Critical",
-        cpuPercent: server.cpu,
-        memoryPercent: server.memory,
-        diskPercent: server.disk,
-        uptimeDays: Number.parseInt(server.uptime, 10),
       })),
     )
     .onConflictDoNothing();

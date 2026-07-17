@@ -8,13 +8,11 @@ import { db } from "@/db";
 import {
   backupUserInvitations,
   backupUsers,
-  monitoredServers,
   troubleshootingApprovals,
   troubleshootingIssues,
 } from "@/db/schema";
 import type {
   BackupRecord,
-  ServerRecord,
   TicketRecord,
 } from "@/data/types";
 import { jakartaDateInput } from "@/lib/jakarta-date";
@@ -134,24 +132,6 @@ export async function getNavigationCounts() {
     db.select({ value: count() }).from(backupUsers),
   ]);
   return { issues: issues.value, backups: backups.value };
-}
-
-export async function getServerRecords(): Promise<ServerRecord[]> {
-  await requireAuthenticatedUser();
-  const rows = await db
-    .select()
-    .from(monitoredServers)
-    .orderBy(monitoredServers.name);
-  return rows.map((row) => ({
-    name: row.name,
-    role: row.role,
-    ip: row.ipAddress,
-    status: row.status,
-    cpu: row.cpuPercent,
-    memory: row.memoryPercent,
-    disk: row.diskPercent,
-    uptime: `${row.uptimeDays} days`,
-  }));
 }
 
 export interface ApprovalRecord {

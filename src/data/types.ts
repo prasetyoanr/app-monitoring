@@ -47,17 +47,6 @@ export interface AccountRecord {
   createdAt: string;
 }
 
-export interface ServerRecord {
-  name: string;
-  role: string;
-  ip: string;
-  status: "Healthy" | "Warning" | "Critical";
-  cpu: number;
-  memory: number;
-  disk: number;
-  uptime: string;
-}
-
 export type ActionResult<T = undefined> =
   | { ok: true; data: T }
   | { ok: false; error: string };

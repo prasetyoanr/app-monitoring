@@ -10,6 +10,8 @@ import {
   FileClock,
   LoaderCircle,
   MessageSquareText,
+  RefreshCw,
+  Sparkles,
   Send,
   Star,
   Trash2,
@@ -21,6 +23,7 @@ import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 
 import {
+  analyzeSurveyResponsesAction,
   deleteSurveyAction,
   getSurveyResponsesAction,
   setSurveyStatusAction,
@@ -28,6 +31,7 @@ import {
 import { Card, MetricCard, PageHeader, StatusBadge } from "@/components/ui";
 import type {
   SurveyAnswerValue,
+  SurveyAnswerAnalysisRecord,
   SurveyDisplayStatus,
   SurveyListRecord,
   SurveyQuestionRecord,
@@ -57,6 +61,37 @@ function answerFor(
   questionId: string,
 ) {
   return submission.answers.find((answer) => answer.questionId === questionId)?.value;
+}
+
+function analysisFor(
+  submission: SurveySubmissionRecord,
+  questionId: string,
+) {
+  return submission.answers.find((answer) => answer.questionId === questionId)
+    ?.analysis;
+}
+
+function sentimentLabel(analysis: SurveyAnswerAnalysisRecord | null | undefined) {
+  if (!analysis) return "Not analyzed";
+  if (analysis.status === "pending") return "Analyzing";
+  if (analysis.status === "failed") return "Analysis failed";
+  const labels = {
+    very_positive: "Very Positive",
+    positive: "Positive",
+    neutral: "Neutral",
+    negative: "Negative",
+    very_negative: "Very Negative",
+    not_applicable: "Not Applicable",
+  };
+  return analysis.label ? labels[analysis.label] : "Not analyzed";
+}
+
+function sentimentClass(analysis: SurveyAnswerAnalysisRecord | null | undefined) {
+  if (analysis?.status === "pending") return "bg-blue-50 text-blue-700";
+  if (analysis?.status === "failed") return "bg-rose-50 text-rose-700";
+  if (analysis?.label === "very_positive" || analysis?.label === "positive") return "bg-emerald-50 text-emerald-700";
+  if (analysis?.label === "negative" || analysis?.label === "very_negative") return "bg-rose-50 text-rose-700";
+  return "bg-slate-100 text-slate-600";
 }
 
 function QuestionSummary({
@@ -99,11 +134,17 @@ function QuestionSummary({
     return <div className="mt-4 space-y-2">{question.options.map((option) => { const total = counts.get(option) ?? 0; return <div key={option}><div className="mb-1 flex justify-between gap-3 text-[10px]"><span className="truncate font-semibold text-slate-600">{option}</span><span className="font-bold text-slate-500">{total}</span></div><div className="h-2 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-indigo-500" style={{ width: `${(total / maximum) * 100}%` }} /></div></div>; })}</div>;
   }
 
+  const textEntries = submissions.flatMap((submission) => {
+    const answer = submission.answers.find(
+      (item) => item.questionId === question.id,
+    );
+    return answer ? [{ value: answer.value, analysis: answer.analysis }] : [];
+  });
   return (
     <div className="mt-4 space-y-2">
-      {values.slice(0, 3).map((value, index) => <p key={index} className="rounded-xl bg-slate-50 p-3 text-[11px] leading-5 text-slate-600">{answerText(value)}</p>)}
-      {values.length === 0 ? <p className="text-[11px] text-slate-400">No answers yet.</p> : null}
-      {values.length > 3 ? <p className="text-[10px] font-semibold text-indigo-600">+ {values.length - 3} more answers</p> : null}
+      {textEntries.slice(0, 3).map((entry, index) => <div key={index} className="rounded-xl bg-slate-50 p-3"><p className="text-[11px] leading-5 text-slate-600">{answerText(entry.value)}</p><span className={`mt-2 inline-flex rounded-md px-2 py-1 text-[9px] font-bold ${sentimentClass(entry.analysis)}`}>{sentimentLabel(entry.analysis)}{entry.analysis?.confidencePercent !== null && entry.analysis?.confidencePercent !== undefined ? ` · ${entry.analysis.confidencePercent}%` : ""}</span></div>)}
+      {textEntries.length === 0 ? <p className="text-[11px] text-slate-400">No answers yet.</p> : null}
+      {textEntries.length > 3 ? <p className="text-[10px] font-semibold text-indigo-600">+ {textEntries.length - 3} more answers</p> : null}
     </div>
   );
 }
@@ -124,6 +165,7 @@ export function SurveyCenter({
   const [pendingId, setPendingId] = useState("");
   const [deleteRecord, setDeleteRecord] = useState<SurveyListRecord | null>(null);
   const [message, setMessage] = useState("");
+  const [messageTone, setMessageTone] = useState<"error" | "info">("error");
   const [copiedCode, setCopiedCode] = useState("");
 
   async function loadResponses(surveyId: string) {
@@ -133,7 +175,10 @@ export function SurveyCenter({
     const result = await getSurveyResponsesAction(surveyId);
     setLoadingResponses(false);
     if (result.ok) setResponseData(result.data);
-    else setMessage(result.error);
+    else {
+      setMessageTone("error");
+      setMessage(result.error);
+    }
   }
 
   function openResponses() {
@@ -159,6 +204,31 @@ export function SurveyCenter({
     return ratings.length ? ratings.reduce((sum, value) => sum + value, 0) / ratings.length : 0;
   }, [responseData]);
 
+  const aiMetrics = useMemo(() => {
+    if (!responseData) return { positivePercent: 0, performance: 0, analyzed: 0 };
+    const analyses = responseData.submissions.flatMap((submission) =>
+      submission.answers.map((answer) => answer.analysis).filter(
+        (analysis): analysis is SurveyAnswerAnalysisRecord =>
+          Boolean(analysis && analysis.status === "completed" && analysis.label !== "not_applicable"),
+      ),
+    );
+    const positive = analyses.filter((analysis) => analysis.label === "positive" || analysis.label === "very_positive").length;
+    const responseScores = responseData.submissions.flatMap((submission) => {
+      const explicit = submission.answers.flatMap((answer) => typeof answer.value === "number" ? [answer.value] : []);
+      if (explicit.length) return [explicit.reduce((sum, score) => sum + score, 0) / explicit.length];
+      const inferred = submission.answers.flatMap((answer) => {
+        const score = answer.analysis?.manualScore ?? answer.analysis?.score;
+        return answer.analysis?.status === "completed" && score !== null && score !== undefined ? [score] : [];
+      });
+      return inferred.length ? [inferred.reduce((sum, score) => sum + score, 0) / inferred.length] : [];
+    });
+    return {
+      positivePercent: analyses.length ? Math.round((positive / analyses.length) * 100) : 0,
+      performance: responseScores.length ? responseScores.reduce((sum, score) => sum + score, 0) / responseScores.length : 0,
+      analyzed: analyses.length,
+    };
+  }, [responseData]);
+
   async function copyLink(survey: SurveyListRecord) {
     const url = `${window.location.origin}/s/${survey.publicCode}`;
     try {
@@ -166,6 +236,7 @@ export function SurveyCenter({
       setCopiedCode(survey.publicCode);
       window.setTimeout(() => setCopiedCode(""), 1800);
     } catch {
+      setMessageTone("error");
       setMessage("Unable to copy the link. Copy it from the preview page.");
     }
   }
@@ -176,7 +247,10 @@ export function SurveyCenter({
     const status = survey.storedStatus === "active" ? "closed" : "active";
     const result = await setSurveyStatusAction(survey.id, status);
     setPendingId("");
-    if (!result.ok) setMessage(result.error);
+    if (!result.ok) {
+      setMessageTone("error");
+      setMessage(result.error);
+    }
     else router.refresh();
   }
 
@@ -185,33 +259,41 @@ export function SurveyCenter({
     setPendingId(deleteRecord.id);
     const result = await deleteSurveyAction(deleteRecord.id);
     setPendingId("");
-    if (!result.ok) setMessage(result.error);
+    if (!result.ok) {
+      setMessageTone("error");
+      setMessage(result.error);
+    }
     else {
       setDeleteRecord(null);
       router.refresh();
     }
   }
 
+  async function analyzeWithGemini() {
+    if (!selectedSurveyId) return;
+    setPendingId(selectedSurveyId);
+    setMessage("");
+    const result = await analyzeSurveyResponsesAction(selectedSurveyId);
+    setPendingId("");
+    if (!result.ok) {
+      setMessageTone("error");
+      setMessage(result.error);
+      return;
+    }
+    setMessageTone("info");
+    setMessage(`Gemini analysis queued for ${result.data.queuedResponses} responses. Refresh Responses shortly to see the result.`);
+    void loadResponses(selectedSurveyId);
+  }
+
   return (
     <>
-      <PageHeader eyebrow="Client experience" title="Client Surveys" description="Create questionnaires and monitor client feedback about IT team performance." action={canManage ? <Link href="/surveys/new" className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-[#3157d5] px-4 text-xs font-semibold text-white"><Send size={15} /> Add Survey</Link> : undefined} />
+      <PageHeader eyebrow="Client experience" title="Client Surveys" description="Create questionnaires and monitor client feedback about IT team performance." action={<div className="flex flex-col gap-2 sm:flex-row sm:items-center"><div className="flex gap-1 rounded-xl border border-slate-200 bg-white p-1"><button type="button" onClick={() => setTab("history")} className={`flex h-9 flex-1 items-center justify-center gap-2 rounded-lg px-4 text-[11px] font-bold sm:flex-none ${tab === "history" ? "bg-indigo-600 text-white" : "text-slate-500"}`}><FileClock size={14} /> Survey History</button><button type="button" onClick={openResponses} className={`flex h-9 flex-1 items-center justify-center gap-2 rounded-lg px-4 text-[11px] font-bold sm:flex-none ${tab === "responses" ? "bg-indigo-600 text-white" : "text-slate-500"}`}><BarChart3 size={14} /> Responses</button></div>{canManage ? <Link href="/surveys/new" className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-[#3157d5] px-4 text-xs font-semibold text-white"><Send size={15} /> Add Survey</Link> : null}</div>} />
 
-      <div className="grid gap-3 sm:grid-cols-3">
-        <MetricCard label="Survey Forms" value={String(totals.forms)} icon={ClipboardList} detail="All stored questionnaires" />
-        <MetricCard label="Active Surveys" value={String(totals.active)} icon={FileClock} tone="green" detail="Available through a public link" />
-        <MetricCard label="Client Responses" value={String(totals.responses)} icon={Users} tone="amber" detail="Responses stored in PostgreSQL" />
-      </div>
-
-      <div className="mt-5 flex gap-1 rounded-xl border border-slate-200 bg-white p-1 sm:w-fit">
-        <button type="button" onClick={() => setTab("history")} className={`flex h-9 flex-1 items-center justify-center gap-2 rounded-lg px-4 text-[11px] font-bold sm:flex-none ${tab === "history" ? "bg-indigo-600 text-white" : "text-slate-500"}`}><FileClock size={14} /> Survey History</button>
-        <button type="button" onClick={openResponses} className={`flex h-9 flex-1 items-center justify-center gap-2 rounded-lg px-4 text-[11px] font-bold sm:flex-none ${tab === "responses" ? "bg-indigo-600 text-white" : "text-slate-500"}`}><BarChart3 size={14} /> Responses</button>
-      </div>
-
-      {message ? <p className="mt-4 rounded-xl bg-rose-50 p-3 text-[11px] font-semibold text-rose-700">{message}</p> : null}
+      {message ? <p className={`mt-4 rounded-xl p-3 text-[11px] font-semibold ${messageTone === "info" ? "bg-blue-50 text-blue-700" : "bg-rose-50 text-rose-700"}`}>{message}</p> : null}
 
       {tab === "history" ? (
         <Card className="mt-4 overflow-hidden">
-          <div className="border-b border-slate-100 px-4 py-4 sm:px-5"><h2 className="text-sm font-extrabold text-slate-800">Survey History</h2><p className="mt-1 text-[11px] text-slate-500">All draft, active, and completed questionnaires</p></div>
+          <div className="flex flex-col gap-4 border-b border-slate-100 px-4 py-4 sm:px-5 lg:flex-row lg:items-center lg:justify-between"><div><h2 className="text-sm font-extrabold text-slate-800">Survey History</h2><p className="mt-1 text-[11px] text-slate-500">All draft, active, and completed questionnaires</p></div><div className="grid grid-cols-3 divide-x divide-slate-200 rounded-xl bg-slate-50"><div className="px-4 py-2 text-center"><p className="text-base font-black text-slate-900">{totals.forms}</p><p className="text-[8px] font-bold uppercase tracking-wider text-slate-400">Forms</p></div><div className="px-4 py-2 text-center"><p className="text-base font-black text-emerald-600">{totals.active}</p><p className="text-[8px] font-bold uppercase tracking-wider text-slate-400">Active</p></div><div className="px-4 py-2 text-center"><p className="text-base font-black text-amber-600">{totals.responses}</p><p className="text-[8px] font-bold uppercase tracking-wider text-slate-400">Responses</p></div></div></div>
           <div className="divide-y divide-slate-100">
             {surveys.map((survey) => (
               <article key={survey.id} className="p-4 sm:p-5">
@@ -235,12 +317,14 @@ export function SurveyCenter({
         </Card>
       ) : (
         <div className="mt-4">
-          {surveys.length ? <label className="block max-w-md text-[11px] font-bold text-slate-600">Survey<select value={selectedSurveyId} onChange={(event) => selectSurvey(event.target.value)} className="mt-2 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-xs outline-none focus:border-indigo-500">{surveys.map((survey) => <option key={survey.id} value={survey.id}>{survey.title} ({survey.responseCount})</option>)}</select></label> : null}
+          {surveys.length ? <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between"><label className="block max-w-md flex-1 text-[11px] font-bold text-slate-600">Survey<select value={selectedSurveyId} onChange={(event) => selectSurvey(event.target.value)} className="mt-2 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-xs outline-none focus:border-indigo-500">{surveys.map((survey) => <option key={survey.id} value={survey.id}>{survey.title} ({survey.responseCount})</option>)}</select></label><div className="grid grid-cols-1 gap-2 sm:flex"><button type="button" onClick={() => void loadResponses(selectedSurveyId)} disabled={loadingResponses} className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-xs font-semibold text-slate-600 disabled:text-slate-300"><RefreshCw size={15} className={loadingResponses ? "animate-spin" : ""} />Refresh Results</button>{canManage ? <button type="button" onClick={() => void analyzeWithGemini()} disabled={pendingId === selectedSurveyId} className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-[#3157d5] px-4 text-xs font-semibold text-white disabled:bg-slate-300"><Sparkles size={15} />{pendingId === selectedSurveyId ? "Queuing..." : "Analyze with Gemini"}</button> : null}</div></div> : null}
           {loadingResponses ? <div className="mt-4 grid min-h-48 place-items-center rounded-2xl border border-slate-200 bg-white"><LoaderCircle className="animate-spin text-indigo-600" size={26} /></div> : responseData ? (
             <>
-              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                 <MetricCard label="Total Responses" value={String(responseData.submissions.length)} icon={Users} detail="Responses for the selected survey" />
                 <MetricCard label="Average Rating" value={overallRating ? overallRating.toFixed(1) : "—"} icon={Star} tone="amber" detail={<span className="inline-flex items-center gap-1">{[1, 2, 3, 4, 5].map((score) => <Star key={score} size={12} className={score <= Math.round(overallRating) ? "fill-amber-400 text-amber-400" : "text-slate-200"} />)}</span>} />
+                <MetricCard label="Positive Sentiment" value={aiMetrics.analyzed ? `${aiMetrics.positivePercent}%` : "—"} icon={MessageSquareText} tone="green" detail={`${aiMetrics.analyzed} applicable AI analyses`} />
+                <MetricCard label="Performance Score" value={aiMetrics.performance ? aiMetrics.performance.toFixed(1) : "—"} icon={Sparkles} detail="Rating first, AI score as fallback" />
               </div>
               <div className="mt-4 grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
                 <div className="space-y-4">{responseData.questions.map((question, index) => <Card key={question.id} className="p-4 sm:p-5"><p className="text-[9px] font-bold uppercase tracking-wider text-indigo-500">Question {index + 1}</p><h3 className="mt-1 text-sm font-bold text-slate-800">{question.title}</h3><QuestionSummary question={question} submissions={responseData.submissions} /></Card>)}</div>
@@ -251,7 +335,7 @@ export function SurveyCenter({
         </div>
       )}
 
-      {selectedResponse && responseData ? <div className="fixed inset-0 z-[80] overflow-y-auto bg-slate-950/55 p-4 backdrop-blur-sm" role="dialog" aria-modal="true"><div className="mx-auto my-4 w-full max-w-2xl rounded-2xl bg-white shadow-2xl"><div className="flex items-start justify-between border-b border-slate-100 p-5"><div><h2 className="text-sm font-bold text-slate-900">{selectedResponse.clientName}</h2><p className="mt-1 text-[10px] text-slate-500">{selectedResponse.division} · {selectedResponse.submittedAt}</p></div><button type="button" onClick={() => setSelectedResponse(null)} className="grid size-9 place-items-center rounded-lg text-slate-400" aria-label="Close response"><X size={17} /></button></div><div className="space-y-4 p-5">{responseData.questions.map((question, index) => <div key={question.id} className="rounded-xl bg-slate-50 p-4"><p className="text-[9px] font-bold uppercase tracking-wider text-indigo-500">Question {index + 1}</p><p className="mt-1 text-xs font-bold text-slate-700">{question.title}</p><p className="mt-2 whitespace-pre-wrap text-[11px] leading-5 text-slate-600">{answerText(answerFor(selectedResponse, question.id))}</p></div>)}</div></div></div> : null}
+      {selectedResponse && responseData ? <div className="fixed inset-0 z-[80] overflow-y-auto bg-slate-950/55 p-4 backdrop-blur-sm" role="dialog" aria-modal="true"><div className="mx-auto my-4 w-full max-w-2xl rounded-2xl bg-white shadow-2xl"><div className="flex items-start justify-between border-b border-slate-100 p-5"><div><h2 className="text-sm font-bold text-slate-900">{selectedResponse.clientName}</h2><p className="mt-1 text-[10px] text-slate-500">{selectedResponse.division} · {selectedResponse.submittedAt}</p></div><button type="button" onClick={() => setSelectedResponse(null)} className="grid size-9 place-items-center rounded-lg text-slate-400" aria-label="Close response"><X size={17} /></button></div><div className="space-y-4 p-5">{responseData.questions.map((question, index) => { const analysis = analysisFor(selectedResponse, question.id); return <div key={question.id} className="rounded-xl bg-slate-50 p-4"><p className="text-[9px] font-bold uppercase tracking-wider text-indigo-500">Question {index + 1}</p><p className="mt-1 text-xs font-bold text-slate-700">{question.title}</p><p className="mt-2 whitespace-pre-wrap text-[11px] leading-5 text-slate-600">{answerText(answerFor(selectedResponse, question.id))}</p>{analysis ? <div className="mt-3 border-t border-slate-200 pt-3"><span className={`inline-flex rounded-md px-2 py-1 text-[9px] font-bold ${sentimentClass(analysis)}`}>{sentimentLabel(analysis)}{analysis.confidencePercent !== null ? ` · ${analysis.confidencePercent}%` : ""}</span>{analysis.summary ? <p className="mt-2 text-[10px] leading-5 text-slate-500">{analysis.summary}</p> : null}</div> : null}</div>; })}</div></div></div> : null}
 
       {deleteRecord ? <div className="fixed inset-0 z-[90] grid place-items-center bg-slate-950/55 p-4 backdrop-blur-sm" role="alertdialog" aria-modal="true"><div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-2xl"><h2 className="text-sm font-bold text-slate-900">Delete survey?</h2><p className="mt-2 text-xs leading-5 text-slate-500"><b>{deleteRecord.title}</b> and all {deleteRecord.responseCount} responses will be permanently removed.</p><div className="mt-5 flex justify-end gap-2"><button type="button" onClick={() => setDeleteRecord(null)} className="h-9 rounded-xl border border-slate-200 px-4 text-xs font-bold text-slate-600">Cancel</button><button type="button" onClick={() => void confirmDelete()} disabled={pendingId === deleteRecord.id} className="h-9 rounded-xl bg-rose-600 px-4 text-xs font-bold text-white disabled:bg-slate-300">{pendingId === deleteRecord.id ? "Deleting..." : "Delete"}</button></div></div></div> : null}
     </>

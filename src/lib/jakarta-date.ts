@@ -5,12 +5,30 @@ const jakartaDateFormatter = new Intl.DateTimeFormat("en-CA", {
   day: "2-digit",
 });
 
+const jakartaDateTimeFormatter = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "Asia/Jakarta",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  hourCycle: "h23",
+});
+
 export function jakartaDateInput(date = new Date()) {
   const parts = jakartaDateFormatter.formatToParts(date);
   const values = Object.fromEntries(
     parts.map((part) => [part.type, part.value]),
   );
   return `${values.year}-${values.month}-${values.day}`;
+}
+
+export function jakartaDateTimeInput(date = new Date()) {
+  const parts = jakartaDateTimeFormatter.formatToParts(date);
+  const values = Object.fromEntries(
+    parts.map((part) => [part.type, part.value]),
+  );
+  return `${values.year}-${values.month}-${values.day}T${values.hour}:${values.minute}`;
 }
 
 export function currentJakartaMonth() {

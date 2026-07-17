@@ -234,7 +234,7 @@ export function BackupUserList({ initialRecords, canManage, divisionOptions }: {
                   <div><dt className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Status</dt><dd className="mt-1 font-medium text-slate-800">{detailRecord.status}</dd></div>
                 </dl>
               </section>
-              <footer className="mt-12 border-t border-slate-300 pt-4 text-[10px] leading-5 text-slate-400">This document is an internal backup user record generated from the IT Monitoring System.</footer>
+              <footer className="mt-12 border-t border-slate-300 pt-4 text-[10px] leading-5 text-slate-400">This document is an internal backup user record generated from IT Activity Log.</footer>
             </article>
           </div>
         </div>
