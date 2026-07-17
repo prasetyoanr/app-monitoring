@@ -58,16 +58,6 @@ export interface ServerRecord {
   uptime: string;
 }
 
-export interface SurveyRecord {
-  id: string;
-  name: string;
-  department: string;
-  score: number;
-  comment: string;
-  ticket: string;
-  respondedAt: string;
-}
-
 export type ActionResult<T = undefined> =
   | { ok: true; data: T }
   | { ok: false; error: string };

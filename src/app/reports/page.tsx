@@ -2,13 +2,15 @@ import type { Metadata } from "next";
 import { ReportsCenter } from "@/components/reports-center";
 import { PageHeader } from "@/components/ui";
 import { getBackupRecords, getTicketRecords } from "@/data/app-data";
+import { getSurveyReportRecords } from "@/data/survey-data";
 
 export const metadata: Metadata = { title: "Reports" };
 
 export default async function ReportsPage() {
-  const [ticketRecords, backupRecords] = await Promise.all([
+  const [ticketRecords, backupRecords, surveyRecords] = await Promise.all([
     getTicketRecords(),
     getBackupRecords(),
+    getSurveyReportRecords(),
   ]);
   return (
     <>
@@ -17,7 +19,7 @@ export default async function ReportsPage() {
         title="Reports"
         description="Centralized periodic reporting for all IT activities. Select a date range or month, then export the required report."
       />
-      <ReportsCenter ticketRecords={ticketRecords} backupRecords={backupRecords} />
+      <ReportsCenter ticketRecords={ticketRecords} backupRecords={backupRecords} surveyRecords={surveyRecords} />
     </>
   );
 }

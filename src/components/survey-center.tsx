@@ -1,0 +1,259 @@
+"use client";
+
+import {
+  BarChart3,
+  Check,
+  ClipboardList,
+  Copy,
+  ExternalLink,
+  Eye,
+  FileClock,
+  LoaderCircle,
+  MessageSquareText,
+  Send,
+  Star,
+  Trash2,
+  Users,
+  X,
+} from "lucide-react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useMemo, useState } from "react";
+
+import {
+  deleteSurveyAction,
+  getSurveyResponsesAction,
+  setSurveyStatusAction,
+} from "@/app/surveys/actions";
+import { Card, MetricCard, PageHeader, StatusBadge } from "@/components/ui";
+import type {
+  SurveyAnswerValue,
+  SurveyDisplayStatus,
+  SurveyListRecord,
+  SurveyQuestionRecord,
+  SurveyResponseData,
+  SurveySubmissionRecord,
+} from "@/data/survey-types";
+
+function statusTone(status: SurveyDisplayStatus) {
+  if (status === "active") return "green" as const;
+  if (status === "draft") return "amber" as const;
+  if (status === "expired") return "red" as const;
+  return "gray" as const;
+}
+
+function statusLabel(status: SurveyDisplayStatus) {
+  return status.charAt(0).toUpperCase() + status.slice(1);
+}
+
+function answerText(value: SurveyAnswerValue | undefined) {
+  if (value === undefined) return "No answer";
+  if (Array.isArray(value)) return value.join(", ");
+  return String(value);
+}
+
+function answerFor(
+  submission: SurveySubmissionRecord,
+  questionId: string,
+) {
+  return submission.answers.find((answer) => answer.questionId === questionId)?.value;
+}
+
+function QuestionSummary({
+  question,
+  submissions,
+}: {
+  question: SurveyQuestionRecord;
+  submissions: SurveySubmissionRecord[];
+}) {
+  const values = submissions
+    .map((submission) => answerFor(submission, question.id))
+    .filter((value): value is SurveyAnswerValue => value !== undefined);
+
+  if (question.type === "linear_scale") {
+    const numbers = values.filter((value): value is number => typeof value === "number");
+    const average = numbers.length
+      ? numbers.reduce((sum, value) => sum + value, 0) / numbers.length
+      : 0;
+    return (
+      <div className="mt-4">
+        <div className="flex items-end gap-2"><span className="text-3xl font-black tracking-tight text-indigo-700">{average.toFixed(1)}</span><span className="pb-1 text-[11px] text-slate-400">/ 5 from {numbers.length} answers</span></div>
+        <div className="mt-2 flex gap-1">{[1, 2, 3, 4, 5].map((score) => <Star key={score} size={17} className={score <= Math.round(average) ? "fill-amber-400 text-amber-400" : "text-slate-200"} />)}</div>
+        <div className="mt-3 grid grid-cols-5 gap-1.5">
+          {[1, 2, 3, 4, 5].map((score) => {
+            const total = numbers.filter((value) => value === score).length;
+            return <div key={score} className="rounded-xl bg-slate-50 p-2 text-center"><Star size={13} className="mx-auto fill-amber-400 text-amber-400" /><p className="mt-1 text-[9px] font-bold text-slate-500">{score} / 5</p><p className="mt-1 text-sm font-black text-slate-800">{total}</p></div>;
+          })}
+        </div>
+      </div>
+    );
+  }
+
+  if (["multiple_choice", "checkboxes", "dropdown"].includes(question.type)) {
+    const counts = new Map<string, number>();
+    for (const value of values) {
+      const selected = Array.isArray(value) ? value : [String(value)];
+      for (const item of selected) counts.set(item, (counts.get(item) ?? 0) + 1);
+    }
+    const maximum = Math.max(1, ...counts.values());
+    return <div className="mt-4 space-y-2">{question.options.map((option) => { const total = counts.get(option) ?? 0; return <div key={option}><div className="mb-1 flex justify-between gap-3 text-[10px]"><span className="truncate font-semibold text-slate-600">{option}</span><span className="font-bold text-slate-500">{total}</span></div><div className="h-2 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-indigo-500" style={{ width: `${(total / maximum) * 100}%` }} /></div></div>; })}</div>;
+  }
+
+  return (
+    <div className="mt-4 space-y-2">
+      {values.slice(0, 3).map((value, index) => <p key={index} className="rounded-xl bg-slate-50 p-3 text-[11px] leading-5 text-slate-600">{answerText(value)}</p>)}
+      {values.length === 0 ? <p className="text-[11px] text-slate-400">No answers yet.</p> : null}
+      {values.length > 3 ? <p className="text-[10px] font-semibold text-indigo-600">+ {values.length - 3} more answers</p> : null}
+    </div>
+  );
+}
+
+export function SurveyCenter({
+  surveys,
+  canManage,
+}: {
+  surveys: SurveyListRecord[];
+  canManage: boolean;
+}) {
+  const router = useRouter();
+  const [tab, setTab] = useState<"history" | "responses">("history");
+  const [selectedSurveyId, setSelectedSurveyId] = useState(surveys[0]?.id ?? "");
+  const [responseData, setResponseData] = useState<SurveyResponseData | null>(null);
+  const [selectedResponse, setSelectedResponse] = useState<SurveySubmissionRecord | null>(null);
+  const [loadingResponses, setLoadingResponses] = useState(false);
+  const [pendingId, setPendingId] = useState("");
+  const [deleteRecord, setDeleteRecord] = useState<SurveyListRecord | null>(null);
+  const [message, setMessage] = useState("");
+  const [copiedCode, setCopiedCode] = useState("");
+
+  async function loadResponses(surveyId: string) {
+    if (!surveyId) return;
+    setLoadingResponses(true);
+    setMessage("");
+    const result = await getSurveyResponsesAction(surveyId);
+    setLoadingResponses(false);
+    if (result.ok) setResponseData(result.data);
+    else setMessage(result.error);
+  }
+
+  function openResponses() {
+    setTab("responses");
+    void loadResponses(selectedSurveyId);
+  }
+
+  function selectSurvey(surveyId: string) {
+    setSelectedSurveyId(surveyId);
+    void loadResponses(surveyId);
+  }
+
+  const totals = useMemo(() => ({
+    forms: surveys.length,
+    active: surveys.filter((survey) => survey.status === "active").length,
+    responses: surveys.reduce((sum, survey) => sum + survey.responseCount, 0),
+  }), [surveys]);
+
+  const overallRating = useMemo(() => {
+    if (!responseData) return 0;
+    const scaleIds = new Set(responseData.questions.filter((question) => question.type === "linear_scale").map((question) => question.id));
+    const ratings = responseData.submissions.flatMap((submission) => submission.answers.filter((answer) => scaleIds.has(answer.questionId) && typeof answer.value === "number").map((answer) => answer.value as number));
+    return ratings.length ? ratings.reduce((sum, value) => sum + value, 0) / ratings.length : 0;
+  }, [responseData]);
+
+  async function copyLink(survey: SurveyListRecord) {
+    const url = `${window.location.origin}/s/${survey.publicCode}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopiedCode(survey.publicCode);
+      window.setTimeout(() => setCopiedCode(""), 1800);
+    } catch {
+      setMessage("Unable to copy the link. Copy it from the preview page.");
+    }
+  }
+
+  async function changeStatus(survey: SurveyListRecord) {
+    setPendingId(survey.id);
+    setMessage("");
+    const status = survey.storedStatus === "active" ? "closed" : "active";
+    const result = await setSurveyStatusAction(survey.id, status);
+    setPendingId("");
+    if (!result.ok) setMessage(result.error);
+    else router.refresh();
+  }
+
+  async function confirmDelete() {
+    if (!deleteRecord) return;
+    setPendingId(deleteRecord.id);
+    const result = await deleteSurveyAction(deleteRecord.id);
+    setPendingId("");
+    if (!result.ok) setMessage(result.error);
+    else {
+      setDeleteRecord(null);
+      router.refresh();
+    }
+  }
+
+  return (
+    <>
+      <PageHeader eyebrow="Client experience" title="Client Surveys" description="Create questionnaires and monitor client feedback about IT team performance." action={canManage ? <Link href="/surveys/new" className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-[#3157d5] px-4 text-xs font-semibold text-white"><Send size={15} /> Add Survey</Link> : undefined} />
+
+      <div className="grid gap-3 sm:grid-cols-3">
+        <MetricCard label="Survey Forms" value={String(totals.forms)} icon={ClipboardList} detail="All stored questionnaires" />
+        <MetricCard label="Active Surveys" value={String(totals.active)} icon={FileClock} tone="green" detail="Available through a public link" />
+        <MetricCard label="Client Responses" value={String(totals.responses)} icon={Users} tone="amber" detail="Responses stored in PostgreSQL" />
+      </div>
+
+      <div className="mt-5 flex gap-1 rounded-xl border border-slate-200 bg-white p-1 sm:w-fit">
+        <button type="button" onClick={() => setTab("history")} className={`flex h-9 flex-1 items-center justify-center gap-2 rounded-lg px-4 text-[11px] font-bold sm:flex-none ${tab === "history" ? "bg-indigo-600 text-white" : "text-slate-500"}`}><FileClock size={14} /> Survey History</button>
+        <button type="button" onClick={openResponses} className={`flex h-9 flex-1 items-center justify-center gap-2 rounded-lg px-4 text-[11px] font-bold sm:flex-none ${tab === "responses" ? "bg-indigo-600 text-white" : "text-slate-500"}`}><BarChart3 size={14} /> Responses</button>
+      </div>
+
+      {message ? <p className="mt-4 rounded-xl bg-rose-50 p-3 text-[11px] font-semibold text-rose-700">{message}</p> : null}
+
+      {tab === "history" ? (
+        <Card className="mt-4 overflow-hidden">
+          <div className="border-b border-slate-100 px-4 py-4 sm:px-5"><h2 className="text-sm font-extrabold text-slate-800">Survey History</h2><p className="mt-1 text-[11px] text-slate-500">All draft, active, and completed questionnaires</p></div>
+          <div className="divide-y divide-slate-100">
+            {surveys.map((survey) => (
+              <article key={survey.id} className="p-4 sm:p-5">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2"><h3 className="text-sm font-bold text-slate-900">{survey.title}</h3><StatusBadge tone={statusTone(survey.status)}>{statusLabel(survey.status)}</StatusBadge></div>
+                    <p className="mt-1 line-clamp-2 text-[11px] leading-5 text-slate-500">{survey.description || "No description"}</p>
+                    <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[10px] text-slate-400"><span>{survey.questionCount} questions</span><span>{survey.responseCount} responses</span><span>Created {survey.createdAt}</span>{survey.expiresAt ? <span>Closes {new Date(survey.expiresAt).toLocaleString("en-GB")}</span> : null}</div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 sm:flex">
+                    <button type="button" onClick={() => void copyLink(survey)} className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-indigo-200 bg-indigo-50 px-3 text-[10px] font-bold text-indigo-700">{copiedCode === survey.publicCode ? <Check size={14} /> : <Copy size={14} />}{copiedCode === survey.publicCode ? "Copied" : "Copy Link"}</button>
+                    <Link href={`/s/${survey.publicCode}`} target="_blank" className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-indigo-600 px-3 text-[10px] font-bold text-white"><ExternalLink size={14} /> Preview</Link>
+                    {canManage && survey.status !== "expired" ? <button type="button" onClick={() => void changeStatus(survey)} disabled={pendingId === survey.id} className={`inline-flex h-9 items-center justify-center gap-1.5 rounded-lg px-3 text-[10px] font-bold text-white disabled:bg-slate-300 ${survey.storedStatus === "active" ? "bg-slate-600" : "bg-emerald-600"}`}>{pendingId === survey.id ? <LoaderCircle size={14} className="animate-spin" /> : survey.storedStatus === "active" ? <X size={14} /> : <Send size={14} />}{survey.storedStatus === "active" ? "Close" : "Publish"}</button> : null}
+                    {canManage ? <button type="button" onClick={() => setDeleteRecord(survey)} className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-rose-600 px-3 text-[10px] font-bold text-white"><Trash2 size={14} /> Delete</button> : null}
+                  </div>
+                </div>
+              </article>
+            ))}
+          </div>
+          {surveys.length === 0 ? <div className="px-5 py-14 text-center"><ClipboardList className="mx-auto text-slate-300" size={28} /><p className="mt-3 text-xs text-slate-500">No surveys have been created.</p>{canManage ? <Link href="/surveys/new" className="mt-4 inline-flex h-9 items-center rounded-lg bg-indigo-600 px-4 text-[11px] font-bold text-white">Create the first survey</Link> : null}</div> : null}
+        </Card>
+      ) : (
+        <div className="mt-4">
+          {surveys.length ? <label className="block max-w-md text-[11px] font-bold text-slate-600">Survey<select value={selectedSurveyId} onChange={(event) => selectSurvey(event.target.value)} className="mt-2 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-xs outline-none focus:border-indigo-500">{surveys.map((survey) => <option key={survey.id} value={survey.id}>{survey.title} ({survey.responseCount})</option>)}</select></label> : null}
+          {loadingResponses ? <div className="mt-4 grid min-h-48 place-items-center rounded-2xl border border-slate-200 bg-white"><LoaderCircle className="animate-spin text-indigo-600" size={26} /></div> : responseData ? (
+            <>
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                <MetricCard label="Total Responses" value={String(responseData.submissions.length)} icon={Users} detail="Responses for the selected survey" />
+                <MetricCard label="Average Rating" value={overallRating ? overallRating.toFixed(1) : "—"} icon={Star} tone="amber" detail={<span className="inline-flex items-center gap-1">{[1, 2, 3, 4, 5].map((score) => <Star key={score} size={12} className={score <= Math.round(overallRating) ? "fill-amber-400 text-amber-400" : "text-slate-200"} />)}</span>} />
+              </div>
+              <div className="mt-4 grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
+                <div className="space-y-4">{responseData.questions.map((question, index) => <Card key={question.id} className="p-4 sm:p-5"><p className="text-[9px] font-bold uppercase tracking-wider text-indigo-500">Question {index + 1}</p><h3 className="mt-1 text-sm font-bold text-slate-800">{question.title}</h3><QuestionSummary question={question} submissions={responseData.submissions} /></Card>)}</div>
+                <Card className="h-fit overflow-hidden"><div className="border-b border-slate-100 px-4 py-4"><h2 className="text-sm font-bold text-slate-800">Individual Responses</h2><p className="mt-1 text-[10px] text-slate-500">Open a complete client submission</p></div><div className="divide-y divide-slate-100">{responseData.submissions.map((submission) => <button key={submission.id} type="button" onClick={() => setSelectedResponse(submission)} className="flex w-full items-center gap-3 p-4 text-left"><span className="grid size-9 shrink-0 place-items-center rounded-full bg-indigo-50 text-[10px] font-black text-indigo-600">{submission.clientName.slice(0, 2).toUpperCase()}</span><span className="min-w-0 flex-1"><span className="block truncate text-[11px] font-bold text-slate-800">{submission.clientName}</span><span className="mt-0.5 block truncate text-[9px] text-slate-400">{submission.division} · {submission.submittedAt}</span></span><Eye size={14} className="text-indigo-500" /></button>)}</div>{responseData.submissions.length === 0 ? <div className="p-8 text-center"><MessageSquareText className="mx-auto text-slate-300" size={25} /><p className="mt-3 text-[11px] text-slate-500">No client responses yet.</p></div> : null}</Card>
+              </div>
+            </>
+          ) : surveys.length === 0 ? <Card className="mt-4 p-10 text-center text-xs text-slate-500">Create a survey before viewing responses.</Card> : null}
+        </div>
+      )}
+
+      {selectedResponse && responseData ? <div className="fixed inset-0 z-[80] overflow-y-auto bg-slate-950/55 p-4 backdrop-blur-sm" role="dialog" aria-modal="true"><div className="mx-auto my-4 w-full max-w-2xl rounded-2xl bg-white shadow-2xl"><div className="flex items-start justify-between border-b border-slate-100 p-5"><div><h2 className="text-sm font-bold text-slate-900">{selectedResponse.clientName}</h2><p className="mt-1 text-[10px] text-slate-500">{selectedResponse.division} · {selectedResponse.submittedAt}</p></div><button type="button" onClick={() => setSelectedResponse(null)} className="grid size-9 place-items-center rounded-lg text-slate-400" aria-label="Close response"><X size={17} /></button></div><div className="space-y-4 p-5">{responseData.questions.map((question, index) => <div key={question.id} className="rounded-xl bg-slate-50 p-4"><p className="text-[9px] font-bold uppercase tracking-wider text-indigo-500">Question {index + 1}</p><p className="mt-1 text-xs font-bold text-slate-700">{question.title}</p><p className="mt-2 whitespace-pre-wrap text-[11px] leading-5 text-slate-600">{answerText(answerFor(selectedResponse, question.id))}</p></div>)}</div></div></div> : null}
+
+      {deleteRecord ? <div className="fixed inset-0 z-[90] grid place-items-center bg-slate-950/55 p-4 backdrop-blur-sm" role="alertdialog" aria-modal="true"><div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-2xl"><h2 className="text-sm font-bold text-slate-900">Delete survey?</h2><p className="mt-2 text-xs leading-5 text-slate-500"><b>{deleteRecord.title}</b> and all {deleteRecord.responseCount} responses will be permanently removed.</p><div className="mt-5 flex justify-end gap-2"><button type="button" onClick={() => setDeleteRecord(null)} className="h-9 rounded-xl border border-slate-200 px-4 text-xs font-bold text-slate-600">Cancel</button><button type="button" onClick={() => void confirmDelete()} disabled={pendingId === deleteRecord.id} className="h-9 rounded-xl bg-rose-600 px-4 text-xs font-bold text-white disabled:bg-slate-300">{pendingId === deleteRecord.id ? "Deleting..." : "Delete"}</button></div></div></div> : null}
+    </>
+  );
+}

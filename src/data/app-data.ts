@@ -9,14 +9,12 @@ import {
   backupUserInvitations,
   backupUsers,
   monitoredServers,
-  surveyResponses,
   troubleshootingApprovals,
   troubleshootingIssues,
 } from "@/db/schema";
 import type {
   BackupRecord,
   ServerRecord,
-  SurveyRecord,
   TicketRecord,
 } from "@/data/types";
 import { jakartaDateInput } from "@/lib/jakarta-date";
@@ -153,23 +151,6 @@ export async function getServerRecords(): Promise<ServerRecord[]> {
     memory: row.memoryPercent,
     disk: row.diskPercent,
     uptime: `${row.uptimeDays} days`,
-  }));
-}
-
-export async function getSurveyRecords(): Promise<SurveyRecord[]> {
-  await requireAuthenticatedUser();
-  const rows = await db
-    .select()
-    .from(surveyResponses)
-    .orderBy(desc(surveyResponses.respondedAt));
-  return rows.map((row) => ({
-    id: row.id,
-    name: row.clientName,
-    department: row.department,
-    score: row.score,
-    comment: row.comment,
-    ticket: row.issueReference,
-    respondedAt: row.respondedAt.toISOString(),
   }));
 }
 

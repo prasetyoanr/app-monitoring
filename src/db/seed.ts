@@ -5,7 +5,10 @@ import { db, pool } from "./connection";
 import {
   backupUsers,
   monitoredServers,
-  surveyResponses,
+  surveyAnswers,
+  surveyForms,
+  surveyQuestions,
+  surveySubmissions,
   technicians,
   troubleshootingIssues,
 } from "./schema";
@@ -87,9 +90,21 @@ async function seed() {
     )
     .onConflictDoNothing();
 
-  await db
-    .insert(surveyResponses)
-    .values([
+  await db.insert(surveyForms).values({
+    id: "00000000-0000-4000-8000-000000000201",
+    title: "Imported IT Service Survey",
+    description: "Historical client satisfaction responses imported from the previous survey feature.",
+    status: "closed",
+    publicCode: "legacySurvey2026",
+  }).onConflictDoNothing();
+
+  await db.insert(surveyQuestions).values([
+    { id: "00000000-0000-4000-8000-000000000202", surveyId: "00000000-0000-4000-8000-000000000201", position: 0, type: "linear_scale", title: "Overall satisfaction", isRequired: true, options: [] },
+    { id: "00000000-0000-4000-8000-000000000203", surveyId: "00000000-0000-4000-8000-000000000201", position: 1, type: "paragraph", title: "Comments", isRequired: false, options: [] },
+    { id: "00000000-0000-4000-8000-000000000204", surveyId: "00000000-0000-4000-8000-000000000201", position: 2, type: "short_answer", title: "Troubleshooting reference", isRequired: false, options: [] },
+  ]).onConflictDoNothing();
+
+  const seededSurveyResponses = [
       {
         id: "00000000-0000-4000-8000-000000000101",
         clientName: "Sinta Maharani",
@@ -117,8 +132,19 @@ async function seed() {
         issueReference: "INC-2026-0129",
         respondedAt: new Date("2026-07-14T06:00:00+07:00"),
       },
-    ])
-    .onConflictDoNothing();
+    ];
+  await db.insert(surveySubmissions).values(seededSurveyResponses.map((response) => ({
+    id: response.id,
+    surveyId: "00000000-0000-4000-8000-000000000201",
+    clientName: response.clientName,
+    division: response.department,
+    submittedAt: response.respondedAt,
+  }))).onConflictDoNothing();
+  await db.insert(surveyAnswers).values(seededSurveyResponses.flatMap((response) => [
+    { submissionId: response.id, questionId: "00000000-0000-4000-8000-000000000202", value: response.score },
+    { submissionId: response.id, questionId: "00000000-0000-4000-8000-000000000203", value: response.comment },
+    { submissionId: response.id, questionId: "00000000-0000-4000-8000-000000000204", value: response.issueReference },
+  ])).onConflictDoNothing();
 
   console.info("Database seed completed.");
 }

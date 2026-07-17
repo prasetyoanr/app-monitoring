@@ -54,6 +54,21 @@ export const backupInvitationStatusEnum = pgEnum(
   ["pending", "submitted", "expired", "revoked"],
 );
 
+export const surveyFormStatusEnum = pgEnum("survey_form_status", [
+  "draft",
+  "active",
+  "closed",
+]);
+
+export const surveyQuestionTypeEnum = pgEnum("survey_question_type", [
+  "short_answer",
+  "paragraph",
+  "multiple_choice",
+  "checkboxes",
+  "dropdown",
+  "linear_scale",
+]);
+
 export const masterDivisions = pgTable(
   "master_divisions",
   {
@@ -367,6 +382,107 @@ export const monitoredServers = pgTable(
   ],
 );
 
+export const surveyForms = pgTable(
+  "survey_forms",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    title: varchar("title", { length: 200 }).notNull(),
+    description: text("description").notNull().default(""),
+    status: surveyFormStatusEnum("status").notNull().default("draft"),
+    publicCode: varchar("public_code", { length: 16 }).notNull(),
+    createdByTechnicianId: uuid("created_by_technician_id").references(
+      () => technicians.id,
+      { onDelete: "set null" },
+    ),
+    expiresAt: timestamp("expires_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("survey_forms_public_code_unique").on(table.publicCode),
+    index("survey_forms_status_created_idx").on(table.status, table.createdAt),
+    check(
+      "survey_forms_public_code_format_check",
+      sql`${table.publicCode} ~ '^[A-Za-z0-9_-]{16}$'`,
+    ),
+  ],
+);
+
+export const surveyQuestions = pgTable(
+  "survey_questions",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    surveyId: uuid("survey_id")
+      .notNull()
+      .references(() => surveyForms.id, { onDelete: "cascade" }),
+    position: integer("position").notNull(),
+    type: surveyQuestionTypeEnum("type").notNull(),
+    title: varchar("title", { length: 500 }).notNull(),
+    isRequired: boolean("is_required").notNull().default(false),
+    options: jsonb("options")
+      .$type<string[]>()
+      .notNull()
+      .default(sql`'[]'::jsonb`),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("survey_questions_survey_position_idx").on(
+      table.surveyId,
+      table.position,
+    ),
+    check("survey_questions_position_check", sql`${table.position} >= 0`),
+  ],
+);
+
+export const surveySubmissions = pgTable(
+  "survey_submissions",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    surveyId: uuid("survey_id")
+      .notNull()
+      .references(() => surveyForms.id, { onDelete: "cascade" }),
+    clientName: varchar("client_name", { length: 120 }),
+    division: varchar("division", { length: 120 }),
+    submittedAt: timestamp("submitted_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("survey_submissions_survey_submitted_idx").on(
+      table.surveyId,
+      table.submittedAt,
+    ),
+  ],
+);
+
+export const surveyAnswers = pgTable(
+  "survey_answers",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    submissionId: uuid("submission_id")
+      .notNull()
+      .references(() => surveySubmissions.id, { onDelete: "cascade" }),
+    questionId: uuid("question_id")
+      .notNull()
+      .references(() => surveyQuestions.id, { onDelete: "cascade" }),
+    value: jsonb("value").$type<string | string[] | number>().notNull(),
+  },
+  (table) => [
+    uniqueIndex("survey_answers_submission_question_unique").on(
+      table.submissionId,
+      table.questionId,
+    ),
+    index("survey_answers_question_idx").on(table.questionId),
+  ],
+);
+
+// Legacy response storage retained for migration compatibility.
 export const surveyResponses = pgTable(
   "survey_responses",
   {

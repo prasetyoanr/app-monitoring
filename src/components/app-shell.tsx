@@ -73,6 +73,7 @@ export function AppShell({
 
   if (
     pathname.startsWith("/b/") ||
+    pathname.startsWith("/s/") ||
     pathname.startsWith("/troubleshooting/approval/") ||
     pathname.startsWith("/backups/submit/")
   ) {
