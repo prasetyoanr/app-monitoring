@@ -12,5 +12,5 @@ export default async function TroubleshootingPage() {
     requireAuthenticatedUser(),
     getMasterOptions(),
   ]);
-  return <><TicketList initialRecords={records} canManage={currentUser.role === "administrator"} divisionOptions={masterOptions.divisions} locationOptions={masterOptions.locations} /></>;
+  return <><TicketList initialRecords={records} canManage={currentUser.role === "administrator"} divisionOptions={masterOptions.divisions} locationOptions={masterOptions.locations} categoryOptions={masterOptions.categories} /></>;
 }

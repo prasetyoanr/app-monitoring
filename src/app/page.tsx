@@ -55,10 +55,10 @@ export default async function DashboardPage() {
         }
       />
 
-      <div className="grid gap-4 sm:grid-cols-3">
-        <MetricCard label="Active Issues" value={String(activeIssues)} icon={TicketCheck} tone="blue" detail="Not yet completed" />
-        <MetricCard label="Completed Issues" value={String(completedIssues)} icon={Clock3} tone="green" detail="Approved by clients" />
-        <MetricCard label="User Backups" value={`${backupTotal ? ((backupSuccess / backupTotal) * 100).toFixed(1) : "0.0"}%`} icon={CircleCheck} tone="red" detail={`${backupIssues} users require follow-up`} />
+      <div className="grid grid-cols-3 gap-2 sm:gap-4">
+        <MetricCard compactOnMobile label="Active Issues" value={String(activeIssues)} icon={TicketCheck} tone="blue" detail="Not yet completed" />
+        <MetricCard compactOnMobile label="Completed Issues" value={String(completedIssues)} icon={Clock3} tone="green" detail="Approved by clients" />
+        <MetricCard compactOnMobile label="User Backups" value={`${backupTotal ? ((backupSuccess / backupTotal) * 100).toFixed(1) : "0.0"}%`} icon={CircleCheck} tone="red" detail={`${backupIssues} users require follow-up`} />
       </div>
 
       <div className="mt-5">

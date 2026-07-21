@@ -1,6 +1,6 @@
 "use client";
 
-import { Building2, MapPin, Plus, Trash2, X } from "lucide-react";
+import { Building2, MapPin, Plus, Tag, Trash2, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
@@ -58,7 +58,7 @@ export function MasterDataManager({ initialData }: { initialData: MasterDataReco
     description: string,
     records: MasterItemRecord[],
   ) {
-    const Icon = type === "division" ? Building2 : MapPin;
+    const Icon = type === "division" ? Building2 : type === "location" ? MapPin : Tag;
     const adding = pendingAction === `add-${type}`;
     return (
       <Card className="overflow-hidden">
@@ -86,9 +86,10 @@ export function MasterDataManager({ initialData }: { initialData: MasterDataReco
   return (
     <>
       {error ? <p role="alert" className="mb-4 rounded-xl bg-rose-50 p-3 text-xs font-semibold text-rose-700">{error}</p> : null}
-      <div className="grid gap-5 lg:grid-cols-2">
+      <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
         {masterCard("division", "Divisions", "Used by Troubleshooting and Backup User forms.", initialData.divisions)}
         {masterCard("location", "Locations", "Used as work locations in Troubleshooting records.", initialData.locations)}
+        {masterCard("category", "Categories", "Used to classify Troubleshooting records.", initialData.categories)}
       </div>
 
       {deleteTarget ? (

@@ -17,7 +17,7 @@ export default async function MasterDataPage() {
       <PageHeader
         eyebrow="Administrator only"
         title="Master Data"
-        description="Manage division and location options used throughout the application."
+        description="Manage division, location, and troubleshooting category options used throughout the application."
       />
       <MasterDataManager initialData={records} />
     </>

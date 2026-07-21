@@ -112,6 +112,20 @@ export const masterLocations = pgTable(
   ],
 );
 
+export const masterCategories = pgTable(
+  "master_categories",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    name: varchar("name", { length: 120 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("master_categories_name_unique").on(sql`lower(${table.name})`),
+  ],
+);
+
 export const auditActorTypeEnum = pgEnum("audit_actor_type", [
   "technician",
   "client",

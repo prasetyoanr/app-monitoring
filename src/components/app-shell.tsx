@@ -86,9 +86,9 @@ export function AppShell({
             <span className="brand-mark grid size-10 place-items-center rounded-2xl text-white">
               <Activity size={19} strokeWidth={2.5} />
             </span>
-            <span className="hidden sm:block">
+            <span className="min-w-0">
               <span className="block text-[13px] font-extrabold leading-4 tracking-tight text-white">IT Activity Log</span>
-              <span className="block text-[9px] font-semibold uppercase tracking-[0.16em] text-cyan-200/70">Internal Workspace</span>
+              <span className="block text-[8px] font-semibold uppercase tracking-[0.12em] text-cyan-200/70 sm:text-[9px] sm:tracking-[0.16em]">Internal Workspace</span>
             </span>
           </Link>
 

@@ -5,10 +5,27 @@ import { revalidatePath } from "next/cache";
 
 import { requireAdministrator } from "@/auth/session";
 import { db } from "@/db";
-import { auditLogs, masterDivisions, masterLocations } from "@/db/schema";
+import {
+  auditLogs,
+  masterCategories,
+  masterDivisions,
+  masterLocations,
+} from "@/db/schema";
 import type { ActionResult } from "@/data/types";
 
-export type MasterDataType = "division" | "location";
+export type MasterDataType = "division" | "location" | "category";
+
+function masterTable(type: MasterDataType) {
+  if (type === "division") return masterDivisions;
+  if (type === "location") return masterLocations;
+  return masterCategories;
+}
+
+function masterLabel(type: MasterDataType) {
+  if (type === "division") return "Division";
+  if (type === "location") return "Location";
+  return "Category";
+}
 
 function validName(value: string) {
   const name = value.trim().replace(/\s+/g, " ");
@@ -24,10 +41,10 @@ function validId(id: string) {
   }
 }
 
-function revalidateMasterData() {
+function revalidateMasterData(type: MasterDataType) {
   revalidatePath("/master-data");
   revalidatePath("/troubleshooting");
-  revalidatePath("/backups");
+  if (type === "division") revalidatePath("/backups");
 }
 
 export async function createMasterItemAction(
@@ -37,13 +54,13 @@ export async function createMasterItemAction(
   const currentUser = await requireAdministrator();
   try {
     const name = validName(inputName);
-    const table = type === "division" ? masterDivisions : masterLocations;
+    const table = masterTable(type);
     const [duplicate] = await db
       .select({ id: table.id })
       .from(table)
       .where(sql`lower(${table.name}) = lower(${name})`)
       .limit(1);
-    if (duplicate) throw new Error(`${type === "division" ? "Division" : "Location"} already exists.`);
+    if (duplicate) throw new Error(`${masterLabel(type)} already exists.`);
 
     const [created] = await db
       .insert(table)
@@ -57,7 +74,7 @@ export async function createMasterItemAction(
       entityId: created.id,
       metadata: { name },
     });
-    revalidateMasterData();
+    revalidateMasterData(type);
     return { ok: true, data: { id: created.id } };
   } catch (error) {
     console.error(`Unable to create master ${type}.`, error);
@@ -75,7 +92,7 @@ export async function deleteMasterItemAction(
   const currentUser = await requireAdministrator();
   try {
     validId(id);
-    const table = type === "division" ? masterDivisions : masterLocations;
+    const table = masterTable(type);
     const [{ total }] = await db.select({ total: count() }).from(table);
     if (total <= 1) {
       throw new Error(`At least one ${type} must remain available.`);
@@ -94,7 +111,7 @@ export async function deleteMasterItemAction(
       entityId: deleted.id,
       metadata: { name: deleted.name },
     });
-    revalidateMasterData();
+    revalidateMasterData(type);
     return { ok: true, data: undefined };
   } catch (error) {
     console.error(`Unable to delete master ${type}.`, error);
