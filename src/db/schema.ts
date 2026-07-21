@@ -191,6 +191,9 @@ export const troubleshootingIssues = pgTable(
     completedDays: integer("completed_days"),
     description: text("description").notNull(),
     resolution: text("resolution").notNull().default(""),
+    workPhotoData: bytea("work_photo_data"),
+    workPhotoMimeType: varchar("work_photo_mime_type", { length: 40 }),
+    workPhotoFileName: varchar("work_photo_file_name", { length: 255 }),
     assignedTechnicianId: uuid("assigned_technician_id").references(
       () => technicians.id,
       { onDelete: "set null" },
@@ -211,6 +214,14 @@ export const troubleshootingIssues = pgTable(
     check(
       "troubleshooting_issues_completed_days_check",
       sql`${table.completedDays} is null or ${table.completedDays} >= 0`,
+    ),
+    check(
+      "troubleshooting_issues_work_photo_pair_check",
+      sql`(${table.workPhotoData} is null and ${table.workPhotoMimeType} is null and ${table.workPhotoFileName} is null) or (${table.workPhotoData} is not null and ${table.workPhotoMimeType} is not null and ${table.workPhotoFileName} is not null)`,
+    ),
+    check(
+      "troubleshooting_issues_work_photo_size_check",
+      sql`${table.workPhotoData} is null or octet_length(${table.workPhotoData}) <= 2097152`,
     ),
   ],
 );

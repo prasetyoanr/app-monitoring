@@ -25,6 +25,8 @@ const editableStatuses: IssueStatus[] = [
   "Waiting for Client Approval",
   "Reopened",
 ];
+const MAX_WORK_PHOTO_BYTES = 2 * 1024 * 1024;
+type PhotoIntent = "keep" | "replace" | "remove";
 
 function field(formData: FormData, name: string, maxLength: number) {
   const value = String(formData.get(name) ?? "").trim();
@@ -38,6 +40,27 @@ function optionalField(formData: FormData, name: string, maxLength: number) {
   const value = String(formData.get(name) ?? "").trim();
   if (value.length > maxLength) throw new Error(`${name} is too long.`);
   return value;
+}
+
+async function uploadedWorkPhoto(formData: FormData) {
+  const entry = formData.get("workPhoto");
+  if (!(entry instanceof File) || entry.size === 0) return null;
+  if (entry.type !== "image/jpeg") {
+    throw new Error("The work photo must be a compressed JPEG image.");
+  }
+  if (entry.size < 1_000 || entry.size > MAX_WORK_PHOTO_BYTES) {
+    throw new Error("The work photo must not exceed 2 MB.");
+  }
+
+  const data = Buffer.from(await entry.arrayBuffer());
+  const isJpeg =
+    data[0] === 0xff &&
+    data[1] === 0xd8 &&
+    data[2] === 0xff &&
+    data[data.length - 2] === 0xff &&
+    data[data.length - 1] === 0xd9;
+  if (!isJpeg) throw new Error("The uploaded work photo is invalid.");
+  return data;
 }
 
 async function nextIssueId() {
@@ -68,12 +91,23 @@ export async function saveIssueAction(
     const reportedDate = field(formData, "reportedDate", 10);
     const priority = field(formData, "priority", 20) as IssuePriority;
     const requestedStatus = field(formData, "status", 40) as IssueStatus;
+    const requestedPhotoIntent =
+      optionalField(formData, "photoIntent", 10) || "keep";
+    if (!["keep", "replace", "remove"].includes(requestedPhotoIntent)) {
+      throw new Error("Invalid work photo action.");
+    }
+    const photoIntent = requestedPhotoIntent as PhotoIntent;
+    const workPhotoData = await uploadedWorkPhoto(formData);
+    if (photoIntent === "replace" && !workPhotoData) {
+      throw new Error("Select a work photo before saving.");
+    }
 
     if (!priorities.includes(priority)) throw new Error("Invalid priority.");
     const [existing] = await db
       .select({
         status: troubleshootingIssues.status,
         completedDays: troubleshootingIssues.completedDays,
+        workPhotoData: troubleshootingIssues.workPhotoData,
       })
       .from(troubleshootingIssues)
       .where(eq(troubleshootingIssues.id, id))
@@ -82,9 +116,28 @@ export async function saveIssueAction(
     if (!editableStatuses.includes(requestedStatus) && !mayKeepCompleted) {
       throw new Error("Completed status can only be set through client approval.");
     }
+    const hasFinalWorkPhoto =
+      Boolean(workPhotoData) ||
+      (photoIntent === "keep" && Boolean(existing?.workPhotoData));
+    if (requestedStatus === "Waiting for Client Approval" && !hasFinalWorkPhoto) {
+      throw new Error("Add a work photo before requesting client approval.");
+    }
     const reportedAt = new Date(`${reportedDate}T00:00:00+07:00`);
     if (Number.isNaN(reportedAt.getTime())) throw new Error("Invalid request date.");
 
+    const photoValues = workPhotoData
+      ? {
+          workPhotoData,
+          workPhotoMimeType: "image/jpeg",
+          workPhotoFileName: `work-photo-${id}.jpg`,
+        }
+      : photoIntent === "remove"
+        ? {
+            workPhotoData: null,
+            workPhotoMimeType: null,
+            workPhotoFileName: null,
+          }
+        : {};
     const values = {
       title,
       requesterName,
@@ -97,6 +150,7 @@ export async function saveIssueAction(
       status: requestedStatus,
       completedDays: mayKeepCompleted ? existing.completedDays : null,
       updatedAt: new Date(),
+      ...photoValues,
     };
 
     if (existing) {
@@ -162,12 +216,18 @@ export async function requestApprovalAction(
   const currentUser = await requireAdministrator();
   try {
     const [issue] = await db
-      .select({ status: troubleshootingIssues.status })
+      .select({
+        status: troubleshootingIssues.status,
+        workPhotoData: troubleshootingIssues.workPhotoData,
+      })
       .from(troubleshootingIssues)
       .where(eq(troubleshootingIssues.id, issueId))
       .limit(1);
     if (!issue || issue.status !== "Waiting for Client Approval") {
       throw new Error("Issue is not ready for client approval.");
+    }
+    if (!issue.workPhotoData) {
+      throw new Error("Add a work photo before requesting client approval.");
     }
 
     const token = randomBytes(32).toString("base64url");

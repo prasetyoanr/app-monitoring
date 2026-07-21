@@ -19,6 +19,14 @@ export interface TicketRecord {
   status: IssueStatus;
   completedDays: number | null;
   description: string;
+  hasWorkPhoto: boolean;
+  workPhotoUrl: string | null;
+  clientApproval: {
+    clientName: string;
+    approvedAt: string;
+    approvedAtIso: string;
+    signatureUrl: string;
+  } | null;
 }
 
 export type BackupStatus = "Success" | "Failed" | "Overdue" | "Pending";

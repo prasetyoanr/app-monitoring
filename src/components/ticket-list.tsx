@@ -1,13 +1,15 @@
 "use client";
 
-import { CalendarDays, Eye, Filter, MapPin, Pencil, Plus, QrCode, Search, Trash2, X } from "lucide-react";
+import Image from "next/image";
+import { CalendarDays, Camera, CheckCircle2, Eye, Filter, ImagePlus, LoaderCircle, MapPin, Pencil, Plus, QrCode, Search, Trash2, X } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useDeferredValue, useMemo, useRef, useState } from "react";
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { deleteIssueAction, saveIssueAction } from "@/app/troubleshooting/actions";
 import { ApprovalQrModal } from "@/components/approval-qr-modal";
 import { Card, StatusBadge } from "@/components/ui";
 import type { TicketRecord } from "@/data/types";
 import { jakartaDateInput } from "@/lib/jakarta-date";
+import { compressWorkPhoto, formatPhotoSize } from "@/lib/work-photo";
 
 type FormMode = "create" | "edit" | null;
 
@@ -24,7 +26,14 @@ function formatCompactDate(value: string) {
 }
 
 function canRequestApproval(ticket: TicketRecord) {
-  return ticket.status === "Waiting for Client Approval";
+  return ticket.status === "Waiting for Client Approval" && ticket.hasWorkPhoto;
+}
+
+function approvalActionTitle(ticket: TicketRecord) {
+  if (ticket.status !== "Waiting for Client Approval") {
+    return "Set status to Waiting for Client Approval";
+  }
+  return ticket.hasWorkPhoto ? "QR Signature" : "Add a work photo first";
 }
 
 function optionsWithCurrent(options: string[], current?: string) {
@@ -48,8 +57,19 @@ export function TicketList({ initialRecords, canManage, divisionOptions, locatio
   const [requestDate, setRequestDate] = useState(jakartaDateInput);
   const [formError, setFormError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [compressingPhoto, setCompressingPhoto] = useState(false);
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [photoPreview, setPhotoPreview] = useState("");
+  const [photoRemoved, setPhotoRemoved] = useState(false);
   const dateInputRef = useRef<HTMLInputElement>(null);
+  const photoInputRef = useRef<HTMLInputElement>(null);
   const deferredQuery = useDeferredValue(query.trim().toLowerCase());
+
+  useEffect(() => {
+    return () => {
+      if (photoPreview.startsWith("blob:")) URL.revokeObjectURL(photoPreview);
+    };
+  }, [photoPreview]);
 
   const filtered = useMemo(() => ticketRecords.filter((ticket) => {
     const matchQuery = `${ticket.id} ${ticket.title} ${ticket.requester} ${ticket.division} ${ticket.category} ${ticket.location}`.toLowerCase().includes(deferredQuery);
@@ -59,8 +79,38 @@ export function TicketList({ initialRecords, canManage, divisionOptions, locatio
   function openForm(nextMode: Exclude<FormMode, null>, record: TicketRecord | null = null) {
     setSelected(record);
     setRequestDate(record?.reportedDate ?? jakartaDateInput());
+    setPhotoFile(null);
+    setPhotoPreview(record?.workPhotoUrl ?? "");
+    setPhotoRemoved(false);
+    setCompressingPhoto(false);
     setFormError("");
     setMode(nextMode);
+  }
+
+  async function selectWorkPhoto(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    setCompressingPhoto(true);
+    setFormError("");
+    try {
+      const compressed = await compressWorkPhoto(file);
+      setPhotoFile(compressed);
+      setPhotoPreview(URL.createObjectURL(compressed));
+      setPhotoRemoved(false);
+    } catch (error) {
+      setFormError(
+        error instanceof Error ? error.message : "The photo could not be processed.",
+      );
+    } finally {
+      setCompressingPhoto(false);
+    }
+  }
+
+  function removeWorkPhoto() {
+    setPhotoFile(null);
+    setPhotoPreview("");
+    setPhotoRemoved(Boolean(selected?.hasWorkPhoto));
   }
 
   function openDatePicker() {
@@ -75,6 +125,13 @@ export function TicketList({ initialRecords, canManage, divisionOptions, locatio
     const data = new FormData(event.currentTarget);
     data.set("reportedDate", requestDate);
     if (selected) data.set("id", selected.id);
+    const hasWorkPhoto = Boolean(photoFile) || (!photoRemoved && selected?.hasWorkPhoto);
+    if (data.get("status") === "Waiting for Client Approval" && !hasWorkPhoto) {
+      setFormError("Add a work photo before requesting client approval.");
+      return;
+    }
+    data.set("photoIntent", photoFile ? "replace" : photoRemoved ? "remove" : "keep");
+    if (photoFile) data.set("workPhoto", photoFile);
     setSaving(true);
     setFormError("");
     const result = await saveIssueAction(data);
@@ -125,15 +182,15 @@ export function TicketList({ initialRecords, canManage, divisionOptions, locatio
                 <div><p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Division</p><p className="mt-1 text-[11px] font-medium text-slate-700">{ticket.division}</p></div>
                 <div><p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Request Date</p><p className="mt-1 text-[11px] font-medium text-slate-700">{ticket.reportedAt}</p></div>
               </div>
-              <div className="mt-4 flex items-center justify-between gap-3"><StatusBadge tone={ticket.priority === "Critical" ? "red" : ticket.priority === "High" ? "amber" : "gray"}>{ticket.priority}</StatusBadge><span className={`text-[10px] font-semibold ${ticket.completedDays === null ? "text-slate-400" : "text-emerald-600"}`}>{completionLabel(ticket.completedDays)}</span></div>
-              <div className={`mt-4 gap-2 border-t border-slate-100 pt-4 ${canManage ? "grid grid-cols-2" : "flex"}`}><button onClick={() => setDetailRecord(ticket)} className="inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-lg bg-[#3157d5] px-2 text-[10px] font-semibold text-white" aria-label={`View details ${ticket.id}`}><Eye size={13} /> Detail</button>{canManage ? <><button disabled={!canRequestApproval(ticket)} onClick={() => setApprovalRecord(ticket)} className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-violet-600 px-2 text-[10px] font-semibold text-white disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400" aria-label={`Request client signature ${ticket.id}`} title={canRequestApproval(ticket) ? "QR Signature" : "Set status to Waiting for Client Approval"}><QrCode size={13} /> QR Signature</button><button onClick={() => openForm("edit", ticket)} className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-amber-500 px-2 text-[10px] font-semibold text-white" aria-label={`Edit ${ticket.id}`}><Pencil size={13} /> Edit</button><button onClick={() => setPendingDelete(ticket)} className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-rose-600 px-2 text-[10px] font-semibold text-white" aria-label={`Delete ${ticket.id}`}><Trash2 size={13} /> Delete</button></> : null}</div>
+              <div className="mt-4 flex flex-wrap items-center gap-3"><StatusBadge tone={ticket.priority === "Critical" ? "red" : ticket.priority === "High" ? "amber" : "gray"}>{ticket.priority}</StatusBadge><span className={`inline-flex items-center gap-1 text-[10px] font-semibold ${ticket.hasWorkPhoto ? "text-emerald-600" : "text-slate-400"}`}>{ticket.hasWorkPhoto ? <CheckCircle2 size={12} /> : <Camera size={12} />}{ticket.hasWorkPhoto ? "Photo available" : "No photo"}</span><span className={`ml-auto text-[10px] font-semibold ${ticket.completedDays === null ? "text-slate-400" : "text-emerald-600"}`}>{completionLabel(ticket.completedDays)}</span></div>
+              <div className={`mt-4 gap-2 border-t border-slate-100 pt-4 ${canManage ? "grid grid-cols-2" : "flex"}`}><button onClick={() => setDetailRecord(ticket)} className="inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-lg bg-[#3157d5] px-2 text-[10px] font-semibold text-white" aria-label={`View details ${ticket.id}`}><Eye size={13} /> Detail</button>{canManage ? <><button disabled={!canRequestApproval(ticket)} onClick={() => setApprovalRecord(ticket)} className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-violet-600 px-2 text-[10px] font-semibold text-white disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400" aria-label={`Request client signature ${ticket.id}`} title={approvalActionTitle(ticket)}><QrCode size={13} /> QR Signature</button><button onClick={() => openForm("edit", ticket)} className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-amber-500 px-2 text-[10px] font-semibold text-white" aria-label={`Edit ${ticket.id}`}><Pencil size={13} /> Edit</button><button onClick={() => setPendingDelete(ticket)} className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-rose-600 px-2 text-[10px] font-semibold text-white" aria-label={`Delete ${ticket.id}`}><Trash2 size={13} /> Delete</button></> : null}</div>
             </article>
           ))}
         </div>
 
         <div className="hidden overflow-x-auto md:block">
-          <table className="w-full min-w-[1280px] text-left">
-            <thead className="bg-slate-50/90 text-[9px] font-bold uppercase tracking-wider text-slate-400"><tr><th className="w-12 px-4 py-3.5 text-center">No.</th><th className="px-4 py-3.5">Issue</th><th className="px-4 py-3.5">Location</th><th className="px-4 py-3.5">Requester</th><th className="px-4 py-3.5">Division</th><th className="px-4 py-3.5">Date</th><th className="px-4 py-3.5">Priority</th><th className="px-4 py-3.5">Completion Time</th><th className="px-4 py-3.5">Status</th><th className="w-44 px-5 py-3.5 text-center">Action</th></tr></thead>
+          <table className="w-full min-w-[1360px] text-left">
+            <thead className="bg-slate-50/90 text-[9px] font-bold uppercase tracking-wider text-slate-400"><tr><th className="w-12 px-4 py-3.5 text-center">No.</th><th className="px-4 py-3.5">Issue</th><th className="px-4 py-3.5">Location</th><th className="px-4 py-3.5">Requester</th><th className="px-4 py-3.5">Division</th><th className="px-4 py-3.5">Date</th><th className="px-4 py-3.5">Priority</th><th className="px-4 py-3.5">Photo</th><th className="px-4 py-3.5">Completion Time</th><th className="px-4 py-3.5">Status</th><th className="w-44 px-5 py-3.5 text-center">Action</th></tr></thead>
             <tbody className="divide-y divide-slate-100">
               {filtered.map((ticket, index) => (
                 <tr key={ticket.id} className="text-xs">
@@ -141,8 +198,8 @@ export function TicketList({ initialRecords, canManage, divisionOptions, locatio
                   <td className="px-4 py-4"><div><p className="font-semibold text-slate-800">{ticket.title}</p><p className="mt-1 font-mono text-[9px] text-slate-400">{ticket.id} · {ticket.category}</p></div></td>
                   <td className="px-4 py-4"><span className={`inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-[10px] font-bold ${ticket.location === "HO" ? "bg-indigo-50 text-indigo-700" : "bg-cyan-50 text-cyan-700"}`}><MapPin size={11} />{ticket.location}</span></td>
                   <td className="px-4 py-4 text-slate-600">{ticket.requester}</td><td className="px-4 py-4"><span className="rounded-md bg-slate-100 px-2 py-1 text-[10px] font-semibold text-slate-600">{ticket.division}</span></td><td className="px-4 py-4 text-[11px] text-slate-500">{ticket.reportedAt}</td>
-                  <td className="px-4 py-4"><StatusBadge tone={ticket.priority === "Critical" ? "red" : ticket.priority === "High" ? "amber" : "gray"}>{ticket.priority}</StatusBadge></td><td className="px-4 py-4"><span className={`text-[11px] font-semibold ${ticket.completedDays === null ? "text-slate-400" : "text-emerald-600"}`}>{completionLabel(ticket.completedDays)}</span></td><td className="px-4 py-4"><StatusBadge tone={ticket.status === "Completed" ? "green" : ticket.status === "In Progress" ? "blue" : ticket.status === "New" ? "gray" : "amber"}>{ticket.status}</StatusBadge></td>
-                  <td className="px-5 py-4"><div className="flex justify-center gap-2"><button onClick={() => setDetailRecord(ticket)} className="grid size-8 place-items-center rounded-lg bg-[#3157d5] text-white shadow-sm transition hover:bg-[#2445b5]" aria-label={`View details ${ticket.id}`} title="Detail"><Eye size={14} /></button>{canManage ? <><button disabled={!canRequestApproval(ticket)} onClick={() => setApprovalRecord(ticket)} className="grid size-8 place-items-center rounded-lg bg-violet-600 text-white shadow-sm transition hover:bg-violet-700 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400" aria-label={`Request client signature ${ticket.id}`} title={canRequestApproval(ticket) ? "QR Signature" : "Set status to Waiting for Client Approval"}><QrCode size={14} /></button><button onClick={() => openForm("edit", ticket)} className="grid size-8 place-items-center rounded-lg bg-amber-500 text-white shadow-sm transition hover:bg-amber-600" aria-label={`Edit ${ticket.id}`} title="Edit"><Pencil size={14} /></button><button onClick={() => setPendingDelete(ticket)} className="grid size-8 place-items-center rounded-lg bg-rose-600 text-white shadow-sm transition hover:bg-rose-700" aria-label={`Delete ${ticket.id}`} title="Delete"><Trash2 size={14} /></button></> : null}</div></td>
+                  <td className="px-4 py-4"><StatusBadge tone={ticket.priority === "Critical" ? "red" : ticket.priority === "High" ? "amber" : "gray"}>{ticket.priority}</StatusBadge></td><td className="px-4 py-4"><span className={`inline-flex items-center gap-1.5 text-[10px] font-semibold ${ticket.hasWorkPhoto ? "text-emerald-600" : "text-slate-400"}`}>{ticket.hasWorkPhoto ? <CheckCircle2 size={13} /> : <Camera size={13} />}{ticket.hasWorkPhoto ? "Available" : "Missing"}</span></td><td className="px-4 py-4"><span className={`text-[11px] font-semibold ${ticket.completedDays === null ? "text-slate-400" : "text-emerald-600"}`}>{completionLabel(ticket.completedDays)}</span></td><td className="px-4 py-4"><StatusBadge tone={ticket.status === "Completed" ? "green" : ticket.status === "In Progress" ? "blue" : ticket.status === "New" ? "gray" : "amber"}>{ticket.status}</StatusBadge></td>
+                  <td className="px-5 py-4"><div className="flex justify-center gap-2"><button onClick={() => setDetailRecord(ticket)} className="grid size-8 place-items-center rounded-lg bg-[#3157d5] text-white shadow-sm transition hover:bg-[#2445b5]" aria-label={`View details ${ticket.id}`} title="Detail"><Eye size={14} /></button>{canManage ? <><button disabled={!canRequestApproval(ticket)} onClick={() => setApprovalRecord(ticket)} className="grid size-8 place-items-center rounded-lg bg-violet-600 text-white shadow-sm transition hover:bg-violet-700 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400" aria-label={`Request client signature ${ticket.id}`} title={approvalActionTitle(ticket)}><QrCode size={14} /></button><button onClick={() => openForm("edit", ticket)} className="grid size-8 place-items-center rounded-lg bg-amber-500 text-white shadow-sm transition hover:bg-amber-600" aria-label={`Edit ${ticket.id}`} title="Edit"><Pencil size={14} /></button><button onClick={() => setPendingDelete(ticket)} className="grid size-8 place-items-center rounded-lg bg-rose-600 text-white shadow-sm transition hover:bg-rose-700" aria-label={`Delete ${ticket.id}`} title="Delete"><Trash2 size={14} /></button></> : null}</div></td>
                 </tr>
               ))}
             </tbody>
@@ -187,6 +244,34 @@ export function TicketList({ initialRecords, canManage, divisionOptions, locatio
                 <p className="mt-3 whitespace-pre-wrap text-xs leading-6 text-slate-600">{detailRecord.description}</p>
               </section>
 
+              <section className="mt-8" aria-labelledby="work-photo-title">
+                <h3 id="work-photo-title" className="border-b border-slate-300 pb-2 text-xs font-bold uppercase tracking-wider text-slate-900">Work Photo</h3>
+                {detailRecord.workPhotoUrl ? (
+                  <div className="mt-4 overflow-hidden rounded-lg border border-slate-200 bg-slate-50 p-2">
+                    <Image src={detailRecord.workPhotoUrl} width={1200} height={900} unoptimized alt={`Work evidence for ${detailRecord.id}`} className="max-h-[520px] w-full rounded-md object-contain" />
+                  </div>
+                ) : (
+                  <p className="mt-4 text-xs text-slate-500">No work photo has been added.</p>
+                )}
+              </section>
+
+              <section className="mt-8" aria-labelledby="client-signature-title">
+                <h3 id="client-signature-title" className="border-b border-slate-300 pb-2 text-xs font-bold uppercase tracking-wider text-slate-900">Client Signature</h3>
+                {detailRecord.clientApproval ? (
+                  <div className="mt-4 grid gap-4 sm:grid-cols-[1fr_220px] sm:items-end">
+                    <dl className="grid gap-4 text-xs">
+                      <div><dt className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Approved By</dt><dd className="mt-1 font-medium text-slate-800">{detailRecord.clientApproval.clientName}</dd></div>
+                      <div><dt className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Approved At</dt><dd className="mt-1 font-medium text-slate-800">{detailRecord.clientApproval.approvedAt}</dd></div>
+                    </dl>
+                    <div className="rounded-lg border border-slate-200 bg-white p-3">
+                      <Image src={detailRecord.clientApproval.signatureUrl} width={440} height={220} unoptimized alt={`Client signature by ${detailRecord.clientApproval.clientName}`} className="h-28 w-full object-contain" />
+                    </div>
+                  </div>
+                ) : (
+                  <p className="mt-4 text-xs text-slate-500">Client approval and signature have not been submitted.</p>
+                )}
+              </section>
+
               <footer className="mt-12 border-t border-slate-300 pt-4 text-[10px] leading-5 text-slate-400">
                 This document is an internal troubleshooting record generated from IT Activity Log.
               </footer>
@@ -206,8 +291,28 @@ export function TicketList({ initialRecords, canManage, divisionOptions, locatio
               <div className="grid gap-4 sm:grid-cols-2"><label className="block text-[11px] font-semibold text-slate-600">Category<select name="category" defaultValue={selected?.category ?? "Software"} className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 px-3 text-xs outline-none"><option>Software</option><option>Hardware</option><option>Network</option><option>Server</option><option>Other</option></select></label><label className="block text-[11px] font-semibold text-slate-600">Priority<select name="priority" defaultValue={selected?.priority ?? "Low"} className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 px-3 text-xs outline-none"><option>Low</option><option>Medium</option><option>High</option><option>Critical</option></select></label></div>
               <div className="grid gap-4 sm:grid-cols-2"><label className="block text-[11px] font-semibold text-slate-600">Status<select name="status" defaultValue={selected?.status ?? "New"} className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 px-3 text-xs outline-none"><option>New</option><option>In Progress</option><option>Waiting for Client Approval</option><option>Reopened</option>{selected?.status === "Completed" ? <option>Completed</option> : null}</select></label><div><p className="text-[11px] font-semibold text-slate-600">Completion Time</p><p className="mt-1.5 rounded-xl bg-slate-50 px-3 py-2.5 text-[10px] leading-5 text-slate-500">Calculated automatically after client approval.</p></div></div>
               <label className="block text-[11px] font-semibold text-slate-600">Issue Description<textarea name="description" required rows={4} defaultValue={selected?.description} className="mt-1.5 w-full resize-none rounded-xl border border-slate-200 p-3 text-xs outline-none" /></label>
+              <section className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4" aria-labelledby="work-photo-field-title">
+                <div className="flex items-start justify-between gap-3">
+                  <div><h3 id="work-photo-field-title" className="text-[11px] font-semibold text-slate-700">Work Photo</h3><p className="mt-1 text-[10px] leading-4 text-slate-500">Take a photo or select one from the gallery. It is converted to JPEG and compressed below 2 MB.</p></div>
+                  {photoPreview ? <button type="button" onClick={removeWorkPhoto} disabled={compressingPhoto} className="shrink-0 rounded-lg bg-rose-50 px-2.5 py-1.5 text-[10px] font-semibold text-rose-600 disabled:opacity-50">Remove</button> : null}
+                </div>
+                {photoPreview ? (
+                  <div className="mt-3 overflow-hidden rounded-xl border border-slate-200 bg-white p-2">
+                    <Image src={photoPreview} width={720} height={540} unoptimized alt="Selected work photo preview" className="h-48 w-full rounded-lg object-contain sm:h-56" />
+                    <div className="mt-2 flex items-center justify-between gap-2 px-1"><span className="inline-flex items-center gap-1.5 text-[10px] font-semibold text-emerald-600"><CheckCircle2 size={13} /> Ready to save</span>{photoFile ? <span className="text-[10px] text-slate-400">{formatPhotoSize(photoFile.size)}</span> : <span className="text-[10px] text-slate-400">Stored photo</span>}</div>
+                  </div>
+                ) : (
+                  <button type="button" onClick={() => photoInputRef.current?.click()} disabled={compressingPhoto} className="mt-3 flex min-h-28 w-full flex-col items-center justify-center rounded-xl border border-dashed border-blue-300 bg-white px-4 text-center text-blue-700 disabled:cursor-wait disabled:text-slate-400">
+                    {compressingPhoto ? <LoaderCircle size={22} className="animate-spin" /> : <ImagePlus size={22} />}
+                    <span className="mt-2 text-[11px] font-semibold">{compressingPhoto ? "Compressing photo..." : "Take or select photo"}</span>
+                  </button>
+                )}
+                {photoPreview ? <button type="button" onClick={() => photoInputRef.current?.click()} disabled={compressingPhoto} className="mt-2 inline-flex h-9 w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white text-[10px] font-semibold text-slate-600 disabled:cursor-wait"><Camera size={14} /> {compressingPhoto ? "Compressing..." : "Replace photo"}</button> : null}
+                <input ref={photoInputRef} type="file" accept="image/*" capture="environment" onChange={(event) => void selectWorkPhoto(event)} className="sr-only" />
+                <p className="mt-2 text-[9px] leading-4 text-slate-400">A work photo is required before changing the status to Waiting for Client Approval.</p>
+              </section>
               {formError ? <p className="rounded-xl bg-rose-50 p-3 text-[11px] font-semibold text-rose-700">{formError}</p> : null}
-              <div className="flex justify-end gap-2 pt-1"><button type="button" onClick={() => setMode(null)} className="h-10 rounded-xl border border-slate-200 px-4 text-xs font-semibold text-slate-600">Cancel</button><button disabled={saving} className="h-10 rounded-xl bg-[#3157d5] px-4 text-xs font-semibold text-white disabled:bg-slate-300">{saving ? "Saving..." : "Save Record"}</button></div>
+              <div className="flex justify-end gap-2 pt-1"><button type="button" onClick={() => setMode(null)} className="h-10 rounded-xl border border-slate-200 px-4 text-xs font-semibold text-slate-600">Cancel</button><button disabled={saving || compressingPhoto} className="h-10 rounded-xl bg-[#3157d5] px-4 text-xs font-semibold text-white disabled:bg-slate-300">{saving ? "Saving..." : compressingPhoto ? "Compressing..." : "Save Record"}</button></div>
             </form>
           </div>
         </div>

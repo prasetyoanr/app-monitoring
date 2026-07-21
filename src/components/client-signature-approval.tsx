@@ -22,7 +22,7 @@ function formatDayFirstDateTime(value: string | Date) {
 }
 
 export function ClientSignatureApproval({ approval }: { approval: ApprovalRecord }) {
-  const { ticket, token } = approval;
+  const { ticket, token, workPhotoImage } = approval;
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const drawingRef = useRef(false);
   const [view, setView] = useState<ApprovalView>(
@@ -190,6 +190,33 @@ export function ClientSignatureApproval({ approval }: { approval: ApprovalRecord
       addField("Issue", ticket.title);
       addField("Reporter", `${ticket.requester} - ${ticket.division} - ${ticket.location}`);
 
+      if (workPhotoImage) {
+        document.setFont("helvetica", "bold");
+        document.setFontSize(8);
+        document.setTextColor(120, 130, 150);
+        document.text("WORK PHOTO", margin, y);
+        y += 5;
+        const properties = document.getImageProperties(workPhotoImage);
+        const imageRatio = properties.width / properties.height;
+        let imageWidth = contentWidth;
+        let imageHeight = imageWidth / imageRatio;
+        if (imageHeight > 55) {
+          imageHeight = 55;
+          imageWidth = imageHeight * imageRatio;
+        }
+        document.setDrawColor(220, 225, 232);
+        document.roundedRect(margin, y, contentWidth, 59, 2, 2, "S");
+        document.addImage(
+          workPhotoImage,
+          "JPEG",
+          margin + (contentWidth - imageWidth) / 2,
+          y + 2,
+          imageWidth,
+          imageHeight,
+        );
+        y += 65;
+      }
+
       y += 2;
       document.setFont("helvetica", "bold");
       document.setFontSize(10);
@@ -242,6 +269,7 @@ export function ClientSignatureApproval({ approval }: { approval: ApprovalRecord
           <h1 className="mt-5 text-xl font-bold text-slate-900">{approved ? "Work approved" : "Further work requested"}</h1>
           <p className="mt-2 text-sm leading-6 text-slate-500">{approved ? "Thank you. Your confirmation and signature have been received." : "Thank you. The issue has been returned to the IT team for follow-up."}</p>
           <div className="mt-6 rounded-2xl bg-slate-50 p-4 text-left"><p className="font-mono text-[10px] text-slate-400">{ticket.id}</p><p className="mt-1 text-xs font-semibold leading-5 text-slate-800">{ticket.title}</p><p className="mt-3 text-[10px] text-slate-400">Submitted {submittedAt}</p></div>
+          {approved && workPhotoImage ? <div className="mt-4 rounded-2xl border border-slate-200 p-4 text-left"><p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Work Photo</p><Image src={workPhotoImage} width={720} height={540} unoptimized alt="Troubleshooting work" className="mt-2 max-h-64 w-full rounded-xl object-contain" /></div> : null}
           {approved && signatureImage ? <div className="mt-4 rounded-2xl border border-slate-200 p-4 text-left"><p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Signature — {clientName}</p><Image src={signatureImage} width={280} height={120} unoptimized alt="Client signature" className="mt-2 h-24 w-full object-contain" /></div> : null}
           {approved ? <button onClick={downloadApprovalPdf} disabled={exportingPdf || !signatureImage} className="mt-5 inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#3157d5] text-xs font-semibold text-white disabled:bg-slate-300"><Download size={15} /> {exportingPdf ? "Generating PDF..." : "Download signed PDF"}</button> : null}
           <p className="mt-5 text-[10px] leading-5 text-slate-400">You may close this page.</p>
@@ -258,7 +286,7 @@ export function ClientSignatureApproval({ approval }: { approval: ApprovalRecord
 
       <div className="mx-auto -mt-5 max-w-md px-4">
         <section className="rounded-3xl border border-slate-200 bg-white shadow-xl shadow-slate-200/50">
-          <div className="border-b border-slate-100 p-5"><p className="font-mono text-[10px] text-slate-400">{ticket.id}</p><h2 className="mt-1.5 text-base font-bold leading-6 text-slate-900">{ticket.title}</h2><dl className="mt-4 grid grid-cols-2 gap-3 text-xs"><div><dt className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Requester</dt><dd className="mt-1 font-medium text-slate-700">{ticket.requester}</dd></div><div><dt className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Location</dt><dd className="mt-1 font-medium text-slate-700">{ticket.location}</dd></div></dl></div>
+          <div className="border-b border-slate-100 p-5"><p className="font-mono text-[10px] text-slate-400">{ticket.id}</p><h2 className="mt-1.5 text-base font-bold leading-6 text-slate-900">{ticket.title}</h2><dl className="mt-4 grid grid-cols-2 gap-3 text-xs"><div><dt className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Requester</dt><dd className="mt-1 font-medium text-slate-700">{ticket.requester}</dd></div><div><dt className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Location</dt><dd className="mt-1 font-medium text-slate-700">{ticket.location}</dd></div></dl>{workPhotoImage ? <div className="mt-4"><p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Work Photo</p><Image src={workPhotoImage} width={720} height={540} unoptimized alt="Troubleshooting work" className="mt-2 max-h-64 w-full rounded-xl border border-slate-200 object-contain" /></div> : null}</div>
 
           {view === "approval" ? (
             <form onSubmit={approve} className="space-y-5 p-5">

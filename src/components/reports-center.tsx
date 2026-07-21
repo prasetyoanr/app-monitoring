@@ -12,6 +12,7 @@ import {
   surveyExcelColumns,
   troubleshootingExcelColumns,
 } from "@/lib/excel-export";
+import type { ExcelImageDefinition } from "@/lib/excel-export";
 import { currentJakartaMonth, monthInputRange } from "@/lib/jakarta-date";
 
 type FilterMode = "range" | "month";
@@ -71,6 +72,31 @@ export function ReportsCenter({ ticketRecords, backupRecords, surveyRecords }: {
   }
 
   async function exportTroubleshooting() {
+    const images: ExcelImageDefinition[] = filteredTickets.flatMap((ticket, rowIndex) => {
+      const rowImages: ExcelImageDefinition[] = [];
+      if (ticket.workPhotoUrl) {
+        rowImages.push({
+          rowIndex,
+          columnKey: "workPhoto",
+          sourceUrl: ticket.workPhotoUrl,
+          extension: "jpeg",
+          width: 128,
+          height: 88,
+        });
+      }
+      if (ticket.clientApproval) {
+        rowImages.push({
+          rowIndex,
+          columnKey: "clientSignature",
+          sourceUrl: ticket.clientApproval.signatureUrl,
+          extension: "png",
+          width: 128,
+          height: 70,
+        });
+      }
+      return rowImages;
+    });
+
     await runExport("troubleshooting", () =>
       downloadExcelReport({
         filename: `troubleshooting-report-${filterLabel}.xlsx`,
@@ -88,8 +114,15 @@ export function ReportsCenter({ ticketRecords, backupRecords, surveyRecords }: {
           priority: ticket.priority,
           status: ticket.status,
           completionDays: ticket.completedDays,
+          workPhoto: ticket.hasWorkPhoto ? "Available" : "Not available",
+          clientSignature: ticket.clientApproval ? "Available" : "Not available",
+          approvedBy: ticket.clientApproval?.clientName ?? "",
+          approvedAt: ticket.clientApproval
+            ? excelDate(ticket.clientApproval.approvedAtIso)
+            : null,
           description: ticket.description,
         })),
+        images,
       }),
     );
   }

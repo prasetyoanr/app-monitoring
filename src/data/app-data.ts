@@ -48,7 +48,10 @@ function toTicketRecord(
     | "status"
     | "completedDays"
     | "description"
+    | "updatedAt"
   >,
+  hasWorkPhoto: boolean,
+  clientApproval: TicketRecord["clientApproval"] = null,
 ): TicketRecord {
   return {
     id: row.id,
@@ -63,28 +66,65 @@ function toTicketRecord(
     status: row.status,
     completedDays: row.completedDays,
     description: row.description,
+    hasWorkPhoto,
+    workPhotoUrl: hasWorkPhoto
+      ? `/troubleshooting/${encodeURIComponent(row.id)}/photo?v=${row.updatedAt.getTime()}`
+      : null,
+    clientApproval,
   };
 }
 
 export async function getTicketRecords(): Promise<TicketRecord[]> {
   await requireAuthenticatedUser();
-  const rows = await db
-    .select({
-      id: troubleshootingIssues.id,
-      title: troubleshootingIssues.title,
-      category: troubleshootingIssues.category,
-      requesterName: troubleshootingIssues.requesterName,
-      division: troubleshootingIssues.division,
-      location: troubleshootingIssues.location,
-      reportedAt: troubleshootingIssues.reportedAt,
-      priority: troubleshootingIssues.priority,
-      status: troubleshootingIssues.status,
-      completedDays: troubleshootingIssues.completedDays,
-      description: troubleshootingIssues.description,
-    })
-    .from(troubleshootingIssues)
-    .orderBy(desc(troubleshootingIssues.reportedAt), desc(troubleshootingIssues.id));
-  return rows.map(toTicketRecord);
+  const [rows, approvedRows] = await Promise.all([
+    db
+      .select({
+        id: troubleshootingIssues.id,
+        title: troubleshootingIssues.title,
+        category: troubleshootingIssues.category,
+        requesterName: troubleshootingIssues.requesterName,
+        division: troubleshootingIssues.division,
+        location: troubleshootingIssues.location,
+        reportedAt: troubleshootingIssues.reportedAt,
+        priority: troubleshootingIssues.priority,
+        status: troubleshootingIssues.status,
+        completedDays: troubleshootingIssues.completedDays,
+        description: troubleshootingIssues.description,
+        updatedAt: troubleshootingIssues.updatedAt,
+        hasWorkPhoto: sql<boolean>`${troubleshootingIssues.workPhotoData} is not null`,
+      })
+      .from(troubleshootingIssues)
+      .orderBy(desc(troubleshootingIssues.reportedAt), desc(troubleshootingIssues.id)),
+    db
+      .selectDistinctOn([troubleshootingApprovals.issueId], {
+        issueId: troubleshootingApprovals.issueId,
+        clientName: troubleshootingApprovals.clientName,
+        respondedAt: troubleshootingApprovals.respondedAt,
+      })
+      .from(troubleshootingApprovals)
+      .where(eq(troubleshootingApprovals.status, "approved"))
+      .orderBy(
+        troubleshootingApprovals.issueId,
+        desc(troubleshootingApprovals.respondedAt),
+      ),
+  ]);
+  const approvalsByIssue = new Map<string, TicketRecord["clientApproval"]>();
+  for (const approval of approvedRows) {
+    if (
+      approvalsByIssue.has(approval.issueId) ||
+      !approval.clientName ||
+      !approval.respondedAt
+    ) continue;
+    approvalsByIssue.set(approval.issueId, {
+      clientName: approval.clientName,
+      approvedAt: jakartaDateTime.format(approval.respondedAt).replace(",", ""),
+      approvedAtIso: dateTimeInputValue(approval.respondedAt),
+      signatureUrl: `/troubleshooting/${encodeURIComponent(approval.issueId)}/signature?v=${approval.respondedAt.getTime()}`,
+    });
+  }
+  return rows.map((row) =>
+    toTicketRecord(row, row.hasWorkPhoto, approvalsByIssue.get(row.id) ?? null),
+  );
 }
 
 export async function getBackupRecords(): Promise<BackupRecord[]> {
@@ -142,6 +182,7 @@ export interface ApprovalRecord {
   clientNote: string | null;
   respondedAt: string | null;
   signatureImage: string | null;
+  workPhotoImage: string | null;
   ticket: TicketRecord;
 }
 
@@ -166,6 +207,10 @@ export async function getApprovalByToken(token: string): Promise<ApprovalRecord 
     row.approval.signatureData && row.approval.signatureMimeType
       ? `data:${row.approval.signatureMimeType};base64,${Buffer.from(row.approval.signatureData).toString("base64")}`
       : null;
+  const workPhotoImage =
+    row.issue.workPhotoData && row.issue.workPhotoMimeType
+      ? `data:${row.issue.workPhotoMimeType};base64,${Buffer.from(row.issue.workPhotoData).toString("base64")}`
+      : null;
 
   return {
     token,
@@ -175,6 +220,7 @@ export async function getApprovalByToken(token: string): Promise<ApprovalRecord 
     clientNote: row.approval.clientNote,
     respondedAt: row.approval.respondedAt?.toISOString() ?? null,
     signatureImage,
-    ticket: toTicketRecord(row.issue),
+    workPhotoImage,
+    ticket: toTicketRecord(row.issue, Boolean(row.issue.workPhotoData)),
   };
 }

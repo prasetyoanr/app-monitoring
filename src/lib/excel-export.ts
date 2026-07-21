@@ -14,6 +14,16 @@ export interface ExcelExportOptions {
   sheetName: string;
   columns: ExcelColumnDefinition[];
   rows: Array<Record<string, CellValue>>;
+  images?: ExcelImageDefinition[];
+}
+
+export interface ExcelImageDefinition {
+  rowIndex: number;
+  columnKey: string;
+  sourceUrl: string;
+  extension: "jpeg" | "png";
+  width?: number;
+  height?: number;
 }
 
 export const troubleshootingExcelColumns: ExcelColumnDefinition[] = [
@@ -28,6 +38,10 @@ export const troubleshootingExcelColumns: ExcelColumnDefinition[] = [
   { header: "Priority", key: "priority", width: 14, alignment: "center" },
   { header: "Status", key: "status", width: 28 },
   { header: "Completion Time (Days)", key: "completionDays", width: 22, alignment: "center", numberFormat: "0" },
+  { header: "Work Photo", key: "workPhoto", width: 22, alignment: "center" },
+  { header: "Client Signature", key: "clientSignature", width: 22, alignment: "center" },
+  { header: "Approved By", key: "approvedBy", width: 24 },
+  { header: "Approved At", key: "approvedAt", width: 21, alignment: "center", numberFormat: "dd/mm/yyyy hh:mm" },
   { header: "Description", key: "description", width: 60, wrapText: true },
 ];
 
@@ -68,10 +82,52 @@ export function excelDate(localDateTime: string) {
   return new Date(Date.UTC(year, month - 1, day, hour, minute));
 }
 
+async function blobDataUrl(blob: Blob) {
+  const bytes = new Uint8Array(await blob.arrayBuffer());
+  const chunks: string[] = [];
+  const chunkSize = 0x8000;
+  for (let offset = 0; offset < bytes.length; offset += chunkSize) {
+    chunks.push(String.fromCharCode(...bytes.subarray(offset, offset + chunkSize)));
+  }
+  return `data:${blob.type || "application/octet-stream"};base64,${btoa(chunks.join(""))}`;
+}
+
+async function excelImageDataUrl(image: ExcelImageDefinition) {
+  if (image.sourceUrl.startsWith("data:")) return image.sourceUrl;
+  const response = await fetch(image.sourceUrl, { credentials: "same-origin" });
+  if (!response.ok) throw new Error(`Image request failed with HTTP ${response.status}.`);
+  const blob = await response.blob();
+  if (image.extension === "png") return blobDataUrl(blob);
+
+  const sourceUrl = URL.createObjectURL(blob);
+  try {
+    const source = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const element = new Image();
+      element.onload = () => resolve(element);
+      element.onerror = () => reject(new Error("Unable to decode an Excel image."));
+      element.src = sourceUrl;
+    });
+    const maximum = 900;
+    const scale = Math.min(1, maximum / Math.max(source.naturalWidth, source.naturalHeight));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(source.naturalWidth * scale));
+    canvas.height = Math.max(1, Math.round(source.naturalHeight * scale));
+    const context = canvas.getContext("2d", { alpha: false });
+    if (!context) throw new Error("Unable to prepare an Excel image.");
+    context.fillStyle = "#ffffff";
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    context.drawImage(source, 0, 0, canvas.width, canvas.height);
+    return canvas.toDataURL("image/jpeg", 0.72);
+  } finally {
+    URL.revokeObjectURL(sourceUrl);
+  }
+}
+
 export async function buildExcelReport({
   sheetName,
   columns,
   rows,
+  images = [],
 }: ExcelExportOptions) {
   const ExcelJS = await import("exceljs");
   const workbook = new ExcelJS.Workbook();
@@ -143,6 +199,32 @@ export async function buildExcelReport({
         cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF8FAFC" } };
       }
     });
+  }
+
+  for (const image of images) {
+    const columnIndex = columns.findIndex((column) => column.key === image.columnKey);
+    if (columnIndex < 0 || image.rowIndex < 0 || image.rowIndex >= rows.length) continue;
+    try {
+      const dataUrl = await excelImageDataUrl(image);
+      const imageId = workbook.addImage({ base64: dataUrl, extension: image.extension });
+      const excelRowNumber = image.rowIndex + 2;
+      const width = image.width ?? 120;
+      const height = image.height ?? 88;
+      worksheet.getRow(excelRowNumber).height = Math.max(
+        Number(worksheet.getRow(excelRowNumber).height ?? 24),
+        Math.ceil((height + 16) * 0.75),
+      );
+      worksheet.getCell(excelRowNumber, columnIndex + 1).value = "";
+      worksheet.addImage(imageId, {
+        tl: { col: columnIndex + 0.08, row: excelRowNumber - 1 + 0.08 },
+        ext: { width, height },
+      });
+    } catch (error) {
+      console.error(
+        "Unable to embed an image in the Excel report.",
+        error instanceof Error ? error.message : "Unknown image error.",
+      );
+    }
   }
 
   return workbook.xlsx.writeBuffer();

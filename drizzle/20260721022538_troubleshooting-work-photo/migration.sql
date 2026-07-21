@@ -1,0 +1,5 @@
+ALTER TABLE "troubleshooting_issues" ADD COLUMN "work_photo_data" bytea;--> statement-breakpoint
+ALTER TABLE "troubleshooting_issues" ADD COLUMN "work_photo_mime_type" varchar(40);--> statement-breakpoint
+ALTER TABLE "troubleshooting_issues" ADD COLUMN "work_photo_file_name" varchar(255);--> statement-breakpoint
+ALTER TABLE "troubleshooting_issues" ADD CONSTRAINT "troubleshooting_issues_work_photo_pair_check" CHECK (("work_photo_data" is null and "work_photo_mime_type" is null and "work_photo_file_name" is null) or ("work_photo_data" is not null and "work_photo_mime_type" is not null and "work_photo_file_name" is not null));--> statement-breakpoint
+ALTER TABLE "troubleshooting_issues" ADD CONSTRAINT "troubleshooting_issues_work_photo_size_check" CHECK ("work_photo_data" is null or octet_length("work_photo_data") <= 2097152);
