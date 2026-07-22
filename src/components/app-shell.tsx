@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   Activity,
+  ArrowLeft,
   ChevronDown,
   ClipboardCheck,
   Database,
@@ -27,6 +28,21 @@ const navigationBase = [
   { label: "Reports", href: "/reports", icon: FileBarChart },
 ];
 
+const primaryPagePaths = new Set([
+  "/",
+  "/troubleshooting",
+  "/backups",
+  "/surveys",
+  "/reports",
+]);
+
+function secondaryPageFallback(pathname: string) {
+  const feature = pathname.split("/").filter(Boolean)[0];
+  return navigationBase.some((item) => item.href === `/${feature}`)
+    ? `/${feature}`
+    : "/";
+}
+
 export function AppShell({
   children,
   counts,
@@ -41,6 +57,7 @@ export function AppShell({
   };
 }) {
   const pathname = usePathname();
+  const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
@@ -68,6 +85,7 @@ export function AppShell({
     ...item,
     count: item.href === "/troubleshooting" ? counts.issues : item.href === "/backups" ? counts.backups : undefined,
   }));
+  const showBackButton = !primaryPagePaths.has(pathname);
 
   if (
     pathname.startsWith("/b/") ||
@@ -163,7 +181,22 @@ export function AppShell({
         </div>
       </header>
 
-      <main className="app-main page-enter relative mx-auto max-w-[1600px] p-4 sm:p-6 xl:p-8">{children}</main>
+      <main className="app-main page-enter relative mx-auto max-w-[1600px] p-4 sm:p-6 xl:p-8">
+        {showBackButton ? (
+          <button
+            type="button"
+            onClick={() => {
+              if (window.history.length > 1) router.back();
+              else router.push(secondaryPageFallback(pathname));
+            }}
+            className="mb-4 inline-flex h-9 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-[11px] font-semibold text-slate-600 shadow-sm hover:border-indigo-200 hover:text-indigo-700"
+            aria-label="Back to previous page"
+          >
+            <ArrowLeft size={15} /> Back
+          </button>
+        ) : null}
+        {children}
+      </main>
     </div>
   );
 }
