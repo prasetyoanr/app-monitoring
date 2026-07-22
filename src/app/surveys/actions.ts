@@ -22,6 +22,7 @@ import {
 import { getSurveyResponseData } from "@/data/survey-data";
 import type {
   SurveyAnswerValue,
+  SurveyKpiCategory,
   SurveyQuestionInput,
   SurveyQuestionRecord,
   SurveyResponseData,
@@ -30,6 +31,7 @@ import type {
 import type { ActionResult } from "@/data/types";
 
 const choiceTypes = new Set(["multiple_choice", "checkboxes", "dropdown"]);
+const kpiCategories = new Set<SurveyKpiCategory>(["installation", "repair"]);
 
 function validUuid(id: string) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id);
@@ -59,9 +61,17 @@ function validateQuestions(questions: SurveyQuestionInput[]) {
     if (options.some((option) => option.length > 200) || options.length > 30) {
       throw new Error(`Question ${position + 1} contains invalid options.`);
     }
+    const kpiCategory = question.kpiCategory ?? null;
+    if (
+      kpiCategory !== null &&
+      (question.type !== "linear_scale" || !kpiCategories.has(kpiCategory))
+    ) {
+      throw new Error(`Question ${position + 1} contains an invalid KPI category.`);
+    }
     return {
       position,
       type: question.type,
+      kpiCategory,
       title,
       isRequired: question.isRequired,
       options: choiceTypes.has(question.type) ? options : [],
@@ -264,6 +274,76 @@ export async function setSurveyStatusAction(
   }
 }
 
+export async function duplicateSurveyAction(
+  id: string,
+): Promise<ActionResult<{ id: string; publicCode: string; title: string }>> {
+  const currentUser = await requireAdministrator();
+  try {
+    if (!validUuid(id)) throw new Error("Invalid survey ID.");
+    const publicCode = randomBytes(12).toString("base64url");
+    const duplicated = await db.transaction(async (tx) => {
+      const [source] = await tx
+        .select({
+          title: surveyForms.title,
+          description: surveyForms.description,
+        })
+        .from(surveyForms)
+        .where(eq(surveyForms.id, id))
+        .limit(1);
+      if (!source) throw new Error("Survey not found.");
+
+      const questions = await tx
+        .select({
+          position: surveyQuestions.position,
+          type: surveyQuestions.type,
+          kpiCategory: surveyQuestions.kpiCategory,
+          title: surveyQuestions.title,
+          isRequired: surveyQuestions.isRequired,
+          options: surveyQuestions.options,
+        })
+        .from(surveyQuestions)
+        .where(eq(surveyQuestions.surveyId, id));
+      if (!questions.length) {
+        throw new Error("A survey needs at least one question before it can be duplicated.");
+      }
+
+      const title = `${source.title.slice(0, 193).trimEnd()} (Copy)`;
+      const [survey] = await tx
+        .insert(surveyForms)
+        .values({
+          title,
+          description: source.description,
+          status: "draft",
+          publicCode,
+          expiresAt: null,
+          createdByTechnicianId: currentUser.id,
+        })
+        .returning({ id: surveyForms.id });
+      await tx.insert(surveyQuestions).values(
+        questions.map((question) => ({ surveyId: survey.id, ...question })),
+      );
+      await tx.insert(auditLogs).values({
+        actorType: "technician",
+        actorId: currentUser.id,
+        action: "survey.duplicated",
+        entityType: "survey",
+        entityId: survey.id,
+        metadata: { sourceSurveyId: id, questionCount: questions.length },
+      });
+      return { id: survey.id, publicCode, title };
+    });
+    revalidateSurveys();
+    return { ok: true, data: duplicated };
+  } catch (error) {
+    console.error("Unable to duplicate survey.", error);
+    return {
+      ok: false,
+      error:
+        error instanceof Error ? error.message : "Unable to duplicate survey.",
+    };
+  }
+}
+
 export async function deleteSurveyAction(id: string): Promise<ActionResult> {
   const currentUser = await requireAdministrator();
   try {
@@ -371,6 +451,7 @@ export async function submitSurveyAction(input: {
           id: surveyQuestions.id,
           position: surveyQuestions.position,
           type: surveyQuestions.type,
+          kpiCategory: surveyQuestions.kpiCategory,
           title: surveyQuestions.title,
           isRequired: surveyQuestions.isRequired,
           options: surveyQuestions.options,

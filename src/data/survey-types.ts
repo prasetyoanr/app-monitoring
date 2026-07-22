@@ -1,5 +1,6 @@
 export type SurveyStatus = "draft" | "active" | "closed";
 export type SurveyDisplayStatus = SurveyStatus | "expired";
+export type SurveyKpiCategory = "installation" | "repair";
 
 export type SurveyQuestionType =
   | "short_answer"
@@ -33,6 +34,7 @@ export interface SurveyQuestionInput {
   title: string;
   isRequired: boolean;
   options: string[];
+  kpiCategory: SurveyKpiCategory | null;
 }
 
 export interface SurveyQuestionRecord {
@@ -42,6 +44,7 @@ export interface SurveyQuestionRecord {
   title: string;
   isRequired: boolean;
   options: string[];
+  kpiCategory: SurveyKpiCategory | null;
 }
 
 export interface SurveyListRecord {
@@ -95,8 +98,10 @@ export interface SurveyReportRecord {
   submittedDate: string;
   submittedAtIso: string;
   answers: Array<{
+    questionId: string;
     questionTitle: string;
     questionType: SurveyQuestionType;
+    kpiCategory: SurveyKpiCategory | null;
     value: SurveyAnswerValue;
     analysis: SurveyAnswerAnalysisRecord | null;
   }>;

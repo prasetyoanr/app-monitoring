@@ -35,7 +35,7 @@ const questionTypes: Array<{
   { value: "multiple_choice", label: "Multiple choice", icon: CircleDot },
   { value: "checkboxes", label: "Checkboxes", icon: CheckSquare },
   { value: "dropdown", label: "Dropdown", icon: ChevronDown },
-  { value: "linear_scale", label: "Linear scale", icon: SlidersHorizontal },
+  { value: "linear_scale", label: "Rating (1–5)", icon: SlidersHorizontal },
 ];
 
 const choiceTypes = new Set<SurveyQuestionType>([
@@ -51,6 +51,7 @@ function createQuestion(clientId: string): SurveyQuestionInput {
     title: "",
     isRequired: true,
     options: ["Option 1", "Option 2"],
+    kpiCategory: null,
   };
 }
 
@@ -85,7 +86,19 @@ export function SurveyBuilder() {
 
   function changeType(clientId: string, type: SurveyQuestionType) {
     const options = choiceTypes.has(type) ? ["Option 1", "Option 2"] : [];
-    updateQuestion(clientId, { type, options });
+    setQuestions((current) =>
+      current.map((question) =>
+        question.clientId === clientId
+          ? {
+              ...question,
+              type,
+              options,
+              kpiCategory:
+                type === "linear_scale" ? question.kpiCategory : null,
+            }
+          : question,
+      ),
+    );
   }
 
   function addQuestion(afterIndex?: number) {
@@ -313,8 +326,32 @@ export function SurveyBuilder() {
                     <button type="button" onClick={() => addOption(question.clientId)} className="ml-6 inline-flex h-8 items-center gap-1.5 text-[11px] font-bold text-indigo-600"><Plus size={14} /> Add option</button>
                   </div>
                 ) : question.type === "linear_scale" ? (
-                  <div className="mt-5 grid grid-cols-5 gap-2">
-                    {[1, 2, 3, 4, 5].map((value) => <div key={value} className="text-center"><Star className="mx-auto fill-amber-400 text-amber-400" size={22} /><span className="mt-1 block text-[9px] font-semibold text-slate-400">{value}</span></div>)}
+                  <div className="mt-5">
+                    <label className="mb-5 block max-w-sm">
+                      <span className="text-[11px] font-semibold text-slate-600">KPI Category</span>
+                      <span className="relative mt-1.5 block">
+                        <select
+                          value={question.kpiCategory ?? ""}
+                          onChange={(event) =>
+                            updateQuestion(question.clientId, {
+                              kpiCategory:
+                                (event.target.value || null) as SurveyQuestionInput["kpiCategory"],
+                            })
+                          }
+                          className="h-11 w-full appearance-none rounded-xl border border-slate-200 bg-white px-3 pr-9 text-xs font-semibold text-slate-600 outline-none focus:border-indigo-500"
+                        >
+                          <option value="">Not linked to KPI</option>
+                          <option value="installation">KPI-01 · Installation Quality</option>
+                          <option value="repair">KPI-02 · Repair Quality</option>
+                        </select>
+                        <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+                      </span>
+                      <span className="mt-1.5 block text-[9px] leading-4 text-slate-400">This selection separates Installation and Repair results automatically.</span>
+                    </label>
+                    <div className="grid grid-cols-5 gap-2">
+                      {[1, 2, 3, 4, 5].map((value) => <div key={value} className="text-center"><Star className="mx-auto fill-amber-400 text-amber-400" size={22} /><span className="mt-1 block text-[9px] font-semibold text-slate-400">{value}</span></div>)}
+                    </div>
+                    <div className="mt-2 flex justify-between text-[9px] font-semibold text-slate-400"><span>Very Dissatisfied</span><span>Very Satisfied</span></div>
                   </div>
                 ) : (
                   <div className={`mt-5 rounded-xl border border-dashed border-slate-200 bg-slate-50 px-3 py-3 text-[11px] text-slate-400 ${question.type === "paragraph" ? "w-full" : "max-w-sm"}`}>

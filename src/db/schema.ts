@@ -69,6 +69,11 @@ export const surveyQuestionTypeEnum = pgEnum("survey_question_type", [
   "linear_scale",
 ]);
 
+export const surveyKpiCategoryEnum = pgEnum("survey_kpi_category", [
+  "installation",
+  "repair",
+]);
+
 export const surveyAnalysisStatusEnum = pgEnum("survey_analysis_status", [
   "pending",
   "completed",
@@ -426,6 +431,7 @@ export const surveyQuestions = pgTable(
       .references(() => surveyForms.id, { onDelete: "cascade" }),
     position: integer("position").notNull(),
     type: surveyQuestionTypeEnum("type").notNull(),
+    kpiCategory: surveyKpiCategoryEnum("kpi_category"),
     title: varchar("title", { length: 500 }).notNull(),
     isRequired: boolean("is_required").notNull().default(false),
     options: jsonb("options")

@@ -15,6 +15,13 @@ export interface ExcelExportOptions {
   columns: ExcelColumnDefinition[];
   rows: Array<Record<string, CellValue>>;
   images?: ExcelImageDefinition[];
+  additionalSheets?: ExcelWorksheetDefinition[];
+}
+
+export interface ExcelWorksheetDefinition {
+  sheetName: string;
+  columns: ExcelColumnDefinition[];
+  rows: Array<Record<string, CellValue>>;
 }
 
 export interface ExcelImageDefinition {
@@ -64,12 +71,31 @@ export const surveyExcelColumns: ExcelColumnDefinition[] = [
   { header: "Division", key: "division", width: 20 },
   { header: "Question", key: "question", width: 40, wrapText: true },
   { header: "Question Type", key: "questionType", width: 20 },
+  { header: "KPI Code", key: "kpiCode", width: 13, alignment: "center" },
+  { header: "KPI Category", key: "kpiCategory", width: 24 },
   { header: "Answer", key: "answer", width: 48, wrapText: true },
+  { header: "Rating Label", key: "ratingLabel", width: 20 },
+  { header: "CSAT Result", key: "csatResult", width: 18, alignment: "center" },
+  { header: "CSAT Contribution", key: "csatContribution", width: 19, alignment: "center", numberFormat: "0\"%\"" },
   { header: "AI Status", key: "aiStatus", width: 18 },
   { header: "AI Sentiment", key: "aiSentiment", width: 20 },
   { header: "AI Score", key: "aiScore", width: 12, alignment: "center", numberFormat: "0" },
   { header: "AI Confidence", key: "aiConfidence", width: 16, alignment: "center", numberFormat: "0\"%\"" },
   { header: "AI Summary", key: "aiSummary", width: 52, wrapText: true },
+];
+
+export const surveyKpiExcelColumns: ExcelColumnDefinition[] = [
+  { header: "No.", key: "number", width: 7, alignment: "center", numberFormat: "0" },
+  { header: "Survey", key: "survey", width: 30 },
+  { header: "KPI Code", key: "kpiCode", width: 13, alignment: "center" },
+  { header: "KPI Category", key: "kpiCategory", width: 28 },
+  { header: "Rating Questions", key: "questionCount", width: 18, alignment: "center", numberFormat: "0" },
+  { header: "Rating Responses", key: "responseCount", width: 18, alignment: "center", numberFormat: "0" },
+  { header: "Average Rating", key: "averageRating", width: 17, alignment: "center", numberFormat: "0.0" },
+  { header: "Satisfied (4–5)", key: "satisfiedCount", width: 18, alignment: "center", numberFormat: "0" },
+  { header: "Satisfaction Score", key: "satisfactionScore", width: 19, alignment: "center", numberFormat: "0.0\"%\"" },
+  { header: "Target", key: "target", width: 12, alignment: "center", numberFormat: "0\"%\"" },
+  { header: "Target Achievement", key: "targetAchievement", width: 20, alignment: "center", numberFormat: "0.0\"%\"" },
 ];
 
 export function excelDate(localDateTime: string) {
@@ -128,6 +154,7 @@ export async function buildExcelReport({
   columns,
   rows,
   images = [],
+  additionalSheets = [],
 }: ExcelExportOptions) {
   const ExcelJS = await import("exceljs");
   const workbook = new ExcelJS.Workbook();
@@ -224,6 +251,62 @@ export async function buildExcelReport({
         "Unable to embed an image in the Excel report.",
         error instanceof Error ? error.message : "Unknown image error.",
       );
+    }
+  }
+
+  for (const sheetDefinition of additionalSheets) {
+    const extraWorksheet = workbook.addWorksheet(sheetDefinition.sheetName, {
+      properties: { defaultRowHeight: 20 },
+      views: [{ state: "frozen", ySplit: 1, showGridLines: false }],
+      pageSetup: {
+        orientation: "landscape",
+        fitToPage: true,
+        fitToWidth: 1,
+        fitToHeight: 0,
+        paperSize: 9,
+      },
+    });
+    extraWorksheet.columns = sheetDefinition.columns.map((column) => ({
+      header: column.header,
+      key: column.key,
+      width: column.width,
+    }));
+    extraWorksheet.addRows(sheetDefinition.rows);
+    extraWorksheet.autoFilter = {
+      from: { row: 1, column: 1 },
+      to: {
+        row: Math.max(1, sheetDefinition.rows.length + 1),
+        column: sheetDefinition.columns.length,
+      },
+    };
+
+    const extraHeader = extraWorksheet.getRow(1);
+    extraHeader.height = 30;
+    extraHeader.eachCell((cell) => {
+      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF3157D5" } };
+      cell.font = { name: "Aptos", size: 11, bold: true, color: { argb: "FFFFFFFF" } };
+      cell.alignment = { vertical: "middle", horizontal: "center", wrapText: true };
+    });
+
+    for (let rowIndex = 2; rowIndex <= sheetDefinition.rows.length + 1; rowIndex += 1) {
+      const row = extraWorksheet.getRow(rowIndex);
+      row.height = 24;
+      row.eachCell({ includeEmpty: true }, (cell, columnNumber) => {
+        const definition = sheetDefinition.columns[columnNumber - 1];
+        cell.font = { name: "Aptos", size: 10, color: { argb: "FF1E293B" } };
+        cell.alignment = {
+          vertical: "top",
+          horizontal: definition.alignment ?? "left",
+          wrapText: definition.wrapText ?? false,
+        };
+        if (definition.numberFormat) cell.numFmt = definition.numberFormat;
+        cell.border = {
+          bottom: { style: "thin", color: { argb: "FFE2E8F0" } },
+        };
+        if (rowIndex % 2 === 1) {
+          cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF8FAFC" } };
+        }
+      });
     }
   }
 

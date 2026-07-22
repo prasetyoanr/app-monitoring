@@ -3,19 +3,23 @@
 import {
   BarChart3,
   Check,
+  CircleCheckBig,
   ClipboardList,
   Copy,
   ExternalLink,
   Eye,
   FileClock,
+  Files,
   LoaderCircle,
   MessageSquareText,
+  Network,
   RefreshCw,
   Sparkles,
   Send,
   Star,
   Trash2,
   Users,
+  Wrench,
   X,
 } from "lucide-react";
 import Link from "next/link";
@@ -25,6 +29,7 @@ import { useMemo, useState } from "react";
 import {
   analyzeSurveyResponsesAction,
   deleteSurveyAction,
+  duplicateSurveyAction,
   getSurveyResponsesAction,
   setSurveyStatusAction,
 } from "@/app/surveys/actions";
@@ -33,11 +38,17 @@ import type {
   SurveyAnswerValue,
   SurveyAnswerAnalysisRecord,
   SurveyDisplayStatus,
+  SurveyKpiCategory,
   SurveyListRecord,
   SurveyQuestionRecord,
   SurveyResponseData,
   SurveySubmissionRecord,
 } from "@/data/survey-types";
+import {
+  calculateSurveyRatingMetrics,
+  SURVEY_KPI_CATEGORIES,
+  SURVEY_SATISFACTION_TARGET,
+} from "@/lib/survey-metrics";
 
 function statusTone(status: SurveyDisplayStatus) {
   if (status === "active") return "green" as const;
@@ -107,16 +118,24 @@ function QuestionSummary({
 
   if (question.type === "linear_scale") {
     const numbers = values.filter((value): value is number => typeof value === "number");
-    const average = numbers.length
-      ? numbers.reduce((sum, value) => sum + value, 0) / numbers.length
-      : 0;
+    const metrics = calculateSurveyRatingMetrics(numbers);
     return (
       <div className="mt-4">
-        <div className="flex items-end gap-2"><span className="text-3xl font-black tracking-tight text-indigo-700">{average.toFixed(1)}</span><span className="pb-1 text-[11px] text-slate-400">/ 5 from {numbers.length} answers</span></div>
-        <div className="mt-2 flex gap-1">{[1, 2, 3, 4, 5].map((score) => <Star key={score} size={17} className={score <= Math.round(average) ? "fill-amber-400 text-amber-400" : "text-slate-200"} />)}</div>
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Average Rating</p>
+            <div className="mt-1 flex items-end gap-2"><span className="text-3xl font-black tracking-tight text-indigo-700">{metrics.averageRating.toFixed(1)}</span><span className="pb-1 text-[11px] text-slate-400">/ 5 from {metrics.responseCount} answers</span></div>
+            <div className="mt-2 flex gap-1">{[1, 2, 3, 4, 5].map((score) => <Star key={score} size={17} className={score <= Math.round(metrics.averageRating) ? "fill-amber-400 text-amber-400" : "text-slate-200"} />)}</div>
+          </div>
+          <div className="min-w-40 rounded-xl bg-emerald-50 px-4 py-3">
+            <p className="text-[9px] font-bold uppercase tracking-wider text-emerald-700">Satisfaction Score</p>
+            <p className="mt-1 text-2xl font-black text-emerald-700">{metrics.responseCount ? `${Math.round(metrics.satisfactionScore)}%` : "—"}</p>
+            <p className="mt-1 text-[9px] font-semibold text-emerald-700/75">Ratings 4–5 · target {SURVEY_SATISFACTION_TARGET}% · achievement {Math.round(metrics.targetAchievement)}%</p>
+          </div>
+        </div>
         <div className="mt-3 grid grid-cols-5 gap-1.5">
           {[1, 2, 3, 4, 5].map((score) => {
-            const total = numbers.filter((value) => value === score).length;
+            const total = metrics.ratings.filter((value) => value === score).length;
             return <div key={score} className="rounded-xl bg-slate-50 p-2 text-center"><Star size={13} className="mx-auto fill-amber-400 text-amber-400" /><p className="mt-1 text-[9px] font-bold text-slate-500">{score} / 5</p><p className="mt-1 text-sm font-black text-slate-800">{total}</p></div>;
           })}
         </div>
@@ -197,15 +216,40 @@ export function SurveyCenter({
     responses: surveys.reduce((sum, survey) => sum + survey.responseCount, 0),
   }), [surveys]);
 
-  const overallRating = useMemo(() => {
-    if (!responseData) return 0;
+  const ratingMetrics = useMemo(() => {
+    if (!responseData) return calculateSurveyRatingMetrics([]);
     const scaleIds = new Set(responseData.questions.filter((question) => question.type === "linear_scale").map((question) => question.id));
     const ratings = responseData.submissions.flatMap((submission) => submission.answers.filter((answer) => scaleIds.has(answer.questionId) && typeof answer.value === "number").map((answer) => answer.value as number));
-    return ratings.length ? ratings.reduce((sum, value) => sum + value, 0) / ratings.length : 0;
+    return calculateSurveyRatingMetrics(ratings);
+  }, [responseData]);
+
+  const kpiMetrics = useMemo(() => {
+    if (!responseData) return [];
+    return (Object.entries(SURVEY_KPI_CATEGORIES) as Array<[
+      SurveyKpiCategory,
+      (typeof SURVEY_KPI_CATEGORIES)[SurveyKpiCategory],
+    ]>).flatMap(([category, definition]) => {
+      const questionIds = new Set(
+        responseData.questions
+          .filter(
+            (question) =>
+              question.type === "linear_scale" &&
+              question.kpiCategory === category,
+          )
+          .map((question) => question.id),
+      );
+      if (!questionIds.size) return [];
+      const values = responseData.submissions.flatMap((submission) =>
+        submission.answers
+          .filter((answer) => questionIds.has(answer.questionId))
+          .map((answer) => answer.value),
+      );
+      return [{ category, definition, metrics: calculateSurveyRatingMetrics(values) }];
+    });
   }, [responseData]);
 
   const aiMetrics = useMemo(() => {
-    if (!responseData) return { positivePercent: 0, performance: 0, analyzed: 0 };
+    if (!responseData) return { positivePercent: 0, analyzed: 0 };
     const analyses = responseData.submissions.flatMap((submission) =>
       submission.answers.map((answer) => answer.analysis).filter(
         (analysis): analysis is SurveyAnswerAnalysisRecord =>
@@ -213,18 +257,8 @@ export function SurveyCenter({
       ),
     );
     const positive = analyses.filter((analysis) => analysis.label === "positive" || analysis.label === "very_positive").length;
-    const responseScores = responseData.submissions.flatMap((submission) => {
-      const explicit = submission.answers.flatMap((answer) => typeof answer.value === "number" ? [answer.value] : []);
-      if (explicit.length) return [explicit.reduce((sum, score) => sum + score, 0) / explicit.length];
-      const inferred = submission.answers.flatMap((answer) => {
-        const score = answer.analysis?.manualScore ?? answer.analysis?.score;
-        return answer.analysis?.status === "completed" && score !== null && score !== undefined ? [score] : [];
-      });
-      return inferred.length ? [inferred.reduce((sum, score) => sum + score, 0) / inferred.length] : [];
-    });
     return {
       positivePercent: analyses.length ? Math.round((positive / analyses.length) * 100) : 0,
-      performance: responseScores.length ? responseScores.reduce((sum, score) => sum + score, 0) / responseScores.length : 0,
       analyzed: analyses.length,
     };
   }, [responseData]);
@@ -252,6 +286,21 @@ export function SurveyCenter({
       setMessage(result.error);
     }
     else router.refresh();
+  }
+
+  async function duplicateSurvey(survey: SurveyListRecord) {
+    setPendingId(survey.id);
+    setMessage("");
+    const result = await duplicateSurveyAction(survey.id);
+    setPendingId("");
+    if (!result.ok) {
+      setMessageTone("error");
+      setMessage(result.error);
+      return;
+    }
+    setMessageTone("info");
+    setMessage(`${result.data.title} was created as a new draft with separate responses.`);
+    router.refresh();
   }
 
   async function confirmDelete() {
@@ -287,7 +336,7 @@ export function SurveyCenter({
 
   return (
     <>
-      <PageHeader eyebrow="Client experience" title="Client Surveys" description="Create questionnaires and monitor client feedback about IT team performance." action={<div className="flex flex-col gap-2 sm:flex-row sm:items-center"><div className="flex gap-1 rounded-xl border border-slate-200 bg-white p-1"><button type="button" onClick={() => setTab("history")} className={`flex h-9 flex-1 items-center justify-center gap-2 rounded-lg px-4 text-[11px] font-bold sm:flex-none ${tab === "history" ? "bg-indigo-600 text-white" : "text-slate-500"}`}><FileClock size={14} /> Survey History</button><button type="button" onClick={openResponses} className={`flex h-9 flex-1 items-center justify-center gap-2 rounded-lg px-4 text-[11px] font-bold sm:flex-none ${tab === "responses" ? "bg-indigo-600 text-white" : "text-slate-500"}`}><BarChart3 size={14} /> Responses</button></div>{canManage ? <Link href="/surveys/new" className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-[#3157d5] px-4 text-xs font-semibold text-white"><Send size={15} /> Add Survey</Link> : null}</div>} />
+      <PageHeader eyebrow="Client experience" title="Client Surveys" description="Create questionnaires and monitor client feedback about IT team performance." action={<div className="flex flex-col gap-2 sm:flex-row sm:items-center"><div className="flex gap-1 rounded-xl border border-slate-200 bg-white p-1"><button type="button" onClick={() => setTab("history")} className={`flex h-9 flex-1 items-center justify-center gap-2 rounded-lg px-4 text-[11px] font-semibold leading-none sm:flex-none ${tab === "history" ? "bg-indigo-600 text-white" : "text-slate-500"}`}><FileClock size={14} /> Survey History</button><button type="button" onClick={openResponses} className={`flex h-9 flex-1 items-center justify-center gap-2 rounded-lg px-4 text-[11px] font-semibold leading-none sm:flex-none ${tab === "responses" ? "bg-indigo-600 text-white" : "text-slate-500"}`}><BarChart3 size={14} /> Responses</button></div>{canManage ? <Link href="/surveys/new" className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-[#3157d5] px-4 text-xs font-semibold leading-none text-white"><Send size={15} /> Add Survey</Link> : null}</div>} />
 
       {message ? <p className={`mt-4 rounded-xl p-3 text-[11px] font-semibold ${messageTone === "info" ? "bg-blue-50 text-blue-700" : "bg-rose-50 text-rose-700"}`}>{message}</p> : null}
 
@@ -303,11 +352,12 @@ export function SurveyCenter({
                     <p className="mt-1 line-clamp-2 text-[11px] leading-5 text-slate-500">{survey.description || "No description"}</p>
                     <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[10px] text-slate-400"><span>{survey.questionCount} questions</span><span>{survey.responseCount} responses</span><span>Created {survey.createdAt}</span>{survey.expiresAt ? <span>Closes {new Date(survey.expiresAt).toLocaleString("en-GB")}</span> : null}</div>
                   </div>
-                  <div className="grid grid-cols-2 gap-2 sm:flex">
-                    <button type="button" onClick={() => void copyLink(survey)} className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-indigo-200 bg-indigo-50 px-3 text-[10px] font-bold text-indigo-700">{copiedCode === survey.publicCode ? <Check size={14} /> : <Copy size={14} />}{copiedCode === survey.publicCode ? "Copied" : "Copy Link"}</button>
-                    <Link href={`/s/${survey.publicCode}`} target="_blank" className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-indigo-600 px-3 text-[10px] font-bold text-white"><ExternalLink size={14} /> Preview</Link>
-                    {canManage && survey.status !== "expired" ? <button type="button" onClick={() => void changeStatus(survey)} disabled={pendingId === survey.id} className={`inline-flex h-9 items-center justify-center gap-1.5 rounded-lg px-3 text-[10px] font-bold text-white disabled:bg-slate-300 ${survey.storedStatus === "active" ? "bg-slate-600" : "bg-emerald-600"}`}>{pendingId === survey.id ? <LoaderCircle size={14} className="animate-spin" /> : survey.storedStatus === "active" ? <X size={14} /> : <Send size={14} />}{survey.storedStatus === "active" ? "Close" : "Publish"}</button> : null}
-                    {canManage ? <button type="button" onClick={() => setDeleteRecord(survey)} className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-rose-600 px-3 text-[10px] font-bold text-white"><Trash2 size={14} /> Delete</button> : null}
+                  <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:justify-end">
+                    <button type="button" onClick={() => void copyLink(survey)} className="inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-[11px] font-semibold leading-none text-slate-600 sm:w-auto sm:min-w-24">{copiedCode === survey.publicCode ? <Check size={14} /> : <Copy size={14} />}{copiedCode === survey.publicCode ? "Copied" : "Copy Link"}</button>
+                    <Link href={`/s/${survey.publicCode}`} target="_blank" className="inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-lg bg-indigo-600 px-3 text-[11px] font-semibold leading-none text-white sm:w-auto sm:min-w-24"><ExternalLink size={14} /> Preview</Link>
+                    {canManage ? <button type="button" onClick={() => void duplicateSurvey(survey)} disabled={pendingId === survey.id} className="inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-lg border border-indigo-200 bg-indigo-50 px-3 text-[11px] font-semibold leading-none text-indigo-700 disabled:opacity-50 sm:w-auto sm:min-w-24">{pendingId === survey.id ? <LoaderCircle size={14} className="animate-spin" /> : <Files size={14} />}{pendingId === survey.id ? "Duplicating..." : "Duplicate"}</button> : null}
+                    {canManage && survey.status !== "expired" ? <button type="button" onClick={() => void changeStatus(survey)} disabled={pendingId === survey.id} className={`inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-lg px-3 text-[11px] font-semibold leading-none text-white disabled:bg-slate-300 sm:w-auto sm:min-w-24 ${survey.storedStatus === "active" ? "bg-slate-600" : "bg-emerald-600"}`}>{pendingId === survey.id ? <LoaderCircle size={14} className="animate-spin" /> : survey.storedStatus === "active" ? <X size={14} /> : <Send size={14} />}{survey.storedStatus === "active" ? "Close" : "Publish"}</button> : null}
+                    {canManage ? <button type="button" onClick={() => setDeleteRecord(survey)} className="inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-lg bg-rose-600 px-3 text-[11px] font-semibold leading-none text-white sm:w-auto sm:min-w-24"><Trash2 size={14} /> Delete</button> : null}
                   </div>
                 </div>
               </article>
@@ -322,12 +372,13 @@ export function SurveyCenter({
             <>
               <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                 <MetricCard label="Total Responses" value={String(responseData.submissions.length)} icon={Users} detail="Responses for the selected survey" />
-                <MetricCard label="Average Rating" value={overallRating ? overallRating.toFixed(1) : "—"} icon={Star} tone="amber" detail={<span className="inline-flex items-center gap-1">{[1, 2, 3, 4, 5].map((score) => <Star key={score} size={12} className={score <= Math.round(overallRating) ? "fill-amber-400 text-amber-400" : "text-slate-200"} />)}</span>} />
+                <MetricCard label="Average Rating" value={ratingMetrics.responseCount ? ratingMetrics.averageRating.toFixed(1) : "—"} icon={Star} tone="amber" detail={<span className="inline-flex items-center gap-1">{[1, 2, 3, 4, 5].map((score) => <Star key={score} size={12} className={score <= Math.round(ratingMetrics.averageRating) ? "fill-amber-400 text-amber-400" : "text-slate-200"} />)}</span>} />
+                <MetricCard label="Satisfaction Score" value={ratingMetrics.responseCount ? `${Math.round(ratingMetrics.satisfactionScore)}%` : "—"} icon={CircleCheckBig} tone="green" detail={ratingMetrics.responseCount ? `Ratings 4–5 · target ${SURVEY_SATISFACTION_TARGET}% · achievement ${Math.round(ratingMetrics.targetAchievement)}%` : "No rating answers"} />
                 <MetricCard label="Positive Sentiment" value={aiMetrics.analyzed ? `${aiMetrics.positivePercent}%` : "—"} icon={MessageSquareText} tone="green" detail={`${aiMetrics.analyzed} applicable AI analyses`} />
-                <MetricCard label="Performance Score" value={aiMetrics.performance ? aiMetrics.performance.toFixed(1) : "—"} icon={Sparkles} detail="Rating first, AI score as fallback" />
               </div>
+              {kpiMetrics.length ? <div className="mt-4 grid gap-3 sm:grid-cols-2">{kpiMetrics.map(({ category, definition, metrics }) => <MetricCard key={category} label={`${definition.code} · ${definition.label}`} value={metrics.responseCount ? `${Math.round(metrics.satisfactionScore)}%` : "—"} icon={category === "installation" ? Network : Wrench} tone={category === "installation" ? "blue" : "amber"} detail={metrics.responseCount ? `Average ${metrics.averageRating.toFixed(1)} / 5 · ${metrics.responseCount} rating answers · target ${SURVEY_SATISFACTION_TARGET}%` : "No rating answers yet"} />)}</div> : null}
               <div className="mt-4 grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
-                <div className="space-y-4">{responseData.questions.map((question, index) => <Card key={question.id} className="p-4 sm:p-5"><p className="text-[9px] font-bold uppercase tracking-wider text-indigo-500">Question {index + 1}</p><h3 className="mt-1 text-sm font-bold text-slate-800">{question.title}</h3><QuestionSummary question={question} submissions={responseData.submissions} /></Card>)}</div>
+                <div className="space-y-4">{responseData.questions.map((question, index) => <Card key={question.id} className="p-4 sm:p-5"><div className="flex flex-wrap items-center justify-between gap-2"><p className="text-[9px] font-bold uppercase tracking-wider text-indigo-500">Question {index + 1}</p>{question.kpiCategory ? <span className="rounded-lg bg-indigo-50 px-2 py-1 text-[9px] font-bold text-indigo-700">{SURVEY_KPI_CATEGORIES[question.kpiCategory].code} · {SURVEY_KPI_CATEGORIES[question.kpiCategory].label}</span> : null}</div><h3 className="mt-1 text-sm font-bold text-slate-800">{question.title}</h3><QuestionSummary question={question} submissions={responseData.submissions} /></Card>)}</div>
                 <Card className="h-fit overflow-hidden"><div className="border-b border-slate-100 px-4 py-4"><h2 className="text-sm font-bold text-slate-800">Individual Responses</h2><p className="mt-1 text-[10px] text-slate-500">Open a complete client submission</p></div><div className="divide-y divide-slate-100">{responseData.submissions.map((submission) => <button key={submission.id} type="button" onClick={() => setSelectedResponse(submission)} className="flex w-full items-center gap-3 p-4 text-left"><span className="grid size-9 shrink-0 place-items-center rounded-full bg-indigo-50 text-[10px] font-black text-indigo-600">{submission.clientName.slice(0, 2).toUpperCase()}</span><span className="min-w-0 flex-1"><span className="block truncate text-[11px] font-bold text-slate-800">{submission.clientName}</span><span className="mt-0.5 block truncate text-[9px] text-slate-400">{submission.division} · {submission.submittedAt}</span></span><Eye size={14} className="text-indigo-500" /></button>)}</div>{responseData.submissions.length === 0 ? <div className="p-8 text-center"><MessageSquareText className="mx-auto text-slate-300" size={25} /><p className="mt-3 text-[11px] text-slate-500">No client responses yet.</p></div> : null}</Card>
               </div>
             </>

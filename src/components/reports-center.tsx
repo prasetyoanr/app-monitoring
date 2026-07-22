@@ -4,16 +4,25 @@ import { CalendarRange, ClipboardCheck, Download, FileSpreadsheet, FolderSync, W
 import { useMemo, useState } from "react";
 import { Card } from "@/components/ui";
 import type { BackupRecord, TicketRecord } from "@/data/types";
-import type { SurveyAnswerValue, SurveyReportRecord } from "@/data/survey-types";
+import type { SurveyAnswerValue, SurveyKpiCategory, SurveyReportRecord } from "@/data/survey-types";
 import {
   backupExcelColumns,
   downloadExcelReport,
   excelDate,
   surveyExcelColumns,
+  surveyKpiExcelColumns,
   troubleshootingExcelColumns,
 } from "@/lib/excel-export";
 import type { ExcelImageDefinition } from "@/lib/excel-export";
 import { currentJakartaMonth, monthInputRange } from "@/lib/jakarta-date";
+import {
+  calculateSurveyRatingMetrics,
+  isSatisfiedRating,
+  isSurveyRating,
+  SURVEY_KPI_CATEGORIES,
+  SURVEY_RATING_LABELS,
+  SURVEY_SATISFACTION_TARGET,
+} from "@/lib/survey-metrics";
 
 type FilterMode = "range" | "month";
 type ExportType = "troubleshooting" | "backup" | "survey";
@@ -148,24 +157,70 @@ export function ReportsCenter({ ticketRecords, backupRecords, surveyRecords }: {
 
   async function exportSurveys() {
     const rows: Array<Record<string, string | number | Date | null>> = [];
+    const ratingGroups = new Map<string, {
+      survey: string;
+      category: SurveyKpiCategory;
+      questionIds: Set<string>;
+      values: number[];
+    }>();
     let rowNumber = 1;
     for (const response of filteredSurveys) {
       if (response.answers.length === 0) {
-        rows.push({ number: rowNumber, survey: response.surveyTitle, responseId: response.responseId, submittedAt: excelDate(response.submittedAtIso), client: response.clientName, division: response.division, question: "", questionType: "", answer: "", aiStatus: "", aiSentiment: "", aiScore: null, aiConfidence: null, aiSummary: "" });
+        rows.push({ number: rowNumber, survey: response.surveyTitle, responseId: response.responseId, submittedAt: excelDate(response.submittedAtIso), client: response.clientName, division: response.division, question: "", questionType: "", kpiCode: "", kpiCategory: "", answer: "", ratingLabel: "", csatResult: "", csatContribution: null, aiStatus: "", aiSentiment: "", aiScore: null, aiConfidence: null, aiSummary: "" });
         rowNumber += 1;
         continue;
       }
       for (const answer of response.answers) {
-        rows.push({ number: rowNumber, survey: response.surveyTitle, responseId: response.responseId, submittedAt: excelDate(response.submittedAtIso), client: response.clientName, division: response.division, question: answer.questionTitle, questionType: answer.questionType, answer: surveyAnswerText(answer.value), aiStatus: answer.analysis?.status ?? "not_analyzed", aiSentiment: answer.analysis?.label ?? "", aiScore: answer.analysis?.manualScore ?? answer.analysis?.score ?? null, aiConfidence: answer.analysis?.confidencePercent ?? null, aiSummary: answer.analysis?.summary ?? "" });
+        const rating = answer.questionType === "linear_scale" && isSurveyRating(answer.value)
+          ? answer.value
+          : null;
+        if (rating !== null && answer.kpiCategory) {
+          const key = `${response.surveyId}:${answer.kpiCategory}`;
+          const group = ratingGroups.get(key) ?? {
+            survey: response.surveyTitle,
+            category: answer.kpiCategory,
+            questionIds: new Set<string>(),
+            values: [],
+          };
+          group.questionIds.add(answer.questionId);
+          group.values.push(rating);
+          ratingGroups.set(key, group);
+        }
+        const kpiDefinition = answer.kpiCategory
+          ? SURVEY_KPI_CATEGORIES[answer.kpiCategory]
+          : null;
+        rows.push({ number: rowNumber, survey: response.surveyTitle, responseId: response.responseId, submittedAt: excelDate(response.submittedAtIso), client: response.clientName, division: response.division, question: answer.questionTitle, questionType: answer.questionType, kpiCode: kpiDefinition?.code ?? "", kpiCategory: kpiDefinition?.label ?? "", answer: surveyAnswerText(answer.value), ratingLabel: rating === null ? "" : SURVEY_RATING_LABELS[rating], csatResult: rating === null ? "" : isSatisfiedRating(rating) ? "Satisfied" : "Not Satisfied", csatContribution: rating === null ? null : isSatisfiedRating(rating) ? 100 : 0, aiStatus: answer.analysis?.status ?? "not_analyzed", aiSentiment: answer.analysis?.label ?? "", aiScore: answer.analysis?.manualScore ?? answer.analysis?.score ?? null, aiConfidence: answer.analysis?.confidencePercent ?? null, aiSummary: answer.analysis?.summary ?? "" });
         rowNumber += 1;
       }
     }
+    const kpiRows = Array.from(ratingGroups.values()).map((group, index) => {
+      const metrics = calculateSurveyRatingMetrics(group.values);
+      const definition = SURVEY_KPI_CATEGORIES[group.category];
+      return {
+        number: index + 1,
+        survey: group.survey,
+        kpiCode: definition.code,
+        kpiCategory: definition.label,
+        questionCount: group.questionIds.size,
+        responseCount: metrics.responseCount,
+        averageRating: metrics.averageRating,
+        satisfiedCount: metrics.satisfiedCount,
+        satisfactionScore: metrics.satisfactionScore,
+        target: SURVEY_SATISFACTION_TARGET,
+        targetAchievement: metrics.targetAchievement,
+      };
+    });
     await runExport("survey", () =>
       downloadExcelReport({
         filename: `survey-response-report-${filterLabel}.xlsx`,
         sheetName: "Survey Responses",
         columns: surveyExcelColumns,
         rows,
+        additionalSheets: [{
+          sheetName: "KPI Summary",
+          columns: surveyKpiExcelColumns,
+          rows: kpiRows,
+        }],
       }),
     );
   }

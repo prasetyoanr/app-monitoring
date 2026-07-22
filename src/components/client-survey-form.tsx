@@ -9,6 +9,7 @@ import type {
   SurveyAnswerValue,
   SurveyQuestionRecord,
 } from "@/data/survey-types";
+import { SURVEY_RATING_LABELS } from "@/lib/survey-metrics";
 
 function QuestionField({
   question,
@@ -30,7 +31,7 @@ function QuestionField({
     return <label className="relative mt-3 block"><select value={typeof value === "string" ? value : ""} onChange={(event) => onChange(event.target.value)} className="h-11 w-full appearance-none rounded-xl border border-slate-200 bg-white px-3 pr-9 text-sm text-slate-700 outline-none focus:border-indigo-500"><option value="">Choose an option</option>{question.options.map((option) => <option key={option} value={option}>{option}</option>)}</select><ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} /></label>;
   }
   if (question.type === "linear_scale") {
-    return <div className="mt-4 grid grid-cols-5 gap-1 sm:max-w-sm sm:gap-3">{[1, 2, 3, 4, 5].map((score) => { const filled = typeof value === "number" && score <= value; return <label key={score} className="cursor-pointer text-center"><input type="radio" name={question.id} value={score} checked={value === score} onChange={() => onChange(score)} className="sr-only" /><span className="mx-auto grid min-h-11 place-items-center rounded-xl border border-slate-200 bg-white"><Star size={25} className={filled ? "fill-amber-400 text-amber-400" : "text-slate-300"} /></span><span className="mt-1 block text-[9px] font-semibold text-slate-400">{score}</span></label>; })}</div>;
+    return <div className="mt-4 sm:max-w-sm"><div className="grid grid-cols-5 gap-1 sm:gap-3">{[1, 2, 3, 4, 5].map((score) => { const rating = score as keyof typeof SURVEY_RATING_LABELS; const filled = typeof value === "number" && score <= value; return <label key={score} className="cursor-pointer text-center"><input type="radio" name={question.id} value={score} checked={value === score} onChange={() => onChange(score)} className="sr-only" aria-label={`${score} - ${SURVEY_RATING_LABELS[rating]}`} /><span className={`mx-auto grid min-h-11 place-items-center rounded-xl border bg-white ${value === score ? "border-amber-400 ring-4 ring-amber-50" : "border-slate-200"}`}><Star size={25} className={filled ? "fill-amber-400 text-amber-400" : "text-slate-300"} /></span><span className="mt-1 block text-[9px] font-semibold text-slate-400">{score}</span></label>; })}</div><div className="mt-2 flex justify-between gap-4 text-[9px] font-semibold text-slate-400"><span>Very Dissatisfied</span><span className="text-right">Very Satisfied</span></div>{typeof value === "number" ? <p className="mt-2 text-center text-[10px] font-bold text-amber-600">{SURVEY_RATING_LABELS[value as keyof typeof SURVEY_RATING_LABELS]}</p> : null}</div>;
   }
   if (question.type === "checkboxes") {
     const selected = Array.isArray(value) ? value : [];

@@ -89,6 +89,7 @@ export async function getPublicSurveyByCode(
       id: surveyQuestions.id,
       position: surveyQuestions.position,
       type: surveyQuestions.type,
+      kpiCategory: surveyQuestions.kpiCategory,
       title: surveyQuestions.title,
       isRequired: surveyQuestions.isRequired,
       options: surveyQuestions.options,
@@ -124,6 +125,7 @@ export async function getSurveyResponseData(
         id: surveyQuestions.id,
         position: surveyQuestions.position,
         type: surveyQuestions.type,
+        kpiCategory: surveyQuestions.kpiCategory,
         title: surveyQuestions.title,
         isRequired: surveyQuestions.isRequired,
         options: surveyQuestions.options,
@@ -224,8 +226,10 @@ export async function getSurveyReportRecords(): Promise<SurveyReportRecord[]> {
     ? await db
         .select({
           submissionId: surveyAnswers.submissionId,
+          questionId: surveyQuestions.id,
           questionTitle: surveyQuestions.title,
           questionType: surveyQuestions.type,
+          kpiCategory: surveyQuestions.kpiCategory,
           questionPosition: surveyQuestions.position,
           value: surveyAnswers.value,
           analysisStatus: surveyAnswerAnalyses.status,
@@ -259,8 +263,10 @@ export async function getSurveyReportRecords(): Promise<SurveyReportRecord[]> {
   for (const answer of answers) {
     const values = answersBySubmission.get(answer.submissionId) ?? [];
     values.push({
+      questionId: answer.questionId,
       questionTitle: answer.questionTitle,
       questionType: answer.questionType,
+      kpiCategory: answer.kpiCategory,
       value: answer.value,
       analysis: answer.analysisStatus
         ? {
