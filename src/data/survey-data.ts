@@ -1,8 +1,9 @@
 import "server-only";
 
-import { asc, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, ne, sql } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 
-import { requireAuthenticatedUser } from "@/auth/session";
+import { requireAdministrator, requireAuthenticatedUser } from "@/auth/session";
 import { db } from "@/db";
 import {
   surveyAnswers,
@@ -14,6 +15,7 @@ import {
 import type {
   PublicSurveyRecord,
   SurveyDisplayStatus,
+  SurveyEditRecord,
   SurveyListRecord,
   SurveyReportRecord,
   SurveyResponseData,
@@ -38,20 +40,39 @@ function displayStatus(
 
 export async function getSurveyListRecords(): Promise<SurveyListRecord[]> {
   await requireAuthenticatedUser();
+  const surveyForm = alias(surveyForms, "survey_form");
+  const questionCounts = db
+    .select({
+      surveyId: surveyQuestions.surveyId,
+      total: sql<number>`count(*)::int`.as("total"),
+    })
+    .from(surveyQuestions)
+    .groupBy(surveyQuestions.surveyId)
+    .as("survey_question_counts");
+  const responseCounts = db
+    .select({
+      surveyId: surveySubmissions.surveyId,
+      total: sql<number>`count(*)::int`.as("total"),
+    })
+    .from(surveySubmissions)
+    .groupBy(surveySubmissions.surveyId)
+    .as("survey_response_counts");
   const rows = await db
     .select({
-      id: surveyForms.id,
-      title: surveyForms.title,
-      description: surveyForms.description,
-      status: surveyForms.status,
-      publicCode: surveyForms.publicCode,
-      expiresAt: surveyForms.expiresAt,
-      createdAt: surveyForms.createdAt,
-      questionCount: sql<number>`(select count(*)::int from ${surveyQuestions} where ${surveyQuestions.surveyId} = ${surveyForms.id})`,
-      responseCount: sql<number>`(select count(*)::int from ${surveySubmissions} where ${surveySubmissions.surveyId} = ${surveyForms.id})`,
+      id: surveyForm.id,
+      title: surveyForm.title,
+      description: surveyForm.description,
+      status: surveyForm.status,
+      publicCode: surveyForm.publicCode,
+      expiresAt: surveyForm.expiresAt,
+      createdAt: surveyForm.createdAt,
+      questionCount: sql<number>`coalesce(${questionCounts.total}, 0)`,
+      responseCount: sql<number>`coalesce(${responseCounts.total}, 0)`,
     })
-    .from(surveyForms)
-    .orderBy(desc(surveyForms.createdAt));
+    .from(surveyForm)
+    .leftJoin(questionCounts, eq(questionCounts.surveyId, surveyForm.id))
+    .leftJoin(responseCounts, eq(responseCounts.surveyId, surveyForm.id))
+    .orderBy(desc(surveyForm.createdAt));
 
   return rows.map((row) => ({
     id: row.id,
@@ -65,6 +86,55 @@ export async function getSurveyListRecords(): Promise<SurveyListRecord[]> {
     questionCount: row.questionCount,
     responseCount: row.responseCount,
   }));
+}
+
+export async function getEditableSurvey(
+  id: string,
+): Promise<SurveyEditRecord | null> {
+  await requireAdministrator();
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id)) {
+    return null;
+  }
+
+  const [survey] = await db
+    .select({
+      id: surveyForms.id,
+      title: surveyForms.title,
+      description: surveyForms.description,
+      expiresAt: surveyForms.expiresAt,
+    })
+    .from(surveyForms)
+    .where(and(eq(surveyForms.id, id), ne(surveyForms.status, "active")))
+    .limit(1);
+  if (!survey) return null;
+
+  const questions = await db
+    .select({
+      id: surveyQuestions.id,
+      type: surveyQuestions.type,
+      title: surveyQuestions.title,
+      isRequired: surveyQuestions.isRequired,
+      options: surveyQuestions.options,
+      kpiCategory: surveyQuestions.kpiCategory,
+    })
+    .from(surveyQuestions)
+    .where(eq(surveyQuestions.surveyId, survey.id))
+    .orderBy(asc(surveyQuestions.position));
+
+  return {
+    id: survey.id,
+    title: survey.title,
+    description: survey.description,
+    expiresAt: survey.expiresAt ? jakartaDateTimeInput(survey.expiresAt) : "",
+    questions: questions.map((question) => ({
+      clientId: question.id,
+      type: question.type,
+      title: question.title,
+      isRequired: question.isRequired,
+      options: question.options,
+      kpiCategory: question.kpiCategory,
+    })),
+  };
 }
 
 export async function getPublicSurveyByCode(

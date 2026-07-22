@@ -1,7 +1,7 @@
 "use server";
 
 import { randomBytes } from "node:crypto";
-import { and, count, eq, ne } from "drizzle-orm";
+import { and, count, eq, inArray, isNull, ne, or } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { after } from "next/server";
 
@@ -145,19 +145,101 @@ export async function createSurveyAction(input: {
   }
 }
 
-export async function analyzeSurveyResponsesAction(
-  surveyId: string,
-): Promise<ActionResult<{ queuedResponses: number }>> {
+export async function updateSurveyAction(input: {
+  id: string;
+  title: string;
+  description: string;
+  expiresAt: string;
+  status: "draft" | "active";
+  questions: SurveyQuestionInput[];
+}): Promise<ActionResult<{ id: string; publicCode: string }>> {
   const currentUser = await requireAdministrator();
   try {
-    if (!validUuid(surveyId)) throw new Error("Invalid survey ID.");
+    if (!validUuid(input.id)) throw new Error("Invalid survey ID.");
+    const title = cleanText(input.title, 200);
+    const description = cleanText(input.description, 5_000, false);
+    const questions = validateQuestions(input.questions);
+    const expiresAt = parseExpiry(input.expiresAt);
+
+    const survey = await db.transaction(async (tx) => {
+      const [{ total: responseCount }] = await tx
+        .select({ total: count() })
+        .from(surveySubmissions)
+        .where(eq(surveySubmissions.surveyId, input.id));
+      if (responseCount > 0) {
+        throw new Error(
+          "Surveys with responses cannot be edited directly. Duplicate the survey to preserve historical results.",
+        );
+      }
+
+      const [updated] = await tx
+        .update(surveyForms)
+        .set({
+          title,
+          description,
+          status: input.status,
+          expiresAt,
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(surveyForms.id, input.id),
+            ne(surveyForms.status, "active"),
+          ),
+        )
+        .returning({
+          id: surveyForms.id,
+          publicCode: surveyForms.publicCode,
+        });
+      if (!updated) {
+        throw new Error("Active surveys cannot be edited. Close the survey first.");
+      }
+
+      await tx
+        .delete(surveyQuestions)
+        .where(eq(surveyQuestions.surveyId, updated.id));
+      await tx.insert(surveyQuestions).values(
+        questions.map((question) => ({ surveyId: updated.id, ...question })),
+      );
+      await tx.insert(auditLogs).values({
+        actorType: "technician",
+        actorId: currentUser.id,
+        action: `survey.${input.status === "active" ? "published" : "updated"}`,
+        entityType: "survey",
+        entityId: updated.id,
+        metadata: { questionCount: questions.length },
+      });
+      return updated;
+    });
+
+    revalidateSurveys();
+    revalidatePath(`/surveys/${survey.id}/edit`);
+    revalidatePath(`/s/${survey.publicCode}`);
+    return { ok: true, data: survey };
+  } catch (error) {
+    console.error("Unable to update survey.", error);
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : "Unable to update survey.",
+    };
+  }
+}
+
+export async function retrySurveyResponseAnalysisAction(
+  surveyId: string,
+  submissionId: string,
+): Promise<ActionResult<{ queuedAnswers: number }>> {
+  const currentUser = await requireAdministrator();
+  try {
+    if (!validUuid(surveyId) || !validUuid(submissionId)) {
+      throw new Error("Invalid survey response ID.");
+    }
     if (!process.env.GEMINI_API_KEY?.trim()) {
       throw new Error("GEMINI_API_KEY is not configured.");
     }
     const answers = await db
       .select({
         answerId: surveyAnswers.id,
-        submissionId: surveySubmissions.id,
       })
       .from(surveyAnswers)
       .innerJoin(
@@ -168,14 +250,23 @@ export async function analyzeSurveyResponsesAction(
         surveyQuestions,
         eq(surveyAnswers.questionId, surveyQuestions.id),
       )
+      .leftJoin(
+        surveyAnswerAnalyses,
+        eq(surveyAnswerAnalyses.answerId, surveyAnswers.id),
+      )
       .where(
         and(
           eq(surveySubmissions.surveyId, surveyId),
-          ne(surveyQuestions.type, "linear_scale"),
+          eq(surveySubmissions.id, submissionId),
+          inArray(surveyQuestions.type, ["short_answer", "paragraph"]),
+          or(
+            isNull(surveyAnswerAnalyses.status),
+            eq(surveyAnswerAnalyses.status, "failed"),
+          ),
         ),
       );
     if (!answers.length) {
-      throw new Error("This survey has no text or choice answers to analyze.");
+      throw new Error("This response has no failed or missing AI analysis.");
     }
     const now = new Date();
     await db
@@ -200,24 +291,23 @@ export async function analyzeSurveyResponsesAction(
           updatedAt: now,
         },
       });
-    const submissionIds = [...new Set(answers.map((answer) => answer.submissionId))];
-    after(async () => {
-      for (const submissionId of submissionIds) {
-        await analyzeSurveySubmission(submissionId);
-      }
-    });
+    after(() => analyzeSurveySubmission(submissionId));
     await db.insert(auditLogs).values({
       actorType: "technician",
       actorId: currentUser.id,
-      action: "survey.ai_analysis_queued",
+      action: "survey.ai_analysis_retried",
       entityType: "survey",
       entityId: surveyId,
-      metadata: { provider: "gemini", responseCount: submissionIds.length },
+      metadata: {
+        provider: "gemini",
+        submissionId,
+        answerCount: answers.length,
+      },
     });
     revalidateSurveys();
-    return { ok: true, data: { queuedResponses: submissionIds.length } };
+    return { ok: true, data: { queuedAnswers: answers.length } };
   } catch (error) {
-    console.error("Unable to queue Gemini survey analysis.", error);
+    console.error("Unable to retry Gemini survey analysis.", error);
     return {
       ok: false,
       error:
@@ -487,7 +577,11 @@ export async function submitSurveyAction(input: {
         });
         const analyzableQuestionIds = new Set(
           questions
-            .filter((question) => question.type !== "linear_scale")
+            .filter(
+              (question) =>
+                question.type === "short_answer" ||
+                question.type === "paragraph",
+            )
             .map((question) => question.id),
         );
         const analyzableAnswers = insertedAnswers.filter((answer) =>

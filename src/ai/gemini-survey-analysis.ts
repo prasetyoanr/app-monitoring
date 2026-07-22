@@ -1,7 +1,7 @@
 import "server-only";
 
 import { GoogleGenAI } from "@google/genai";
-import { and, eq, inArray, ne } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 
 import { db } from "@/db";
@@ -137,7 +137,7 @@ export async function prepareSurveyAnalyses(submissionId: string) {
     .where(
       and(
         eq(surveyAnswers.submissionId, submissionId),
-        ne(surveyQuestions.type, "linear_scale"),
+        inArray(surveyQuestions.type, ["short_answer", "paragraph"]),
       ),
     );
   if (!answers.length) return 0;
@@ -173,6 +173,7 @@ export async function analyzeSurveySubmission(submissionId: string) {
     .where(
       and(
         eq(surveyAnswers.submissionId, submissionId),
+        inArray(surveyQuestions.type, ["short_answer", "paragraph"]),
         eq(surveyAnswerAnalyses.status, "pending"),
       ),
     );

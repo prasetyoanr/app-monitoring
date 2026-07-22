@@ -18,9 +18,13 @@ import {
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 
-import { createSurveyAction } from "@/app/surveys/actions";
+import {
+  createSurveyAction,
+  updateSurveyAction,
+} from "@/app/surveys/actions";
 import { Card, PageHeader, SectionTitle } from "@/components/ui";
 import type {
+  SurveyEditRecord,
   SurveyQuestionInput,
   SurveyQuestionType,
 } from "@/data/survey-types";
@@ -55,15 +59,24 @@ function createQuestion(clientId: string): SurveyQuestionInput {
   };
 }
 
-export function SurveyBuilder() {
+export function SurveyBuilder({
+  initialSurvey,
+}: {
+  initialSurvey?: SurveyEditRecord;
+}) {
   const router = useRouter();
-  const nextId = useRef(2);
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [expiresAt, setExpiresAt] = useState("");
-  const [questions, setQuestions] = useState<SurveyQuestionInput[]>([
-    createQuestion("question-1"),
-  ]);
+  const isEditing = Boolean(initialSurvey);
+  const nextId = useRef((initialSurvey?.questions.length ?? 1) + 1);
+  const [title, setTitle] = useState(initialSurvey?.title ?? "");
+  const [description, setDescription] = useState(
+    initialSurvey?.description ?? "",
+  );
+  const [expiresAt, setExpiresAt] = useState(initialSurvey?.expiresAt ?? "");
+  const [questions, setQuestions] = useState<SurveyQuestionInput[]>(
+    initialSurvey?.questions.length
+      ? initialSurvey.questions
+      : [createQuestion("question-1")],
+  );
   const [saving, setSaving] = useState<"draft" | "active" | null>(null);
   const [error, setError] = useState("");
 
@@ -186,13 +199,10 @@ export function SurveyBuilder() {
   async function save(status: "draft" | "active") {
     setSaving(status);
     setError("");
-    const result = await createSurveyAction({
-      title,
-      description,
-      expiresAt,
-      status,
-      questions,
-    });
+    const surveyInput = { title, description, expiresAt, status, questions };
+    const result = initialSurvey
+      ? await updateSurveyAction({ id: initialSurvey.id, ...surveyInput })
+      : await createSurveyAction(surveyInput);
     setSaving(null);
     if (!result.ok) {
       setError(result.error);
@@ -206,8 +216,8 @@ export function SurveyBuilder() {
     <div className="pb-8">
       <PageHeader
         eyebrow="Client experience"
-        title="Add Survey"
-        description="Create a client questionnaire and share it using a public link."
+        title={isEditing ? "Edit Survey" : "Add Survey"}
+        description={isEditing ? "Update this questionnaire before publishing it." : "Create a client questionnaire and share it using a public link."}
         action={<div className="grid grid-cols-2 gap-2 sm:flex">
           <button
             type="button"
@@ -215,7 +225,7 @@ export function SurveyBuilder() {
             disabled={saving !== null}
             className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-xs font-semibold text-slate-600 disabled:opacity-50"
           >
-            <Save size={15} /> {saving === "draft" ? "Saving..." : "Save Draft"}
+            <Save size={15} /> {saving === "draft" ? "Saving..." : isEditing ? "Save Changes" : "Save Draft"}
           </button>
           <button
             type="button"

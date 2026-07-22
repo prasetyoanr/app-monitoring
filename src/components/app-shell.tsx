@@ -139,21 +139,28 @@ export function AppShell({
           </div>
         </div>
 
-        {menuOpen ? (
-          <nav className="border-t border-white/10 bg-indigo-950 px-4 py-3 shadow-2xl xl:hidden" aria-label="Mobile navigation">
-            <div className="mx-auto grid max-w-[1600px] gap-1 sm:grid-cols-2 lg:grid-cols-3">
-              {navigation.map((item) => {
-                const active = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
-                const Icon = item.icon;
-                return <Link key={item.href} href={item.href} onClick={() => setMenuOpen(false)} className={`flex h-11 items-center gap-3 rounded-xl px-3 text-xs font-semibold ${active ? "bg-white text-indigo-700 shadow-lg" : "text-indigo-100/75 hover:bg-white/10 hover:text-white"}`}><Icon size={17} /><span className="flex-1">{item.label}</span>{item.count ? <span className={`rounded-md px-1.5 py-0.5 text-[9px] ${active ? "bg-indigo-100" : "bg-white/10"}`}>{item.count}</span> : null}</Link>;
-              })}
-              {user.role === "administrator" ? <><Link href="/master-data" onClick={() => setMenuOpen(false)} className="flex h-11 items-center gap-3 rounded-xl px-3 text-xs font-semibold text-indigo-100 hover:bg-white/10 sm:hidden"><Database size={17} /><span>Master Data</span></Link><Link href="/accounts" onClick={() => setMenuOpen(false)} className="flex h-11 items-center gap-3 rounded-xl px-3 text-xs font-semibold text-indigo-100 hover:bg-white/10 sm:hidden"><UserCog size={17} /><span>Account Settings</span></Link></> : null}
-              <form action={logoutAction} className="sm:hidden">
-                <button type="submit" className="flex h-11 w-full items-center gap-3 rounded-xl px-3 text-xs font-semibold text-rose-200 hover:bg-rose-500/10 hover:text-white"><LogOut size={17} /><span>Logout</span></button>
-              </form>
-            </div>
-          </nav>
-        ) : null}
+        <div className="mobile-nav-shell grid xl:hidden" data-open={menuOpen}>
+          <div className="mobile-nav-panel min-h-0 overflow-hidden">
+            <nav
+              className="border-t border-white/10 bg-indigo-950 px-4 py-3 shadow-2xl"
+              aria-label="Mobile navigation"
+              aria-hidden={!menuOpen}
+              inert={!menuOpen}
+            >
+              <div className="mx-auto grid max-w-[1600px] gap-1 sm:grid-cols-2 lg:grid-cols-3">
+                {navigation.map((item) => {
+                  const active = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
+                  const Icon = item.icon;
+                  return <Link key={item.href} href={item.href} onClick={() => setMenuOpen(false)} className={`flex h-11 items-center gap-3 rounded-xl px-3 text-xs font-semibold ${active ? "bg-white text-indigo-700 shadow-lg" : "text-indigo-100/75 hover:bg-white/10 hover:text-white"}`}><Icon size={17} /><span className="flex-1">{item.label}</span>{item.count ? <span className={`rounded-md px-1.5 py-0.5 text-[9px] ${active ? "bg-indigo-100" : "bg-white/10"}`}>{item.count}</span> : null}</Link>;
+                })}
+                {user.role === "administrator" ? <><Link href="/master-data" onClick={() => setMenuOpen(false)} className="flex h-11 items-center gap-3 rounded-xl px-3 text-xs font-semibold text-indigo-100 hover:bg-white/10 sm:hidden"><Database size={17} /><span>Master Data</span></Link><Link href="/accounts" onClick={() => setMenuOpen(false)} className="flex h-11 items-center gap-3 rounded-xl px-3 text-xs font-semibold text-indigo-100 hover:bg-white/10 sm:hidden"><UserCog size={17} /><span>Account Settings</span></Link></> : null}
+                <form action={logoutAction} className="sm:hidden">
+                  <button type="submit" className="flex h-11 w-full items-center gap-3 rounded-xl px-3 text-xs font-semibold text-rose-200 hover:bg-rose-500/10 hover:text-white"><LogOut size={17} /><span>Logout</span></button>
+                </form>
+              </div>
+            </nav>
+          </div>
+        </div>
       </header>
 
       <main className="app-main page-enter relative mx-auto max-w-[1600px] p-4 sm:p-6 xl:p-8">{children}</main>

@@ -60,6 +60,14 @@ export interface SurveyListRecord {
   responseCount: number;
 }
 
+export interface SurveyEditRecord {
+  id: string;
+  title: string;
+  description: string;
+  expiresAt: string;
+  questions: SurveyQuestionInput[];
+}
+
 export interface SurveySubmissionRecord {
   id: string;
   clientName: string;

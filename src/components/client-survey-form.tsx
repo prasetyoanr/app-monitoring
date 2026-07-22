@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, CheckCircle2, ChevronDown, ClipboardCheck, Send, Star } from "lucide-react";
+import { Check, CheckCircle2, ChevronDown, ClipboardCheck, Send, Sparkles, Star } from "lucide-react";
 import { useState } from "react";
 
 import { submitSurveyAction } from "@/app/surveys/actions";
@@ -125,10 +125,11 @@ export function ClientSurveyForm({
 
           <div className="border-t border-slate-100 p-5 sm:p-6">
             {error ? <p className="mb-4 rounded-xl bg-rose-50 p-3 text-[11px] font-semibold text-rose-700">{error}</p> : null}
+            <div className="mb-4 flex items-start gap-2.5 rounded-xl border border-indigo-100 bg-indigo-50 p-3 text-indigo-700"><Sparkles size={16} className="mt-0.5 shrink-0" /><p className="text-[10px] leading-5"><strong className="font-bold">AI-assisted evaluation.</strong> Text answers are automatically evaluated by Gemini AI to help measure IT service sentiment. Your name and division are not sent for AI analysis.</p></div>
             <button disabled={submitting} className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#3157d5] px-5 text-sm font-semibold text-white shadow-lg shadow-blue-600/20 disabled:bg-slate-300 sm:w-auto"><Send size={16} /> {submitting ? "Submitting..." : "Submit Response"}</button>
           </div>
         </form>
-        <p className="px-4 pt-5 text-center text-[9px] leading-4 text-slate-400">Your response is stored in the internal IT service system. Survey answers may be analyzed by Gemini to measure service sentiment; your name and division are not sent for AI analysis.</p>
+        <p className="px-4 pt-5 text-center text-[9px] leading-4 text-slate-400">Your response is stored in the internal IT service system.</p>
       </div>
     </main>
   );
