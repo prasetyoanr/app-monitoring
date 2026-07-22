@@ -273,7 +273,9 @@ export function SurveyCenter({
   }, [responseData]);
 
   const aiMetrics = useMemo(() => {
-    if (!responseData) return { positivePercent: 0, analyzed: 0 };
+    if (!responseData) {
+      return { positivePercent: 0, applicable: 0, completed: 0, notApplicable: 0 };
+    }
     const textQuestionIds = new Set(
       responseData.questions
         .filter(
@@ -283,23 +285,24 @@ export function SurveyCenter({
         )
         .map((question) => question.id),
     );
-    const analyses = responseData.submissions.flatMap((submission) =>
+    const completedAnalyses = responseData.submissions.flatMap((submission) =>
       submission.answers
         .filter((answer) => textQuestionIds.has(answer.questionId))
         .map((answer) => answer.analysis)
         .filter(
           (analysis): analysis is SurveyAnswerAnalysisRecord =>
-            Boolean(
-              analysis &&
-                analysis.status === "completed" &&
-                analysis.label !== "not_applicable",
-            ),
+            Boolean(analysis && analysis.status === "completed"),
         ),
+    );
+    const analyses = completedAnalyses.filter(
+      (analysis) => analysis.label !== "not_applicable",
     );
     const positive = analyses.filter((analysis) => analysis.label === "positive" || analysis.label === "very_positive").length;
     return {
       positivePercent: analyses.length ? Math.round((positive / analyses.length) * 100) : 0,
-      analyzed: analyses.length,
+      applicable: analyses.length,
+      completed: completedAnalyses.length,
+      notApplicable: completedAnalyses.length - analyses.length,
     };
   }, [responseData]);
 
@@ -324,6 +327,22 @@ export function SurveyCenter({
         : null,
     [responseData, selectedResponse],
   );
+
+  const aiMetricDetail = useMemo(() => {
+    if (!aiStatus.total) {
+      return "Requires Short answer or Paragraph responses";
+    }
+    if (aiStatus.pending) {
+      return `${aiStatus.pending} text answer${aiStatus.pending === 1 ? "" : "s"} being evaluated by Gemini AI`;
+    }
+    if (aiStatus.failed || aiStatus.missing) {
+      return `${aiStatus.failed + aiStatus.missing} AI assessment${aiStatus.failed + aiStatus.missing === 1 ? "" : "s"} need retry`;
+    }
+    if (!aiMetrics.applicable && aiMetrics.notApplicable) {
+      return "Gemini AI found no evaluative sentiment in the text feedback";
+    }
+    return `${aiMetrics.applicable} text answer${aiMetrics.applicable === 1 ? "" : "s"} evaluated by Gemini AI`;
+  }, [aiMetrics.applicable, aiMetrics.notApplicable, aiStatus]);
 
   async function copyLink(survey: SurveyListRecord) {
     const url = `${window.location.origin}/s/${survey.publicCode}`;
@@ -442,12 +461,12 @@ export function SurveyCenter({
                 <MetricCard label="Total Responses" value={String(responseData.submissions.length)} icon={Users} detail="Responses for the selected survey" />
                 <MetricCard label="Average Rating" value={ratingMetrics.responseCount ? ratingMetrics.averageRating.toFixed(1) : "—"} icon={Star} tone="amber" detail={<span className="inline-flex items-center gap-1">{[1, 2, 3, 4, 5].map((score) => <Star key={score} size={12} className={score <= Math.round(ratingMetrics.averageRating) ? "fill-amber-400 text-amber-400" : "text-slate-200"} />)}</span>} />
                 <MetricCard label="Satisfaction Score" value={ratingMetrics.responseCount ? `${Math.round(ratingMetrics.satisfactionScore)}%` : "—"} icon={CircleCheckBig} tone="green" detail={ratingMetrics.responseCount ? `Ratings 4–5 · target ${SURVEY_SATISFACTION_TARGET}% · achievement ${Math.round(ratingMetrics.targetAchievement)}%` : "No rating answers"} />
-                <MetricCard label="AI Sentiment Assessment" value={aiMetrics.analyzed ? `${aiMetrics.positivePercent}%` : "—"} icon={MessageSquareText} tone="green" detail={`${aiMetrics.analyzed} text answers evaluated by Gemini AI`} />
+                <MetricCard label="AI Sentiment Assessment" value={aiMetrics.applicable ? `${aiMetrics.positivePercent}%` : aiMetrics.completed ? "N/A" : "—"} icon={MessageSquareText} tone="green" detail={aiMetricDetail} />
               </div>
               {kpiMetrics.length ? <div className="mt-4 grid gap-3 sm:grid-cols-2">{kpiMetrics.map(({ category, definition, metrics }) => <MetricCard key={category} label={`${definition.code} · ${definition.label}`} value={metrics.responseCount ? `${Math.round(metrics.satisfactionScore)}%` : "—"} icon={category === "installation" ? Network : Wrench} tone={category === "installation" ? "blue" : "amber"} detail={metrics.responseCount ? `Average ${metrics.averageRating.toFixed(1)} / 5 · ${metrics.responseCount} rating answers · target ${SURVEY_SATISFACTION_TARGET}%` : "No rating answers yet"} />)}</div> : null}
               <div className="mt-4 grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
                 <div className="space-y-4">{responseData.questions.map((question, index) => <Card key={question.id} className="p-4 sm:p-5"><div className="flex flex-wrap items-center justify-between gap-2"><p className="text-[9px] font-bold uppercase tracking-wider text-indigo-500">Question {index + 1}</p>{question.kpiCategory ? <span className="rounded-lg bg-indigo-50 px-2 py-1 text-[9px] font-bold text-indigo-700">{SURVEY_KPI_CATEGORIES[question.kpiCategory].code} · {SURVEY_KPI_CATEGORIES[question.kpiCategory].label}</span> : null}</div><h3 className="mt-1 text-sm font-bold text-slate-800">{question.title}</h3><QuestionSummary question={question} submissions={responseData.submissions} /></Card>)}</div>
-                <Card className="h-fit overflow-hidden"><div className="flex items-start justify-between gap-3 border-b border-slate-100 px-4 py-4"><div><h2 className="text-sm font-bold text-slate-800">Individual Responses</h2><p className="mt-1 text-[10px] text-slate-500">Text feedback is evaluated by Gemini AI</p></div>{aiStatus.total ? <span className={`inline-flex shrink-0 items-center gap-1.5 rounded-lg px-2 py-1 text-[9px] font-bold ${aiStatus.pending ? "bg-blue-50 text-blue-700" : aiStatus.failed || aiStatus.missing ? "bg-rose-50 text-rose-700" : "bg-emerald-50 text-emerald-700"}`}>{aiStatus.pending ? <LoaderCircle size={12} className="animate-spin" /> : aiStatus.failed || aiStatus.missing ? <CircleAlert size={12} /> : <CircleCheckBig size={12} />}{aiStatus.pending ? `Gemini AI analyzing ${aiStatus.pending}` : aiStatus.failed || aiStatus.missing ? `${aiStatus.failed + aiStatus.missing} need retry` : "Gemini AI complete"}</span> : null}</div><div className="divide-y divide-slate-100">{responseData.submissions.map((submission) => <button key={submission.id} type="button" onClick={() => setSelectedResponse(submission)} className="flex w-full items-center gap-3 p-4 text-left"><span className="grid size-9 shrink-0 place-items-center rounded-full bg-indigo-50 text-[10px] font-black text-indigo-600">{submission.clientName.slice(0, 2).toUpperCase()}</span><span className="min-w-0 flex-1"><span className="block truncate text-[11px] font-bold text-slate-800">{submission.clientName}</span><span className="mt-0.5 block truncate text-[9px] text-slate-400">{submission.division} · {submission.submittedAt}</span></span><Eye size={14} className="text-indigo-500" /></button>)}</div>{responseData.submissions.length === 0 ? <div className="p-8 text-center"><MessageSquareText className="mx-auto text-slate-300" size={25} /><p className="mt-3 text-[11px] text-slate-500">No client responses yet.</p></div> : null}</Card>
+                <Card className="h-fit overflow-hidden"><div className="flex items-start justify-between gap-3 border-b border-slate-100 px-4 py-4"><div><h2 className="text-sm font-bold text-slate-800">Individual Responses</h2><p className="mt-1 text-[10px] text-slate-500">Text feedback is evaluated by Gemini AI</p></div>{aiStatus.total ? <span className={`inline-flex shrink-0 items-center gap-1.5 rounded-lg px-2 py-1 text-[9px] font-bold ${aiStatus.pending ? "bg-blue-50 text-blue-700" : aiStatus.failed || aiStatus.missing ? "bg-rose-50 text-rose-700" : "bg-emerald-50 text-emerald-700"}`}>{aiStatus.pending ? <LoaderCircle size={12} className="animate-spin" /> : aiStatus.failed || aiStatus.missing ? <CircleAlert size={12} /> : <CircleCheckBig size={12} />}{aiStatus.pending ? `Gemini AI analyzing ${aiStatus.pending}` : aiStatus.failed || aiStatus.missing ? `${aiStatus.failed + aiStatus.missing} need retry` : "Gemini AI complete"}</span> : <span className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-slate-100 px-2 py-1 text-[9px] font-bold text-slate-500"><MessageSquareText size={12} /> No text feedback</span>}</div><div className="divide-y divide-slate-100">{responseData.submissions.map((submission) => <button key={submission.id} type="button" onClick={() => setSelectedResponse(submission)} className="flex w-full items-center gap-3 p-4 text-left"><span className="grid size-9 shrink-0 place-items-center rounded-full bg-indigo-50 text-[10px] font-black text-indigo-600">{submission.clientName.slice(0, 2).toUpperCase()}</span><span className="min-w-0 flex-1"><span className="block truncate text-[11px] font-bold text-slate-800">{submission.clientName}</span><span className="mt-0.5 block truncate text-[9px] text-slate-400">{submission.division} · {submission.submittedAt}</span></span><Eye size={14} className="text-indigo-500" /></button>)}</div>{responseData.submissions.length === 0 ? <div className="p-8 text-center"><MessageSquareText className="mx-auto text-slate-300" size={25} /><p className="mt-3 text-[11px] text-slate-500">No client responses yet.</p></div> : null}</Card>
               </div>
             </>
           ) : surveys.length === 0 ? <Card className="mt-4 p-10 text-center text-xs text-slate-500">Create a survey before viewing responses.</Card> : null}
