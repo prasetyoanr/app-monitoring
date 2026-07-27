@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { CalendarDays, Camera, CheckCircle2, Eye, Filter, ImagePlus, LoaderCircle, MapPin, Pencil, Plus, QrCode, Search, Trash2, X } from "lucide-react";
+import { CalendarDays, Camera, CheckCircle2, Eye, Filter, LoaderCircle, MapPin, Pencil, Plus, QrCode, Search, Trash2, Upload, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { deleteIssueAction, saveIssueAction } from "@/app/troubleshooting/actions";
@@ -65,7 +65,8 @@ export function TicketList({ initialRecords, canManage, divisionOptions, locatio
   const [photoPreview, setPhotoPreview] = useState("");
   const [photoRemoved, setPhotoRemoved] = useState(false);
   const dateInputRef = useRef<HTMLInputElement>(null);
-  const photoInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
   const deferredQuery = useDeferredValue(query.trim().toLowerCase());
 
   useEffect(() => {
@@ -304,14 +305,18 @@ export function TicketList({ initialRecords, canManage, divisionOptions, locatio
                     <Image src={photoPreview} width={720} height={540} unoptimized alt="Selected work photo preview" className="h-48 w-full rounded-lg object-contain sm:h-56" />
                     <div className="mt-2 flex items-center justify-between gap-2 px-1"><span className="inline-flex items-center gap-1.5 text-[10px] font-semibold text-emerald-600"><CheckCircle2 size={13} /> Ready to save</span>{photoFile ? <span className="text-[10px] text-slate-400">{formatPhotoSize(photoFile.size)}</span> : <span className="text-[10px] text-slate-400">Stored photo</span>}</div>
                   </div>
-                ) : (
-                  <button type="button" onClick={() => photoInputRef.current?.click()} disabled={compressingPhoto} className="mt-3 flex min-h-28 w-full flex-col items-center justify-center rounded-xl border border-dashed border-blue-300 bg-white px-4 text-center text-blue-700 disabled:cursor-wait disabled:text-slate-400">
-                    {compressingPhoto ? <LoaderCircle size={22} className="animate-spin" /> : <ImagePlus size={22} />}
-                    <span className="mt-2 text-[11px] font-semibold">{compressingPhoto ? "Compressing photo..." : "Take or select photo"}</span>
+                ) : null}
+                <div className={`grid grid-cols-[minmax(0,1fr)_3rem] gap-2 ${photoPreview ? "mt-2" : "mt-3"}`}>
+                  <button type="button" onClick={() => cameraInputRef.current?.click()} disabled={compressingPhoto} className={`flex w-full items-center justify-center rounded-xl border border-blue-300 bg-white px-4 text-center font-semibold text-blue-700 disabled:cursor-wait disabled:text-slate-400 ${photoPreview ? "h-10 gap-2 text-[10px]" : "min-h-28 flex-col text-[11px]"}`}>
+                    {compressingPhoto ? <LoaderCircle size={photoPreview ? 14 : 22} className="animate-spin" /> : <Camera size={photoPreview ? 14 : 22} />}
+                    <span className={photoPreview ? "" : "mt-2"}>{compressingPhoto ? "Compressing photo..." : photoPreview ? "Take new photo" : "Take photo"}</span>
                   </button>
-                )}
-                {photoPreview ? <button type="button" onClick={() => photoInputRef.current?.click()} disabled={compressingPhoto} className="mt-2 inline-flex h-9 w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white text-[10px] font-semibold text-slate-600 disabled:cursor-wait"><Camera size={14} /> {compressingPhoto ? "Compressing..." : "Replace photo"}</button> : null}
-                <input ref={photoInputRef} type="file" accept="image/*" capture="environment" onChange={(event) => void selectWorkPhoto(event)} className="sr-only" />
+                  <button type="button" onClick={() => galleryInputRef.current?.click()} disabled={compressingPhoto} className={`grid w-12 place-items-center rounded-xl border border-slate-200 bg-white text-indigo-600 disabled:cursor-wait disabled:text-slate-300 ${photoPreview ? "h-10" : "min-h-28"}`} aria-label="Upload photo from gallery" title="Upload photo from gallery">
+                    <Upload size={photoPreview ? 16 : 22} />
+                  </button>
+                </div>
+                <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" onChange={(event) => void selectWorkPhoto(event)} className="sr-only" />
+                <input ref={galleryInputRef} type="file" accept="image/*" onChange={(event) => void selectWorkPhoto(event)} className="sr-only" />
                 <p className="mt-2 text-[9px] leading-4 text-slate-400">A work photo is required before changing the status to Waiting for Client Approval.</p>
               </section>
               {formError ? <p className="rounded-xl bg-rose-50 p-3 text-[11px] font-semibold text-rose-700">{formError}</p> : null}
