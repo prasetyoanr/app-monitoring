@@ -52,7 +52,8 @@ export function TicketList({ initialRecords, canManage, divisionOptions, locatio
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("All Statuses");
   const [location, setLocation] = useState("All Locations");
-  const [filterDate, setFilterDate] = useState("");
+  const [filterStartDate, setFilterStartDate] = useState("");
+  const [filterEndDate, setFilterEndDate] = useState("");
   const [mode, setMode] = useState<FormMode>(null);
   const [selected, setSelected] = useState<TicketRecord | null>(null);
   const [detailRecord, setDetailRecord] = useState<TicketRecord | null>(null);
@@ -65,7 +66,8 @@ export function TicketList({ initialRecords, canManage, divisionOptions, locatio
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState("");
   const [photoRemoved, setPhotoRemoved] = useState(false);
-  const filterDateInputRef = useRef<HTMLInputElement>(null);
+  const filterStartDateInputRef = useRef<HTMLInputElement>(null);
+  const filterEndDateInputRef = useRef<HTMLInputElement>(null);
   const dateInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
@@ -79,9 +81,11 @@ export function TicketList({ initialRecords, canManage, divisionOptions, locatio
 
   const filtered = useMemo(() => ticketRecords.filter((ticket) => {
     const matchQuery = `${ticket.id} ${ticket.title} ${ticket.requester} ${ticket.division} ${ticket.category} ${ticket.location}`.toLowerCase().includes(deferredQuery);
-    const matchDate = !filterDate || ticket.reportedDate === filterDate;
+    const matchDate =
+      (!filterStartDate || ticket.reportedDate >= filterStartDate) &&
+      (!filterEndDate || ticket.reportedDate <= filterEndDate);
     return matchQuery && matchDate && (status === "All Statuses" || ticket.status === status) && (location === "All Locations" || ticket.location === location);
-  }), [ticketRecords, deferredQuery, status, location, filterDate]);
+  }), [ticketRecords, deferredQuery, status, location, filterStartDate, filterEndDate]);
 
   function openForm(nextMode: Exclude<FormMode, null>, record: TicketRecord | null = null) {
     setSelected(record);
@@ -120,15 +124,7 @@ export function TicketList({ initialRecords, canManage, divisionOptions, locatio
     setPhotoRemoved(Boolean(selected?.hasWorkPhoto));
   }
 
-  function openDatePicker() {
-    const input = dateInputRef.current;
-    if (!input) return;
-    if (typeof input.showPicker === "function") input.showPicker();
-    else { input.focus(); input.click(); }
-  }
-
-  function openFilterDatePicker() {
-    const input = filterDateInputRef.current;
+  function openDatePicker(input: HTMLInputElement | null) {
     if (!input) return;
     if (typeof input.showPicker === "function") input.showPicker();
     else { input.focus(); input.click(); }
@@ -179,15 +175,24 @@ export function TicketList({ initialRecords, canManage, divisionOptions, locatio
           <label className="relative min-w-0 max-w-md flex-1 sm:min-w-64"><Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={16} /><input value={query} onChange={(event) => setQuery(event.target.value)} className="h-10 w-full rounded-xl border border-slate-200 bg-white pl-10 pr-3 text-xs outline-none" placeholder="Search records or requester..." /></label>
           <label className="relative"><MapPin className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={15} /><select value={location} onChange={(event) => setLocation(event.target.value)} className="h-10 w-full min-w-40 appearance-none rounded-xl border border-slate-200 bg-white pl-9 pr-8 text-xs text-slate-600 outline-none sm:w-auto"><option>All Locations</option><option>HO</option><option>Factory</option></select></label>
           <label className="relative"><Filter className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={15} /><select value={status} onChange={(event) => setStatus(event.target.value)} className="h-10 w-full min-w-44 appearance-none rounded-xl border border-slate-200 bg-white pl-9 pr-8 text-xs text-slate-600 outline-none sm:w-auto"><option>All Statuses</option><option>New</option><option>In Progress</option><option>Waiting for Client Approval</option><option>Completed</option></select></label>
-          <div className="flex min-w-64 gap-2">
-            <div className="flex h-10 min-w-0 flex-1 items-center rounded-xl border border-slate-200 bg-white">
-              <span id="filter-date-label" className="flex h-full shrink-0 items-center gap-2 border-r border-slate-100 px-3 text-[10px] font-semibold text-slate-500"><CalendarDays className="text-slate-400" size={15} /> Request Date</span>
-              <div className="relative h-full min-w-0 flex-1">
-                <button type="button" onClick={openFilterDatePicker} aria-labelledby="filter-date-label" className={`h-full w-full px-2 text-left text-[11px] outline-none ${filterDate ? "text-slate-600" : "text-slate-400"}`}>{formatCompactDate(filterDate)}</button>
-                <input ref={filterDateInputRef} type="date" value={filterDate} onChange={(event) => setFilterDate(event.target.value)} className="absolute bottom-0 left-0 h-px w-px opacity-0" tabIndex={-1} aria-hidden="true" />
+          <div className="flex min-w-0 gap-2 sm:min-w-[21rem]">
+            <div className="grid min-w-0 flex-1 grid-cols-2 gap-2">
+              <div className="relative h-10 min-w-0">
+                <button type="button" onClick={() => openDatePicker(filterStartDateInputRef.current)} aria-label="Select start request date" className="flex h-full w-full min-w-0 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-left outline-none">
+                  <CalendarDays className="shrink-0 text-slate-400" size={15} />
+                  <span className="min-w-0"><span className="block text-[8px] font-bold uppercase tracking-wide text-slate-400">From Date</span><span className={`block truncate text-[10px] ${filterStartDate ? "font-semibold text-slate-600" : "text-slate-400"}`}>{formatCompactDate(filterStartDate)}</span></span>
+                </button>
+                <input ref={filterStartDateInputRef} type="date" value={filterStartDate} max={filterEndDate || undefined} onChange={(event) => setFilterStartDate(event.target.value)} className="absolute bottom-0 left-0 h-px w-px opacity-0" tabIndex={-1} aria-hidden="true" />
+              </div>
+              <div className="relative h-10 min-w-0">
+                <button type="button" onClick={() => openDatePicker(filterEndDateInputRef.current)} aria-label="Select end request date" className="flex h-full w-full min-w-0 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-left outline-none">
+                  <CalendarDays className="shrink-0 text-slate-400" size={15} />
+                  <span className="min-w-0"><span className="block text-[8px] font-bold uppercase tracking-wide text-slate-400">To Date</span><span className={`block truncate text-[10px] ${filterEndDate ? "font-semibold text-slate-600" : "text-slate-400"}`}>{formatCompactDate(filterEndDate)}</span></span>
+                </button>
+                <input ref={filterEndDateInputRef} type="date" value={filterEndDate} min={filterStartDate || undefined} onChange={(event) => setFilterEndDate(event.target.value)} className="absolute bottom-0 left-0 h-px w-px opacity-0" tabIndex={-1} aria-hidden="true" />
               </div>
             </div>
-            {filterDate ? <button type="button" onClick={() => setFilterDate("")} aria-label="Clear date filter" title="Clear date filter" className="grid size-10 shrink-0 place-items-center rounded-xl border border-slate-200 bg-white text-slate-500"><X size={14} /></button> : null}
+            {filterStartDate || filterEndDate ? <button type="button" onClick={() => { setFilterStartDate(""); setFilterEndDate(""); }} aria-label="Clear date range" title="Clear date range" className="grid size-10 shrink-0 place-items-center rounded-xl border border-slate-200 bg-white text-slate-500"><X size={14} /></button> : null}
           </div>
         </div>
         {canManage ? <button onClick={() => openForm("create")} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-[#3157d5] px-4 text-xs font-semibold text-white shadow-lg shadow-blue-600/15 hover:bg-[#2445b5]"><Plus size={16} /> Add Issue</button> : null}
@@ -310,7 +315,7 @@ export function TicketList({ initialRecords, canManage, divisionOptions, locatio
             <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4"><div><h2 id="ticket-title" className="text-sm font-bold text-slate-900">{mode === "create" ? "Add New Issue" : "Edit Issue Record"}</h2><p className="mt-1 text-[11px] text-slate-500">Recorded on behalf of the IT team for activity reporting.</p></div><button onClick={() => setMode(null)} className="rounded-lg p-2 text-slate-400 hover:bg-slate-100" aria-label="Close form"><X size={18} /></button></div>
             <form key={`${mode}-${selected?.id ?? "new"}`} className="space-y-4 p-5" onSubmit={handleSubmit}>
               <label className="block text-[11px] font-semibold text-slate-600">Issue Title<input name="title" required defaultValue={selected?.title} className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 px-3 text-xs outline-none" /></label>
-              <div className="grid gap-4 sm:grid-cols-2"><label className="block text-[11px] font-semibold text-slate-600">Location<select name="location" required defaultValue={selected?.location ?? defaultLocation} className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 px-3 text-xs outline-none">{optionsWithCurrent(locationOptions, selected?.location).map((option) => <option key={option} value={option}>{option}</option>)}</select></label><div className="block text-[11px] font-semibold text-slate-600"><span id="request-date-label">Request Date</span><div className="relative mt-1.5"><button type="button" onClick={openDatePicker} aria-labelledby="request-date-label" className="flex h-10 w-full items-center rounded-xl border border-slate-200 bg-white px-3 text-left text-xs font-normal text-slate-700 outline-none"><span className="flex-1">{formatCompactDate(requestDate)}</span><CalendarDays size={15} className="text-slate-400" /></button><input ref={dateInputRef} type="date" value={requestDate} onChange={(event) => setRequestDate(event.target.value)} className="absolute bottom-0 left-0 h-px w-px opacity-0" tabIndex={-1} aria-hidden="true" /></div></div></div>
+              <div className="grid gap-4 sm:grid-cols-2"><label className="block text-[11px] font-semibold text-slate-600">Location<select name="location" required defaultValue={selected?.location ?? defaultLocation} className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 px-3 text-xs outline-none">{optionsWithCurrent(locationOptions, selected?.location).map((option) => <option key={option} value={option}>{option}</option>)}</select></label><div className="block text-[11px] font-semibold text-slate-600"><span id="request-date-label">Request Date</span><div className="relative mt-1.5"><button type="button" onClick={() => openDatePicker(dateInputRef.current)} aria-labelledby="request-date-label" className="flex h-10 w-full items-center rounded-xl border border-slate-200 bg-white px-3 text-left text-xs font-normal text-slate-700 outline-none"><span className="flex-1">{formatCompactDate(requestDate)}</span><CalendarDays size={15} className="text-slate-400" /></button><input ref={dateInputRef} type="date" value={requestDate} onChange={(event) => setRequestDate(event.target.value)} className="absolute bottom-0 left-0 h-px w-px opacity-0" tabIndex={-1} aria-hidden="true" /></div></div></div>
               <div className="grid gap-4 sm:grid-cols-2"><label className="block text-[11px] font-semibold text-slate-600">Requester Name<input name="requester" required defaultValue={selected?.requester} className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 px-3 text-xs outline-none" /></label><label className="block text-[11px] font-semibold text-slate-600">Division<select name="division" required defaultValue={selected?.division ?? divisionOptions[0]} className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-xs outline-none">{optionsWithCurrent(divisionOptions, selected?.division).map((option) => <option key={option} value={option}>{option}</option>)}</select></label></div>
               <div className="grid gap-4 sm:grid-cols-2"><label className="block text-[11px] font-semibold text-slate-600">Category<select name="category" required defaultValue={selected?.category ?? defaultCategory} className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-xs outline-none">{optionsWithCurrent(categoryOptions, selected?.category).map((option) => <option key={option} value={option}>{option}</option>)}</select></label><label className="block text-[11px] font-semibold text-slate-600">Priority<select name="priority" defaultValue={selected?.priority ?? "Low"} className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 px-3 text-xs outline-none"><option>Low</option><option>Medium</option><option>High</option><option>Critical</option></select></label></div>
               <div className="grid gap-4 sm:grid-cols-2"><label className="block text-[11px] font-semibold text-slate-600">Status<select name="status" defaultValue={selected?.status ?? "New"} className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 px-3 text-xs outline-none"><option>New</option><option>In Progress</option><option>Waiting for Client Approval</option><option>Reopened</option>{selected?.status === "Completed" ? <option>Completed</option> : null}</select></label><div><p className="text-[11px] font-semibold text-slate-600">Completion Time</p><p className="mt-1.5 rounded-xl bg-slate-50 px-3 py-2.5 text-[10px] leading-5 text-slate-500">Calculated automatically after client approval.</p></div></div>
