@@ -52,6 +52,7 @@ export function TicketList({ initialRecords, canManage, divisionOptions, locatio
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("All Statuses");
   const [location, setLocation] = useState("All Locations");
+  const [filterDate, setFilterDate] = useState("");
   const [mode, setMode] = useState<FormMode>(null);
   const [selected, setSelected] = useState<TicketRecord | null>(null);
   const [detailRecord, setDetailRecord] = useState<TicketRecord | null>(null);
@@ -64,6 +65,7 @@ export function TicketList({ initialRecords, canManage, divisionOptions, locatio
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState("");
   const [photoRemoved, setPhotoRemoved] = useState(false);
+  const filterDateInputRef = useRef<HTMLInputElement>(null);
   const dateInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
@@ -77,8 +79,9 @@ export function TicketList({ initialRecords, canManage, divisionOptions, locatio
 
   const filtered = useMemo(() => ticketRecords.filter((ticket) => {
     const matchQuery = `${ticket.id} ${ticket.title} ${ticket.requester} ${ticket.division} ${ticket.category} ${ticket.location}`.toLowerCase().includes(deferredQuery);
-    return matchQuery && (status === "All Statuses" || ticket.status === status) && (location === "All Locations" || ticket.location === location);
-  }), [ticketRecords, deferredQuery, status, location]);
+    const matchDate = !filterDate || ticket.reportedDate === filterDate;
+    return matchQuery && matchDate && (status === "All Statuses" || ticket.status === status) && (location === "All Locations" || ticket.location === location);
+  }), [ticketRecords, deferredQuery, status, location, filterDate]);
 
   function openForm(nextMode: Exclude<FormMode, null>, record: TicketRecord | null = null) {
     setSelected(record);
@@ -119,6 +122,13 @@ export function TicketList({ initialRecords, canManage, divisionOptions, locatio
 
   function openDatePicker() {
     const input = dateInputRef.current;
+    if (!input) return;
+    if (typeof input.showPicker === "function") input.showPicker();
+    else { input.focus(); input.click(); }
+  }
+
+  function openFilterDatePicker() {
+    const input = filterDateInputRef.current;
     if (!input) return;
     if (typeof input.showPicker === "function") input.showPicker();
     else { input.focus(); input.click(); }
@@ -169,6 +179,16 @@ export function TicketList({ initialRecords, canManage, divisionOptions, locatio
           <label className="relative min-w-0 max-w-md flex-1 sm:min-w-64"><Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={16} /><input value={query} onChange={(event) => setQuery(event.target.value)} className="h-10 w-full rounded-xl border border-slate-200 bg-white pl-10 pr-3 text-xs outline-none" placeholder="Search records or requester..." /></label>
           <label className="relative"><MapPin className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={15} /><select value={location} onChange={(event) => setLocation(event.target.value)} className="h-10 w-full min-w-40 appearance-none rounded-xl border border-slate-200 bg-white pl-9 pr-8 text-xs text-slate-600 outline-none sm:w-auto"><option>All Locations</option><option>HO</option><option>Factory</option></select></label>
           <label className="relative"><Filter className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={15} /><select value={status} onChange={(event) => setStatus(event.target.value)} className="h-10 w-full min-w-44 appearance-none rounded-xl border border-slate-200 bg-white pl-9 pr-8 text-xs text-slate-600 outline-none sm:w-auto"><option>All Statuses</option><option>New</option><option>In Progress</option><option>Waiting for Client Approval</option><option>Completed</option></select></label>
+          <div className="flex min-w-64 gap-2">
+            <div className="flex h-10 min-w-0 flex-1 items-center rounded-xl border border-slate-200 bg-white">
+              <span id="filter-date-label" className="flex h-full shrink-0 items-center gap-2 border-r border-slate-100 px-3 text-[10px] font-semibold text-slate-500"><CalendarDays className="text-slate-400" size={15} /> Request Date</span>
+              <div className="relative h-full min-w-0 flex-1">
+                <button type="button" onClick={openFilterDatePicker} aria-labelledby="filter-date-label" className={`h-full w-full px-2 text-left text-[11px] outline-none ${filterDate ? "text-slate-600" : "text-slate-400"}`}>{formatCompactDate(filterDate)}</button>
+                <input ref={filterDateInputRef} type="date" value={filterDate} onChange={(event) => setFilterDate(event.target.value)} className="absolute bottom-0 left-0 h-px w-px opacity-0" tabIndex={-1} aria-hidden="true" />
+              </div>
+            </div>
+            {filterDate ? <button type="button" onClick={() => setFilterDate("")} aria-label="Clear date filter" title="Clear date filter" className="grid size-10 shrink-0 place-items-center rounded-xl border border-slate-200 bg-white text-slate-500"><X size={14} /></button> : null}
+          </div>
         </div>
         {canManage ? <button onClick={() => openForm("create")} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-[#3157d5] px-4 text-xs font-semibold text-white shadow-lg shadow-blue-600/15 hover:bg-[#2445b5]"><Plus size={16} /> Add Issue</button> : null}
       </div>
