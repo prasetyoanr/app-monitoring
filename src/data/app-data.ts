@@ -3,7 +3,7 @@ import "server-only";
 import { createHash } from "node:crypto";
 import { count, desc, eq, sql } from "drizzle-orm";
 
-import { requireAuthenticatedUser } from "@/auth/session";
+import { requireAdministrator, requireAuthenticatedUser } from "@/auth/session";
 import { db } from "@/db";
 import {
   backupUserInvitations,
@@ -128,7 +128,7 @@ export async function getTicketRecords(): Promise<TicketRecord[]> {
 }
 
 export async function getBackupRecords(): Promise<BackupRecord[]> {
-  await requireAuthenticatedUser();
+  await requireAdministrator();
   const rows = await db
     .select({
       id: backupUsers.id,

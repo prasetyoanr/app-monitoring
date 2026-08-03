@@ -23,7 +23,7 @@ import { logoutAction } from "@/app/login/actions";
 const navigationBase = [
   { label: "Overview", href: "/", icon: Gauge },
   { label: "Troubleshooting", href: "/troubleshooting", icon: TicketCheck },
-  { label: "Backup User", href: "/backups", icon: HardDriveDownload },
+  { label: "Backup User", href: "/backups", icon: HardDriveDownload, administratorOnly: true },
   { label: "Surveys", href: "/surveys", icon: ClipboardCheck },
   { label: "Reports", href: "/reports", icon: FileBarChart },
 ];
@@ -81,10 +81,12 @@ export function AppShell({
     .map((part) => part[0])
     .join("")
     .toUpperCase();
-  const navigation = navigationBase.map((item) => ({
-    ...item,
-    count: item.href === "/troubleshooting" ? counts.issues : item.href === "/backups" ? counts.backups : undefined,
-  }));
+  const navigation = navigationBase
+    .filter((item) => !item.administratorOnly || user.role === "administrator")
+    .map((item) => ({
+      ...item,
+      count: item.href === "/troubleshooting" ? counts.issues : item.href === "/backups" ? counts.backups : undefined,
+    }));
   const showBackButton = !primaryPagePaths.has(pathname);
 
   if (
