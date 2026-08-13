@@ -10,13 +10,14 @@ import { SESSION_COOKIE_NAME } from "@/auth/constants";
 import { db } from "@/db";
 import { authSessions, technicians } from "@/db/schema";
 
-const SESSION_DURATION_MS = 8 * 60 * 60 * 1000;
+const SESSION_DURATION_MS = 4 * 60 * 60 * 1000;
 
 export interface AuthenticatedUser {
   id: string;
   name: string;
   username: string;
-  role: "administrator" | "boss";
+  role: "administrator" | "boss" | "technician" | "requester";
+  divisionId: string | null;
 }
 
 function tokenHash(token: string) {
@@ -55,6 +56,7 @@ export const getCurrentUser = cache(
         name: technicians.name,
         username: technicians.username,
         role: technicians.role,
+        divisionId: technicians.divisionId,
       })
       .from(authSessions)
       .innerJoin(
@@ -76,6 +78,7 @@ export const getCurrentUser = cache(
       name: row.name,
       username: row.username,
       role: row.role,
+      divisionId: row.divisionId,
     };
   },
 );
@@ -89,6 +92,14 @@ export async function requireAuthenticatedUser() {
 export async function requireAdministrator() {
   const user = await requireAuthenticatedUser();
   if (user.role !== "administrator") redirect("/");
+  return user;
+}
+
+export async function requireServiceAgent() {
+  const user = await requireAuthenticatedUser();
+  if (user.role !== "administrator" && user.role !== "technician") {
+    redirect("/");
+  }
   return user;
 }
 

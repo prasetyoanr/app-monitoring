@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { redirect } from "next/navigation";
 import { requireAuthenticatedUser } from "@/auth/session";
 import { ReportsCenter } from "@/components/reports-center";
 import { PageHeader } from "@/components/ui";
@@ -9,6 +10,7 @@ export const metadata: Metadata = { title: "Reports" };
 
 export default async function ReportsPage() {
   const currentUser = await requireAuthenticatedUser();
+  if (currentUser.role === "requester") redirect("/requests");
   const canAccessBackupReport = currentUser.role === "administrator";
   const [ticketRecords, backupRecords, surveyRecords] = await Promise.all([
     getTicketRecords(),

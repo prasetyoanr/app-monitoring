@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import {
   Activity,
   ArrowLeft,
+  Bell,
   ChevronDown,
   ClipboardCheck,
   Database,
@@ -16,21 +17,33 @@ import {
   TicketCheck,
   UserCog,
   X,
+  type LucideIcon,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { logoutAction } from "@/app/login/actions";
 
-const navigationBase = [
+type NavigationItem = {
+  label: string;
+  href: string;
+  icon: LucideIcon;
+  administratorOnly?: boolean;
+  staffOnly?: boolean;
+  requesterOnly?: boolean;
+};
+
+const navigationBase: NavigationItem[] = [
   { label: "Overview", href: "/", icon: Gauge },
-  { label: "Troubleshooting", href: "/troubleshooting", icon: TicketCheck },
+  { label: "Troubleshooting", href: "/troubleshooting", icon: TicketCheck, staffOnly: true },
+  { label: "Permintaan Saya", href: "/requests", icon: TicketCheck, requesterOnly: true },
   { label: "Backup User", href: "/backups", icon: HardDriveDownload, administratorOnly: true },
-  { label: "Surveys", href: "/surveys", icon: ClipboardCheck },
-  { label: "Reports", href: "/reports", icon: FileBarChart },
+  { label: "Surveys", href: "/surveys", icon: ClipboardCheck, staffOnly: true },
+  { label: "Reports", href: "/reports", icon: FileBarChart, staffOnly: true },
 ];
 
 const primaryPagePaths = new Set([
   "/",
   "/troubleshooting",
+  "/requests",
   "/backups",
   "/surveys",
   "/reports",
@@ -46,27 +59,32 @@ function secondaryPageFallback(pathname: string) {
 export function AppShell({
   children,
   counts,
+  notifications,
   user,
 }: {
   children: React.ReactNode;
-  counts: { issues: number; backups: number };
+  counts: { issues: number; backups: number; newRequests: number };
+  notifications: { id: string; title: string; requester: string; division: string; reportedAt: string }[];
   user: {
     name: string;
     username: string;
-    role: "administrator" | "boss";
+    role: "administrator" | "boss" | "technician" | "requester";
   };
 }) {
   const pathname = usePathname();
   const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [notificationOpen, setNotificationOpen] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
+  const notificationRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!userMenuOpen) return;
 
     function closeUserMenu(event: PointerEvent) {
-      if (!userMenuRef.current?.contains(event.target as Node)) {
+      const target = event.target as Node;
+      if (!userMenuRef.current?.contains(target)) {
         setUserMenuOpen(false);
       }
     }
@@ -74,15 +92,30 @@ export function AppShell({
     document.addEventListener("pointerdown", closeUserMenu);
     return () => document.removeEventListener("pointerdown", closeUserMenu);
   }, [userMenuOpen]);
-  const roleLabel = user.role === "administrator" ? "Administrator" : "Boss";
-  const initials = user.name
+
+  useEffect(() => {
+    if (!notificationOpen) return;
+
+    function closeNotification(event: PointerEvent) {
+      const target = event.target as Node;
+      if (!notificationRef.current?.contains(target)) {
+        setNotificationOpen(false);
+      }
+    }
+
+    document.addEventListener("pointerdown", closeNotification);
+    return () => document.removeEventListener("pointerdown", closeNotification);
+  }, [notificationOpen]);
+  const roleLabel = user.role === "administrator" ? "Administrator" : user.role === "technician" ? "Petugas" : user.role === "requester" ? "Pemohon" : "Atasan";
+  const displayName = user.role === "requester" ? user.username : user.name;
+  const initials = displayName
     .split(" ")
     .slice(0, 2)
     .map((part) => part[0])
     .join("")
     .toUpperCase();
   const navigation = navigationBase
-    .filter((item) => !item.administratorOnly || user.role === "administrator")
+    .filter((item) => (!item.administratorOnly || user.role === "administrator") && (!item.staffOnly || user.role !== "requester") && (!item.requesterOnly || user.role === "requester"))
     .map((item) => ({
       ...item,
       count: item.href === "/troubleshooting" ? counts.issues : item.href === "/backups" ? counts.backups : undefined,
@@ -131,6 +164,20 @@ export function AppShell({
           </nav>
 
           <div className="ml-auto flex items-center gap-2">
+            {user.role === "administrator" || user.role === "technician" ? (
+              <div ref={notificationRef} className="relative">
+                <button type="button" onClick={() => setNotificationOpen((open) => !open)} className="relative grid size-10 place-items-center rounded-xl border border-white/10 bg-white/10 text-indigo-100/80 transition hover:border-cyan-300/30 hover:bg-white/15 hover:text-white" aria-label={counts.newRequests > 0 ? `${counts.newRequests} permintaan baru` : "Notifikasi"} aria-expanded={notificationOpen} aria-haspopup="dialog" title="Notifikasi">
+                  <Bell size={17} />
+                  {counts.newRequests > 0 ? <span className="absolute -right-1 -top-1 grid min-w-4 place-items-center rounded-full bg-rose-500 px-1 text-[9px] font-bold leading-4 text-white ring-2 ring-indigo-950">{counts.newRequests > 99 ? "99+" : counts.newRequests}</span> : null}
+                </button>
+                {notificationOpen ? (
+                  <div className="absolute right-0 top-12 z-50 w-[min(21rem,calc(100vw-2rem))] overflow-hidden rounded-2xl border border-indigo-100 bg-white text-slate-700 shadow-2xl shadow-indigo-950/25" role="dialog" aria-label="Notifikasi permintaan baru">
+                    <div className="bg-slate-100 border-b border-slate-100 px-4 py-3"><p className="mt-1 text-xs font-bold text-slate-800">{counts.newRequests > 0 ? `${counts.newRequests} Permintaan baru.` : "Tidak ada permintaan baru."}</p></div>
+                    {notifications.length > 0 ? <div className="max-h-72 divide-y divide-slate-100 overflow-y-auto">{notifications.map((notification) => <Link key={notification.id} href="/troubleshooting" onClick={() => setNotificationOpen(false)} className="block px-4 py-3 transition hover:bg-indigo-50"><p className="truncate text-[11px] font-semibold text-slate-800">{notification.title}</p><p className="mt-1 text-[10px] text-slate-500">{notification.requester} · {notification.division}</p><p className="mt-1 text-[9px] text-slate-400">{notification.reportedAt}</p></Link>)}</div> : <div className="px-4 py-6 text-center text-[11px] text-slate-400">Semua permintaan sudah ditangani.</div>}
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
             <div ref={userMenuRef} className="relative hidden sm:block">
               <button
                 onClick={() => setUserMenuOpen((open) => !open)}
@@ -139,7 +186,7 @@ export function AppShell({
                 aria-haspopup="menu"
               >
                 <span className="grid size-8 place-items-center rounded-lg bg-indigo-500 text-[9px] font-bold text-white shadow-lg shadow-indigo-950/30">{initials}</span>
-                <span><span className="block max-w-28 truncate text-[10px] font-semibold leading-3 text-white">{user.name}</span><span className="block text-[9px] text-indigo-200/70">{roleLabel}</span></span>
+                <span><span className="block max-w-28 truncate text-[10px] font-semibold leading-3 text-white">{displayName}</span><span className="block text-[9px] text-indigo-200/70">{roleLabel}</span></span>
                 <ChevronDown size={13} className={`text-indigo-200/70 transition ${userMenuOpen ? "rotate-180" : ""}`} />
               </button>
               {userMenuOpen ? (

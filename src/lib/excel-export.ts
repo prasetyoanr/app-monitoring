@@ -42,7 +42,6 @@ export const troubleshootingExcelColumns: ExcelColumnDefinition[] = [
   { header: "Division", key: "division", width: 22 },
   { header: "Issue", key: "issue", width: 38, wrapText: true },
   { header: "Category", key: "category", width: 18 },
-  { header: "Priority", key: "priority", width: 14, alignment: "center" },
   { header: "Status", key: "status", width: 28 },
   { header: "Completion Time (Days)", key: "completionDays", width: 22, alignment: "center", numberFormat: "0" },
   { header: "Work Photo", key: "workPhoto", width: 22, alignment: "center" },

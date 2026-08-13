@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Activity, CheckCircle2, ShieldCheck } from "lucide-react";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { getCurrentUser } from "@/auth/session";
@@ -16,11 +17,11 @@ function safeNextPath(value: string | undefined) {
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ next?: string }>;
+  searchParams: Promise<{ next?: string; registered?: string }>;
 }) {
   const user = await getCurrentUser();
   if (user) redirect("/");
-  const { next } = await searchParams;
+  const { next, registered } = await searchParams;
 
   return (
     <main className="relative min-h-screen overflow-hidden bg-indigo-50 px-4 py-6 sm:grid sm:place-items-center sm:px-6">
@@ -77,7 +78,9 @@ export default async function LoginPage({
             <p className="mt-2 text-sm leading-6 text-slate-500">
               Enter your account username and password.
             </p>
+            {registered === "1" ? <p className="mt-4 rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-xs font-medium leading-5 text-emerald-700">Akun berhasil dibuat. Silakan login untuk melanjutkan.</p> : null}
             <LoginForm nextPath={safeNextPath(next)} />
+            <p className="mt-5 text-center text-xs text-slate-500">Belum memiliki akun? <Link href="/register" className="font-semibold text-indigo-600 hover:text-indigo-700">Daftar sebagai Pemohon</Link></p>
           </div>
         </div>
       </section>

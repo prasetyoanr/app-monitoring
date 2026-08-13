@@ -4,10 +4,11 @@ import { createHash, randomBytes } from "node:crypto";
 import { and, eq, gt } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
-import { requireAdministrator } from "@/auth/session";
+import { requireAuthenticatedUser, requireServiceAgent } from "@/auth/session";
 import { db } from "@/db";
 import {
   auditLogs,
+  masterDivisions,
   troubleshootingApprovals,
   troubleshootingIssues,
 } from "@/db/schema";
@@ -79,7 +80,7 @@ async function nextIssueId() {
 export async function saveIssueAction(
   formData: FormData,
 ): Promise<ActionResult<{ id: string }>> {
-  const currentUser = await requireAdministrator();
+  const currentUser = await requireServiceAgent();
   try {
     const id = optionalField(formData, "id", 32) || (await nextIssueId());
     const title = field(formData, "title", 200);
@@ -89,7 +90,7 @@ export async function saveIssueAction(
     const category = field(formData, "category", 80);
     const description = field(formData, "description", 10_000);
     const reportedDate = field(formData, "reportedDate", 10);
-    const priority = field(formData, "priority", 20) as IssuePriority;
+    const submittedPriority = optionalField(formData, "priority", 20);
     const requestedStatus = field(formData, "status", 40) as IssueStatus;
     const requestedPhotoIntent =
       optionalField(formData, "photoIntent", 10) || "keep";
@@ -102,16 +103,18 @@ export async function saveIssueAction(
       throw new Error("Select a work photo before saving.");
     }
 
-    if (!priorities.includes(priority)) throw new Error("Invalid priority.");
     const [existing] = await db
       .select({
         status: troubleshootingIssues.status,
+        priority: troubleshootingIssues.priority,
         completedDays: troubleshootingIssues.completedDays,
         workPhotoData: troubleshootingIssues.workPhotoData,
       })
       .from(troubleshootingIssues)
       .where(eq(troubleshootingIssues.id, id))
       .limit(1);
+    const priority = (submittedPriority || existing?.priority || "Medium") as IssuePriority;
+    if (!priorities.includes(priority)) throw new Error("Invalid priority.");
     const mayKeepCompleted = existing?.status === "Completed" && requestedStatus === "Completed";
     if (!editableStatuses.includes(requestedStatus) && !mayKeepCompleted) {
       throw new Error("Completed status can only be set through client approval.");
@@ -182,8 +185,72 @@ export async function saveIssueAction(
   }
 }
 
+export async function createRequesterTicketAction(
+  formData: FormData,
+): Promise<ActionResult<{ id: string }>> {
+  const currentUser = await requireAuthenticatedUser();
+  try {
+    if (currentUser.role !== "requester") {
+      throw new Error("Only requester accounts can use this form.");
+    }
+    if (!currentUser.divisionId) {
+      throw new Error("Akun Anda belum memiliki divisi. Hubungi administrator.");
+    }
+    const [division] = await db
+      .select({ name: masterDivisions.name })
+      .from(masterDivisions)
+      .where(eq(masterDivisions.id, currentUser.divisionId))
+      .limit(1);
+    if (!division) throw new Error("Divisi akun tidak ditemukan.");
+
+    const title = field(formData, "title", 200);
+    const category = field(formData, "category", 80);
+    const location = field(formData, "location", 160);
+    const description = field(formData, "description", 10_000);
+    const priority = (optionalField(formData, "priority", 20) || "Medium") as IssuePriority;
+    if (!priorities.includes(priority)) throw new Error("Prioritas tidak valid.");
+
+    const id = await nextIssueId();
+    const reportedAt = new Date();
+    await db.insert(troubleshootingIssues).values({
+      id,
+      title,
+      category,
+      requesterName: currentUser.username,
+      requesterEmail: null,
+      requesterId: currentUser.id,
+      division: division.name,
+      location,
+      reportedAt,
+      priority,
+      status: "New",
+      completedDays: null,
+      description,
+      resolution: "",
+    });
+    await db.insert(auditLogs).values({
+      actorType: "requester",
+      actorId: currentUser.id,
+      action: "issue.requested",
+      entityType: "troubleshooting_issue",
+      entityId: id,
+    });
+    revalidatePath("/");
+    revalidatePath("/requests");
+    revalidatePath("/troubleshooting");
+    revalidatePath("/reports");
+    return { ok: true, data: { id } };
+  } catch (error) {
+    console.error("Unable to create requester ticket.", error);
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : "Permintaan tidak dapat dibuat.",
+    };
+  }
+}
+
 export async function deleteIssueAction(id: string): Promise<ActionResult> {
-  const currentUser = await requireAdministrator();
+  const currentUser = await requireServiceAgent();
   try {
     if (!/^(?:INC-[0-9]{4}-[0-9]{4,6}|TR-[0-9]{4}-[0-9]{4})$/.test(id)) {
       throw new Error("Invalid issue ID.");
@@ -213,7 +280,7 @@ export async function deleteIssueAction(id: string): Promise<ActionResult> {
 export async function requestApprovalAction(
   issueId: string,
 ): Promise<ActionResult<{ token: string; expiresAt: string }>> {
-  const currentUser = await requireAdministrator();
+  const currentUser = await requireServiceAgent();
   try {
     const [issue] = await db
       .select({

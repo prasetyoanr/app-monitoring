@@ -44,13 +44,16 @@ export interface BackupRecord {
   status: BackupStatus;
 }
 
-export type AccountRole = "administrator" | "boss";
+export type AccountRole = "administrator" | "boss" | "technician" | "requester";
 
 export interface AccountRecord {
   id: string;
   name: string;
   username: string;
   role: AccountRole;
+  divisionId: string | null;
+  division: string | null;
+  isActive: boolean;
   isLocked: boolean;
   createdAt: string;
 }

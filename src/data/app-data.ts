@@ -1,13 +1,14 @@
 import "server-only";
 
 import { createHash } from "node:crypto";
-import { count, desc, eq, sql } from "drizzle-orm";
+import { and, count, desc, eq, isNotNull, sql } from "drizzle-orm";
 
 import { requireAdministrator, requireAuthenticatedUser } from "@/auth/session";
 import { db } from "@/db";
 import {
   backupUserInvitations,
   backupUsers,
+  technicians,
   troubleshootingApprovals,
   troubleshootingIssues,
 } from "@/db/schema";
@@ -49,7 +50,7 @@ function toTicketRecord(
     | "completedDays"
     | "description"
     | "updatedAt"
-  >,
+  > & { requesterUsername?: string | null },
   hasWorkPhoto: boolean,
   clientApproval: TicketRecord["clientApproval"] = null,
 ): TicketRecord {
@@ -57,7 +58,7 @@ function toTicketRecord(
     id: row.id,
     title: row.title,
     category: row.category,
-    requester: row.requesterName,
+    requester: row.requesterUsername ?? row.requesterName,
     division: row.division,
     location: row.location,
     reportedAt: jakartaDateTime.format(row.reportedAt).split(",")[0],
@@ -75,26 +76,31 @@ function toTicketRecord(
 }
 
 export async function getTicketRecords(): Promise<TicketRecord[]> {
-  await requireAuthenticatedUser();
+  const currentUser = await requireAuthenticatedUser();
+  const issueQuery = db
+    .select({
+      id: troubleshootingIssues.id,
+      title: troubleshootingIssues.title,
+      category: troubleshootingIssues.category,
+      requesterName: troubleshootingIssues.requesterName,
+      requesterUsername: technicians.username,
+      division: troubleshootingIssues.division,
+      location: troubleshootingIssues.location,
+      reportedAt: troubleshootingIssues.reportedAt,
+      priority: troubleshootingIssues.priority,
+      status: troubleshootingIssues.status,
+      completedDays: troubleshootingIssues.completedDays,
+      description: troubleshootingIssues.description,
+      updatedAt: troubleshootingIssues.updatedAt,
+      hasWorkPhoto: sql<boolean>`${troubleshootingIssues.workPhotoData} is not null`,
+    })
+    .from(troubleshootingIssues)
+    .leftJoin(technicians, eq(troubleshootingIssues.requesterId, technicians.id));
   const [rows, approvedRows] = await Promise.all([
-    db
-      .select({
-        id: troubleshootingIssues.id,
-        title: troubleshootingIssues.title,
-        category: troubleshootingIssues.category,
-        requesterName: troubleshootingIssues.requesterName,
-        division: troubleshootingIssues.division,
-        location: troubleshootingIssues.location,
-        reportedAt: troubleshootingIssues.reportedAt,
-        priority: troubleshootingIssues.priority,
-        status: troubleshootingIssues.status,
-        completedDays: troubleshootingIssues.completedDays,
-        description: troubleshootingIssues.description,
-        updatedAt: troubleshootingIssues.updatedAt,
-        hasWorkPhoto: sql<boolean>`${troubleshootingIssues.workPhotoData} is not null`,
-      })
-      .from(troubleshootingIssues)
-      .orderBy(desc(troubleshootingIssues.reportedAt), desc(troubleshootingIssues.id)),
+    (currentUser.role === "requester"
+      ? issueQuery.where(eq(troubleshootingIssues.requesterId, currentUser.id))
+      : issueQuery
+    ).orderBy(desc(troubleshootingIssues.reportedAt), desc(troubleshootingIssues.id)),
     db
       .selectDistinctOn([troubleshootingApprovals.issueId], {
         issueId: troubleshootingApprovals.issueId,
@@ -166,12 +172,59 @@ export async function getBackupRecords(): Promise<BackupRecord[]> {
 }
 
 export async function getNavigationCounts() {
-  await requireAuthenticatedUser();
-  const [[issues], [backups]] = await Promise.all([
-    db.select({ value: count() }).from(troubleshootingIssues),
-    db.select({ value: count() }).from(backupUsers),
+  const currentUser = await requireAuthenticatedUser();
+  const [[issues], [backups], [newRequests], newRequestRows] = await Promise.all([
+    (currentUser.role === "requester"
+      ? db.select({ value: count() }).from(troubleshootingIssues).where(eq(troubleshootingIssues.requesterId, currentUser.id))
+      : db.select({ value: count() }).from(troubleshootingIssues)),
+    currentUser.role === "requester"
+      ? Promise.resolve([{ value: 0 }])
+      : db.select({ value: count() }).from(backupUsers),
+    currentUser.role === "administrator" || currentUser.role === "technician"
+      ? db
+          .select({ value: count() })
+          .from(troubleshootingIssues)
+          .where(
+            and(
+              isNotNull(troubleshootingIssues.requesterId),
+              eq(troubleshootingIssues.status, "New"),
+            ),
+          )
+      : Promise.resolve([{ value: 0 }]),
+    currentUser.role === "administrator" || currentUser.role === "technician"
+      ? db
+          .select({
+            id: troubleshootingIssues.id,
+            title: troubleshootingIssues.title,
+            requester: troubleshootingIssues.requesterName,
+            requesterUsername: technicians.username,
+            division: troubleshootingIssues.division,
+            reportedAt: troubleshootingIssues.reportedAt,
+          })
+          .from(troubleshootingIssues)
+          .where(
+            and(
+              isNotNull(troubleshootingIssues.requesterId),
+              eq(troubleshootingIssues.status, "New"),
+            ),
+          )
+          .leftJoin(technicians, eq(troubleshootingIssues.requesterId, technicians.id))
+          .orderBy(desc(troubleshootingIssues.reportedAt), desc(troubleshootingIssues.id))
+          .limit(5)
+      : Promise.resolve([]),
   ]);
-  return { issues: issues.value, backups: backups.value };
+  return {
+    issues: issues.value,
+    backups: backups.value,
+    newRequests: newRequests.value,
+    notifications: newRequestRows.map((row) => ({
+      id: row.id,
+      title: row.title,
+      requester: row.requesterUsername ?? row.requester,
+      division: row.division,
+      reportedAt: jakartaDateTime.format(row.reportedAt).replace(",", ""),
+    })),
+  };
 }
 
 export interface ApprovalRecord {

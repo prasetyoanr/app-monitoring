@@ -49,16 +49,16 @@ export default async function DashboardPage() {
         title="IT Team Activity Log"
         description="Overview of today’s internal IT activities at the Head Office and Factory."
         action={
-          <Link href="/troubleshooting" className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-[#3157d5] px-4 text-xs font-semibold text-white shadow-lg shadow-blue-600/15 transition hover:bg-[#2445b5]">
-            <TicketCheck size={16} /> {currentUser.role === "administrator" ? "Manage Troubleshooting" : "View Troubleshooting"}
+          <Link href={currentUser.role === "requester" ? "/requests" : "/troubleshooting"} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-[#3157d5] px-4 text-xs font-semibold text-white shadow-lg shadow-blue-600/15 transition hover:bg-[#2445b5]">
+            <TicketCheck size={16} /> {currentUser.role === "administrator" || currentUser.role === "technician" ? "Kelola Tiket" : currentUser.role === "requester" ? "Buat Permintaan" : "Lihat Tiket"}
           </Link>
         }
       />
 
-      <div className="grid grid-cols-3 gap-2 sm:gap-4">
+      <div className={`grid gap-2 sm:gap-4 ${currentUser.role === "administrator" ? "grid-cols-3" : "grid-cols-2"}`}>
         <MetricCard compactOnMobile label="Active Issues" value={String(activeIssues)} icon={TicketCheck} tone="blue" detail="Not yet completed" />
         <MetricCard compactOnMobile label="Completed Issues" value={String(completedIssues)} icon={Clock3} tone="green" detail="Approved by clients" />
-        <MetricCard compactOnMobile label="User Backups" value={`${backupTotal ? ((backupSuccess / backupTotal) * 100).toFixed(1) : "0.0"}%`} icon={CircleCheck} tone="red" detail={`${backupIssues} users require follow-up`} />
+        {currentUser.role === "administrator" ? <MetricCard compactOnMobile label="User Backups" value={`${backupTotal ? ((backupSuccess / backupTotal) * 100).toFixed(1) : "0.0"}%`} icon={CircleCheck} tone="red" detail={`${backupIssues} users require follow-up`} /> : null}
       </div>
 
       <div className="mt-5">
@@ -84,7 +84,7 @@ export default async function DashboardPage() {
 
       <div className="mt-5 grid gap-5 xl:grid-cols-[1.55fr_1fr]">
         <Card className="table-card overflow-hidden">
-          <SectionTitle title="Latest Issues" subtitle="Recent troubleshooting activity" action={<Link href="/troubleshooting" className="flex items-center gap-1 text-[11px] font-semibold text-[#3157d5]">All records <ArrowRight size={13} /></Link>} />
+          <SectionTitle title="Latest Issues" subtitle="Recent troubleshooting activity" action={<Link href={currentUser.role === "requester" ? "/requests" : "/troubleshooting"} className="flex items-center gap-1 text-[11px] font-semibold text-[#3157d5]">{currentUser.role === "requester" ? "Permintaan saya" : "All records"} <ArrowRight size={13} /></Link>} />
           <div className="divide-y divide-slate-100 md:hidden">
             {tickets.slice(0, 4).map((ticket) => (
               <article key={ticket.id} className="p-4">
@@ -110,7 +110,7 @@ export default async function DashboardPage() {
           <div className="space-y-3 p-4">
             {[
               { icon: Clock3, tone: "amber", title: `${activeIssues} unresolved issues`, desc: "Troubleshooting records not yet completed" },
-              { icon: Activity, tone: "blue", title: `${backupIssues} user backup issues`, desc: `${failedBackups} failed and ${overdueBackups} overdue` },
+              ...(currentUser.role === "administrator" ? [{ icon: Activity, tone: "blue", title: `${backupIssues} user backup issues`, desc: `${failedBackups} failed and ${overdueBackups} overdue` }] : []),
             ].map((item) => <div key={item.title} className="flex gap-3 rounded-xl border border-slate-100 bg-slate-50/70 p-3"><span className={`grid size-9 shrink-0 place-items-center rounded-lg ${item.tone === "amber" ? "bg-amber-100 text-amber-600" : "bg-blue-100 text-blue-600"}`}><item.icon size={16} /></span><div><p className="text-xs font-semibold text-slate-800">{item.title}</p><p className="mt-1 text-[10px] leading-4 text-slate-500">{item.desc}</p></div></div>)}
           </div>
         </Card>

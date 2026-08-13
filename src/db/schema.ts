@@ -18,6 +18,8 @@ import {
 export const technicianRoleEnum = pgEnum("technician_role", [
   "administrator",
   "boss",
+  "technician",
+  "requester",
 ]);
 
 export const issuePriorityEnum = pgEnum("issue_priority", [
@@ -133,6 +135,7 @@ export const masterCategories = pgTable(
 
 export const auditActorTypeEnum = pgEnum("audit_actor_type", [
   "technician",
+  "requester",
   "client",
   "system",
 ]);
@@ -145,6 +148,9 @@ export const technicians = pgTable(
     username: varchar("username", { length: 80 }),
     passwordHash: text("password_hash"),
     role: technicianRoleEnum("role").notNull().default("boss"),
+    divisionId: uuid("division_id").references(() => masterDivisions.id, {
+      onDelete: "set null",
+    }),
     isActive: boolean("is_active").notNull().default(true),
     failedLoginAttempts: integer("failed_login_attempts").notNull().default(0),
     lockedUntil: timestamp("locked_until", { withTimezone: true }),
@@ -161,6 +167,7 @@ export const technicians = pgTable(
       "technicians_failed_login_attempts_check",
       sql`${table.failedLoginAttempts} >= 0`,
     ),
+    index("technicians_division_idx").on(table.divisionId),
   ],
 );
 
@@ -202,6 +209,9 @@ export const troubleshootingIssues = pgTable(
     category: varchar("category", { length: 80 }).notNull(),
     requesterName: varchar("requester_name", { length: 120 }).notNull(),
     requesterEmail: varchar("requester_email", { length: 254 }),
+    requesterId: uuid("requester_id").references(() => technicians.id, {
+      onDelete: "set null",
+    }),
     division: varchar("division", { length: 120 }).notNull(),
     location: varchar("location", { length: 160 }).notNull(),
     reportedAt: timestamp("reported_at", { withTimezone: true }).notNull(),
@@ -230,6 +240,7 @@ export const troubleshootingIssues = pgTable(
     index("troubleshooting_issues_assignee_idx").on(
       table.assignedTechnicianId,
     ),
+    index("troubleshooting_issues_requester_idx").on(table.requesterId),
     check(
       "troubleshooting_issues_completed_days_check",
       sql`${table.completedDays} is null or ${table.completedDays} >= 0`,

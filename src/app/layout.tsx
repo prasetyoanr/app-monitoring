@@ -37,12 +37,12 @@ export default async function RootLayout({
   const user = await getCurrentUser();
   const counts = user
     ? await getNavigationCounts()
-    : { issues: 0, backups: 0 };
+    : { issues: 0, backups: 0, newRequests: 0, notifications: [] };
   return (
     <html lang="en">
       <body>
         {user ? (
-          <AppShell counts={counts} user={user}>{children}</AppShell>
+          <AppShell counts={counts} notifications={counts.notifications} user={user}>{children}</AppShell>
         ) : (
           children
         )}

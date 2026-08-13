@@ -2,7 +2,7 @@ import { and, desc, eq } from "drizzle-orm";
 
 import { getCurrentUser } from "@/auth/session";
 import { db } from "@/db";
-import { troubleshootingApprovals } from "@/db/schema";
+import { troubleshootingApprovals, troubleshootingIssues } from "@/db/schema";
 
 export const runtime = "nodejs";
 
@@ -23,8 +23,10 @@ export async function GET(
       data: troubleshootingApprovals.signatureData,
       mimeType: troubleshootingApprovals.signatureMimeType,
       respondedAt: troubleshootingApprovals.respondedAt,
+      requesterId: troubleshootingIssues.requesterId,
     })
     .from(troubleshootingApprovals)
+    .innerJoin(troubleshootingIssues, eq(troubleshootingApprovals.issueId, troubleshootingIssues.id))
     .where(
       and(
         eq(troubleshootingApprovals.issueId, id),
@@ -37,7 +39,7 @@ export async function GET(
   if (
     !signature?.data ||
     signature.mimeType !== "image/png" ||
-    !signature.respondedAt
+    !signature.respondedAt || (currentUser.role === "requester" && signature.requesterId !== currentUser.id)
   ) {
     return new Response("Not found", { status: 404 });
   }

@@ -5,6 +5,7 @@ import { SESSION_COOKIE_NAME } from "@/auth/constants";
 function isPublicPath(pathname: string) {
   return (
     pathname === "/login" ||
+    pathname === "/register" ||
     pathname.startsWith("/b/") ||
     pathname.startsWith("/s/") ||
     pathname.startsWith("/troubleshooting/approval/") ||

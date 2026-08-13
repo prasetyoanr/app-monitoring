@@ -23,12 +23,13 @@ export async function GET(
       data: troubleshootingIssues.workPhotoData,
       mimeType: troubleshootingIssues.workPhotoMimeType,
       updatedAt: troubleshootingIssues.updatedAt,
+      requesterId: troubleshootingIssues.requesterId,
     })
     .from(troubleshootingIssues)
     .where(eq(troubleshootingIssues.id, id))
     .limit(1);
 
-  if (!photo?.data || photo.mimeType !== "image/jpeg") {
+  if (!photo?.data || photo.mimeType !== "image/jpeg" || (currentUser.role === "requester" && photo.requesterId !== currentUser.id)) {
     return new Response("Not found", { status: 404 });
   }
 

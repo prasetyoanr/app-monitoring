@@ -162,7 +162,6 @@ export function ReportsCenter({ ticketRecords, backupRecords, surveyRecords, can
           division: ticket.division,
           issue: ticket.title,
           category: ticket.category,
-          priority: ticket.priority,
           status: ticket.status,
           completionDays: ticket.completedDays,
           workPhoto: ticket.hasWorkPhoto ? "Available" : "Not available",
