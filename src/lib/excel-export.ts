@@ -157,7 +157,7 @@ export async function buildExcelReport({
 }: ExcelExportOptions) {
   const ExcelJS = await import("exceljs");
   const workbook = new ExcelJS.Workbook();
-  workbook.creator = "IT Activity Log";
+  workbook.creator = "OneService";
   workbook.created = new Date();
 
   const worksheet = workbook.addWorksheet(sheetName, {

@@ -272,6 +272,17 @@ export function TicketList({ initialRecords, canManage, divisionOptions, locatio
                 <p className="mt-3 whitespace-pre-wrap text-xs leading-6 text-slate-600">{detailRecord.description}</p>
               </section>
 
+              <section className="mt-8" aria-labelledby="requester-photo-detail-title">
+                <h3 id="requester-photo-detail-title" className="border-b border-slate-300 pb-2 text-xs font-bold uppercase tracking-wider text-slate-900">Requester Photo</h3>
+                {detailRecord.requesterPhotoUrl ? (
+                  <div className="mt-4 overflow-hidden rounded-lg border border-slate-200 bg-slate-50 p-2">
+                    <Image src={detailRecord.requesterPhotoUrl} width={1200} height={900} unoptimized alt={`Requester attachment for ${detailRecord.id}`} className="max-h-[520px] w-full rounded-md object-contain" />
+                  </div>
+                ) : (
+                  <p className="mt-4 text-xs text-slate-500">No requester photo was attached.</p>
+                )}
+              </section>
+
               <section className="mt-8" aria-labelledby="work-photo-title">
                 <h3 id="work-photo-title" className="border-b border-slate-300 pb-2 text-xs font-bold uppercase tracking-wider text-slate-900">Work Photo</h3>
                 {detailRecord.workPhotoUrl ? (
@@ -301,7 +312,7 @@ export function TicketList({ initialRecords, canManage, divisionOptions, locatio
               </section>
 
               <footer className="mt-12 border-t border-slate-300 pt-4 text-[10px] leading-5 text-slate-400">
-                This document is an internal troubleshooting record generated from IT Activity Log.
+                This document is an internal troubleshooting record generated from OneService.
               </footer>
             </article>
           </div>

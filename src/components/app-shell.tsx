@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import {
-  Activity,
   ArrowLeft,
   Bell,
   ChevronDown,
@@ -123,6 +123,8 @@ export function AppShell({
   const showBackButton = !primaryPagePaths.has(pathname);
 
   if (
+    pathname === "/login" ||
+    pathname === "/register" ||
     pathname.startsWith("/b/") ||
     pathname.startsWith("/s/") ||
     pathname.startsWith("/troubleshooting/approval/") ||
@@ -136,12 +138,12 @@ export function AppShell({
       <header className="app-navbar sticky top-0 z-40 border-b border-white/10 bg-indigo-950 text-white">
         <div className="mx-auto flex h-[72px] max-w-[1600px] items-center gap-4 px-4 sm:px-6 xl:px-8">
           <Link href="/" className="flex shrink-0 items-center gap-2.5" onClick={() => setMenuOpen(false)}>
-            <span className="brand-mark grid size-10 place-items-center rounded-2xl text-white">
-              <Activity size={19} strokeWidth={2.5} />
+            <span className="grid size-10 place-items-center rounded-2xl bg-white p-1 shadow-lg shadow-black/10">
+              <Image src="/oneservice-logo.png" alt="Logo OneService" width={40} height={40} className="h-full w-full object-contain" priority />
             </span>
             <span className="min-w-0">
-              <span className="block text-[13px] font-extrabold leading-4 tracking-tight text-white">IT Activity Log</span>
-              <span className="block text-[8px] font-semibold uppercase tracking-[0.12em] text-cyan-200/70 sm:text-[9px] sm:tracking-[0.16em]">Internal Workspace</span>
+              <span className="block text-[13px] font-extrabold leading-4 tracking-tight text-white">OneService</span>
+              <span className="block text-[8px] font-semibold uppercase tracking-[0.12em] text-cyan-200/70 sm:text-[9px] sm:tracking-[0.16em]">Portal Layanan Internal</span>
             </span>
           </Link>
 

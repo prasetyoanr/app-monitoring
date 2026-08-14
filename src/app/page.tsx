@@ -46,8 +46,8 @@ export default async function DashboardPage() {
     <>
       <PageHeader
         eyebrow={todayLabel}
-        title="IT Team Activity Log"
-        description="Overview of today’s internal IT activities at the Head Office and Factory."
+        title="OneService Dashboard"
+        description="Overview of today’s internal service activities at the Head Office and Factory."
         action={
           <Link href={currentUser.role === "requester" ? "/requests" : "/troubleshooting"} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-[#3157d5] px-4 text-xs font-semibold text-white shadow-lg shadow-blue-600/15 transition hover:bg-[#2445b5]">
             <TicketCheck size={16} /> {currentUser.role === "administrator" || currentUser.role === "technician" ? "Kelola Tiket" : currentUser.role === "requester" ? "Buat Permintaan" : "Lihat Tiket"}

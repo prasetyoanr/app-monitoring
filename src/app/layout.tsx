@@ -12,18 +12,18 @@ export async function generateMetadata(): Promise<Metadata> {
   const origin = `${protocol}://${host}`;
 
   return {
-    title: { default: "IT Activity Log", template: "%s | IT Activity Log" },
-    description: "Internal IT activity records for the Head Office and Factory.",
+    title: { default: "OneService", template: "%s | OneService" },
+    description: "Portal Layanan Internal untuk berbagai kebutuhan layanan perusahaan.",
     openGraph: {
-      title: "IT Activity Log",
-      description: "IT team activity records, ready for reporting",
+      title: "OneService",
+      description: "Portal Layanan Internal",
       type: "website",
-      images: [{ url: `${origin}/og-v2.png`, width: 1536, height: 1024, alt: "IT Activity Log" }],
+      images: [{ url: `${origin}/og-v2.png`, width: 1536, height: 1024, alt: "OneService" }],
     },
     twitter: {
       card: "summary_large_image",
-      title: "IT Activity Log",
-      description: "IT team activity records, ready for reporting",
+      title: "OneService",
+      description: "Portal Layanan Internal",
       images: [`${origin}/og-v2.png`],
     },
   };

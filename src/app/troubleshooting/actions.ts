@@ -43,14 +43,14 @@ function optionalField(formData: FormData, name: string, maxLength: number) {
   return value;
 }
 
-async function uploadedWorkPhoto(formData: FormData) {
-  const entry = formData.get("workPhoto");
+async function uploadedJpegPhoto(formData: FormData, fieldName: string, label: string) {
+  const entry = formData.get(fieldName);
   if (!(entry instanceof File) || entry.size === 0) return null;
   if (entry.type !== "image/jpeg") {
-    throw new Error("The work photo must be a compressed JPEG image.");
+    throw new Error(`The ${label} must be a compressed JPEG image.`);
   }
   if (entry.size < 1_000 || entry.size > MAX_WORK_PHOTO_BYTES) {
-    throw new Error("The work photo must not exceed 2 MB.");
+    throw new Error(`The ${label} must not exceed 2 MB.`);
   }
 
   const data = Buffer.from(await entry.arrayBuffer());
@@ -60,8 +60,12 @@ async function uploadedWorkPhoto(formData: FormData) {
     data[2] === 0xff &&
     data[data.length - 2] === 0xff &&
     data[data.length - 1] === 0xd9;
-  if (!isJpeg) throw new Error("The uploaded work photo is invalid.");
+  if (!isJpeg) throw new Error(`The uploaded ${label} is invalid.`);
   return data;
+}
+
+async function uploadedWorkPhoto(formData: FormData) {
+  return uploadedJpegPhoto(formData, "workPhoto", "work photo");
 }
 
 async function nextIssueId() {
@@ -202,11 +206,15 @@ export async function createRequesterTicketAction(
       .where(eq(masterDivisions.id, currentUser.divisionId))
       .limit(1);
     if (!division) throw new Error("Divisi akun tidak ditemukan.");
-
     const title = field(formData, "title", 200);
     const category = field(formData, "category", 80);
     const location = field(formData, "location", 160);
     const description = field(formData, "description", 10_000);
+    const requesterPhotoData = await uploadedJpegPhoto(
+      formData,
+      "requesterPhoto",
+      "supporting photo",
+    );
     const priority = (optionalField(formData, "priority", 20) || "Medium") as IssuePriority;
     if (!priorities.includes(priority)) throw new Error("Prioritas tidak valid.");
 
@@ -227,6 +235,9 @@ export async function createRequesterTicketAction(
       completedDays: null,
       description,
       resolution: "",
+      requesterPhotoData,
+      requesterPhotoMimeType: requesterPhotoData ? "image/jpeg" : null,
+      requesterPhotoFileName: requesterPhotoData ? `requester-photo-${id}.jpg` : null,
     });
     await db.insert(auditLogs).values({
       actorType: "requester",

@@ -12,6 +12,9 @@ export interface TicketRecord {
   category: string;
   requester: string;
   division: string;
+  serviceDivision: string;
+  requestFormKey: string;
+  requestData: Record<string, string>;
   location: string;
   reportedAt: string;
   reportedDate: string;
@@ -21,6 +24,8 @@ export interface TicketRecord {
   description: string;
   hasWorkPhoto: boolean;
   workPhotoUrl: string | null;
+  hasRequesterPhoto: boolean;
+  requesterPhotoUrl: string | null;
   clientApproval: {
     clientName: string;
     approvedAt: string;

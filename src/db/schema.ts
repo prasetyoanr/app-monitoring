@@ -213,6 +213,13 @@ export const troubleshootingIssues = pgTable(
       onDelete: "set null",
     }),
     division: varchar("division", { length: 120 }).notNull(),
+    serviceDivision: varchar("service_division", { length: 120 })
+      .notNull()
+      .default("IT Team"),
+    requestFormKey: varchar("request_form_key", { length: 80 })
+      .notNull()
+      .default("it-support"),
+    requestData: jsonb("request_data").$type<Record<string, string>>().notNull().default({}),
     location: varchar("location", { length: 160 }).notNull(),
     reportedAt: timestamp("reported_at", { withTimezone: true }).notNull(),
     priority: issuePriorityEnum("priority").notNull(),
@@ -223,6 +230,9 @@ export const troubleshootingIssues = pgTable(
     workPhotoData: bytea("work_photo_data"),
     workPhotoMimeType: varchar("work_photo_mime_type", { length: 40 }),
     workPhotoFileName: varchar("work_photo_file_name", { length: 255 }),
+    requesterPhotoData: bytea("requester_photo_data"),
+    requesterPhotoMimeType: varchar("requester_photo_mime_type", { length: 40 }),
+    requesterPhotoFileName: varchar("requester_photo_file_name", { length: 255 }),
     assignedTechnicianId: uuid("assigned_technician_id").references(
       () => technicians.id,
       { onDelete: "set null" },
@@ -241,6 +251,7 @@ export const troubleshootingIssues = pgTable(
       table.assignedTechnicianId,
     ),
     index("troubleshooting_issues_requester_idx").on(table.requesterId),
+    index("troubleshooting_issues_service_division_idx").on(table.serviceDivision),
     check(
       "troubleshooting_issues_completed_days_check",
       sql`${table.completedDays} is null or ${table.completedDays} >= 0`,
@@ -252,6 +263,14 @@ export const troubleshootingIssues = pgTable(
     check(
       "troubleshooting_issues_work_photo_size_check",
       sql`${table.workPhotoData} is null or octet_length(${table.workPhotoData}) <= 2097152`,
+    ),
+    check(
+      "troubleshooting_issues_requester_photo_pair_check",
+      sql`(${table.requesterPhotoData} is null and ${table.requesterPhotoMimeType} is null and ${table.requesterPhotoFileName} is null) or (${table.requesterPhotoData} is not null and ${table.requesterPhotoMimeType} is not null and ${table.requesterPhotoFileName} is not null)`,
+    ),
+    check(
+      "troubleshooting_issues_requester_photo_size_check",
+      sql`${table.requesterPhotoData} is null or octet_length(${table.requesterPhotoData}) <= 2097152`,
     ),
   ],
 );

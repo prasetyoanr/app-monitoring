@@ -43,6 +43,9 @@ function toTicketRecord(
     | "category"
     | "requesterName"
     | "division"
+    | "serviceDivision"
+    | "requestFormKey"
+    | "requestData"
     | "location"
     | "reportedAt"
     | "priority"
@@ -52,6 +55,7 @@ function toTicketRecord(
     | "updatedAt"
   > & { requesterUsername?: string | null },
   hasWorkPhoto: boolean,
+  hasRequesterPhoto: boolean,
   clientApproval: TicketRecord["clientApproval"] = null,
 ): TicketRecord {
   return {
@@ -60,6 +64,9 @@ function toTicketRecord(
     category: row.category,
     requester: row.requesterUsername ?? row.requesterName,
     division: row.division,
+    serviceDivision: row.serviceDivision,
+    requestFormKey: row.requestFormKey,
+    requestData: row.requestData,
     location: row.location,
     reportedAt: jakartaDateTime.format(row.reportedAt).split(",")[0],
     reportedDate: jakartaDateInput(row.reportedAt),
@@ -70,6 +77,10 @@ function toTicketRecord(
     hasWorkPhoto,
     workPhotoUrl: hasWorkPhoto
       ? `/troubleshooting/${encodeURIComponent(row.id)}/photo?v=${row.updatedAt.getTime()}`
+      : null,
+    hasRequesterPhoto,
+    requesterPhotoUrl: hasRequesterPhoto
+      ? `/troubleshooting/${encodeURIComponent(row.id)}/requester-photo?v=${row.updatedAt.getTime()}`
       : null,
     clientApproval,
   };
@@ -85,6 +96,9 @@ export async function getTicketRecords(): Promise<TicketRecord[]> {
       requesterName: troubleshootingIssues.requesterName,
       requesterUsername: technicians.username,
       division: troubleshootingIssues.division,
+      serviceDivision: troubleshootingIssues.serviceDivision,
+      requestFormKey: troubleshootingIssues.requestFormKey,
+      requestData: troubleshootingIssues.requestData,
       location: troubleshootingIssues.location,
       reportedAt: troubleshootingIssues.reportedAt,
       priority: troubleshootingIssues.priority,
@@ -93,6 +107,7 @@ export async function getTicketRecords(): Promise<TicketRecord[]> {
       description: troubleshootingIssues.description,
       updatedAt: troubleshootingIssues.updatedAt,
       hasWorkPhoto: sql<boolean>`${troubleshootingIssues.workPhotoData} is not null`,
+      hasRequesterPhoto: sql<boolean>`${troubleshootingIssues.requesterPhotoData} is not null`,
     })
     .from(troubleshootingIssues)
     .leftJoin(technicians, eq(troubleshootingIssues.requesterId, technicians.id));
@@ -129,7 +144,7 @@ export async function getTicketRecords(): Promise<TicketRecord[]> {
     });
   }
   return rows.map((row) =>
-    toTicketRecord(row, row.hasWorkPhoto, approvalsByIssue.get(row.id) ?? null),
+    toTicketRecord(row, row.hasWorkPhoto, row.hasRequesterPhoto, approvalsByIssue.get(row.id) ?? null),
   );
 }
 
@@ -274,6 +289,6 @@ export async function getApprovalByToken(token: string): Promise<ApprovalRecord 
     respondedAt: row.approval.respondedAt?.toISOString() ?? null,
     signatureImage,
     workPhotoImage,
-    ticket: toTicketRecord(row.issue, Boolean(row.issue.workPhotoData)),
+    ticket: toTicketRecord(row.issue, Boolean(row.issue.workPhotoData), Boolean(row.issue.requesterPhotoData)),
   };
 }
