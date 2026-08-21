@@ -4,7 +4,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { and, eq, gt } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
-import { requireAuthenticatedUser, requireServiceAgent } from "@/auth/session";
+import { isITTeamUser, requireAuthenticatedUser, requireServiceAgent } from "@/auth/session";
 import { db } from "@/db";
 import {
   auditLogs,
@@ -17,6 +17,10 @@ import type {
   IssuePriority,
   IssueStatus,
 } from "@/data/types";
+import {
+  genericServiceRequestTemplate,
+  getServiceRequestTemplate,
+} from "@/features/service-requests/template-registry";
 import { generateRecordId } from "@/lib/record-id";
 
 const priorities: IssuePriority[] = ["Low", "Medium", "High", "Critical"];
@@ -117,6 +121,9 @@ export async function saveIssueAction(
       .from(troubleshootingIssues)
       .where(eq(troubleshootingIssues.id, id))
       .limit(1);
+    if (!existing && !isITTeamUser(currentUser)) {
+      throw new Error("The Add Issue feature is available to the IT division only.");
+    }
     const priority = (submittedPriority || existing?.priority || "Medium") as IssuePriority;
     if (!priorities.includes(priority)) throw new Error("Invalid priority.");
     const mayKeepCompleted = existing?.status === "Completed" && requestedStatus === "Completed";
@@ -166,7 +173,26 @@ export async function saveIssueAction(
         .set(values)
         .where(eq(troubleshootingIssues.id, id));
     } else {
-      await db.insert(troubleshootingIssues).values({ id, ...values });
+      const [itServiceDivision] = await db
+        .select({ id: masterDivisions.id, name: masterDivisions.name })
+        .from(masterDivisions)
+        .where(
+          and(
+            eq(masterDivisions.name, "IT Team"),
+            eq(masterDivisions.isServiceTarget, true),
+          ),
+        )
+        .limit(1);
+      if (!itServiceDivision) {
+        throw new Error("The IT Team destination division has not been enabled in Master Data.");
+      }
+      await db.insert(troubleshootingIssues).values({
+        id,
+        ...values,
+        serviceDivision: itServiceDivision.name,
+        serviceDivisionId: itServiceDivision.id,
+        requestFormKey: "it-support",
+      });
     }
 
     await db.insert(auditLogs).values({
@@ -177,7 +203,7 @@ export async function saveIssueAction(
       entityId: id,
     });
     revalidatePath("/");
-    revalidatePath("/troubleshooting");
+    revalidatePath("/inbox");
     revalidatePath("/reports");
     return { ok: true, data: { id } };
   } catch (error) {
@@ -194,29 +220,100 @@ export async function createRequesterTicketAction(
 ): Promise<ActionResult<{ id: string }>> {
   const currentUser = await requireAuthenticatedUser();
   try {
-    if (currentUser.role !== "requester") {
-      throw new Error("Only requester accounts can use this form.");
-    }
     if (!currentUser.divisionId) {
-      throw new Error("Akun Anda belum memiliki divisi. Hubungi administrator.");
+      throw new Error("Your account has no assigned division. Please contact an administrator.");
     }
     const [division] = await db
       .select({ name: masterDivisions.name })
       .from(masterDivisions)
       .where(eq(masterDivisions.id, currentUser.divisionId))
       .limit(1);
-    if (!division) throw new Error("Divisi akun tidak ditemukan.");
-    const title = field(formData, "title", 200);
-    const category = field(formData, "category", 80);
+    if (!division) throw new Error("The account division could not be found.");
+
+    const serviceDivisionId = optionalField(formData, "serviceDivisionId", 36);
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(serviceDivisionId)) {
+      throw new Error("The destination division is invalid.");
+    }
+    if (serviceDivisionId === currentUser.divisionId) {
+      throw new Error("A request cannot be submitted to your own division.");
+    }
+    const [serviceDivision] = await db
+      .select({
+        id: masterDivisions.id,
+        name: masterDivisions.name,
+        isServiceTarget: masterDivisions.isServiceTarget,
+        requestFormKey: masterDivisions.requestFormKey,
+      })
+      .from(masterDivisions)
+      .where(eq(masterDivisions.id, serviceDivisionId))
+      .limit(1);
+    if (!serviceDivision?.isServiceTarget) {
+      throw new Error("The destination division is not available for requests.");
+    }
+    const template =
+      getServiceRequestTemplate(serviceDivision.requestFormKey) ?? genericServiceRequestTemplate;
+
+    const requestData: Record<string, string> = {};
+    let title = "";
+    let category = template.label;
     const location = field(formData, "location", 160);
-    const description = field(formData, "description", 10_000);
-    const requesterPhotoData = await uploadedJpegPhoto(
-      formData,
-      "requesterPhoto",
-      "supporting photo",
-    );
+    let description = "";
+    let requesterPhotoData: Buffer | null = null;
+
+    for (const formField of template.fields) {
+      if (formField.type === "photo") {
+        const photo = await uploadedJpegPhoto(
+          formData,
+          formField.key,
+          formField.label,
+        );
+        if (photo) {
+          requesterPhotoData = photo;
+        } else if (formField.required) {
+          throw new Error(`${formField.label} is required.`);
+        }
+        continue;
+      }
+
+      const rawValue = String(formData.get(formField.key) ?? "").trim();
+      if (formField.required && !rawValue) {
+        throw new Error(`${formField.label} is required.`);
+      }
+      if (formField.maxLength && rawValue.length > formField.maxLength) {
+        throw new Error(`${formField.label} must not exceed ${formField.maxLength} characters.`);
+      }
+
+      if (rawValue) {
+        requestData[formField.key] = rawValue;
+      }
+
+      if (formField.ticketField === "title") {
+        title = rawValue;
+      } else if (formField.ticketField === "category") {
+        category = rawValue;
+      } else if (formField.ticketField === "description") {
+        description = rawValue;
+      }
+    }
+
+    if (!title) {
+      title = optionalField(formData, "title", 200) || `${template.label} - ${division.name}`;
+    }
+    if (!description) {
+      description = optionalField(formData, "description", 10_000) || template.description;
+    }
+
+    // Also check for legacy photo upload field name if not captured yet
+    if (!requesterPhotoData) {
+      requesterPhotoData = await uploadedJpegPhoto(
+        formData,
+        "requesterPhoto",
+        "supporting photo",
+      );
+    }
+
     const priority = (optionalField(formData, "priority", 20) || "Medium") as IssuePriority;
-    if (!priorities.includes(priority)) throw new Error("Prioritas tidak valid.");
+    if (!priorities.includes(priority)) throw new Error("The priority is invalid.");
 
     const id = await nextIssueId();
     const reportedAt = new Date();
@@ -228,6 +325,10 @@ export async function createRequesterTicketAction(
       requesterEmail: null,
       requesterId: currentUser.id,
       division: division.name,
+      serviceDivision: serviceDivision.name,
+      serviceDivisionId: serviceDivision.id,
+      requestFormKey: template.key,
+      requestData,
       location,
       reportedAt,
       priority,
@@ -240,22 +341,27 @@ export async function createRequesterTicketAction(
       requesterPhotoFileName: requesterPhotoData ? `requester-photo-${id}.jpg` : null,
     });
     await db.insert(auditLogs).values({
-      actorType: "requester",
+      actorType: currentUser.role === "requester" ? "requester" : "technician",
       actorId: currentUser.id,
       action: "issue.requested",
       entityType: "troubleshooting_issue",
       entityId: id,
+      metadata: {
+        requestFormKey: template.key,
+        serviceDivisionId: serviceDivision.id,
+        serviceDivision: serviceDivision.name,
+      },
     });
     revalidatePath("/");
     revalidatePath("/requests");
-    revalidatePath("/troubleshooting");
+    revalidatePath("/inbox");
     revalidatePath("/reports");
     return { ok: true, data: { id } };
   } catch (error) {
     console.error("Unable to create requester ticket.", error);
     return {
       ok: false,
-      error: error instanceof Error ? error.message : "Permintaan tidak dapat dibuat.",
+      error: error instanceof Error ? error.message : "The request could not be created.",
     };
   }
 }
@@ -279,7 +385,7 @@ export async function deleteIssueAction(id: string): Promise<ActionResult> {
       entityId: id,
     });
     revalidatePath("/");
-    revalidatePath("/troubleshooting");
+    revalidatePath("/inbox");
     revalidatePath("/reports");
     return { ok: true, data: undefined };
   } catch (error) {
@@ -414,7 +520,7 @@ export async function approveIssueAction(input: {
     });
 
     revalidatePath("/");
-    revalidatePath("/troubleshooting");
+    revalidatePath("/inbox");
     revalidatePath("/reports");
     return { ok: true, data: { respondedAt: respondedAt.toISOString() } };
   } catch (error) {
@@ -466,7 +572,7 @@ export async function rejectIssueAction(input: {
       });
     });
     revalidatePath("/");
-    revalidatePath("/troubleshooting");
+    revalidatePath("/inbox");
     revalidatePath("/reports");
     return { ok: true, data: { respondedAt: respondedAt.toISOString() } };
   } catch (error) {

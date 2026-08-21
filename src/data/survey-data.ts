@@ -3,7 +3,7 @@ import "server-only";
 import { and, asc, desc, eq, inArray, ne, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 
-import { requireAdministrator, requireAuthenticatedUser } from "@/auth/session";
+import { requireAuthenticatedUser, requireITTeam } from "@/auth/session";
 import { db } from "@/db";
 import {
   surveyAnswers,
@@ -91,7 +91,7 @@ export async function getSurveyListRecords(): Promise<SurveyListRecord[]> {
 export async function getEditableSurvey(
   id: string,
 ): Promise<SurveyEditRecord | null> {
-  await requireAdministrator();
+  await requireITTeam();
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id)) {
     return null;
   }

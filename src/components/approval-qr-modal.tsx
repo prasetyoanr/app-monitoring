@@ -5,7 +5,7 @@ import Link from "next/link";
 import { ExternalLink, QrCode, X } from "lucide-react";
 import QRCode from "qrcode";
 import { useEffect, useState } from "react";
-import { requestApprovalAction } from "@/app/troubleshooting/actions";
+import { requestApprovalAction } from "@/app/inbox/actions";
 import type { TicketRecord } from "@/data/types";
 
 export function ApprovalQrModal({ record, onClose }: { record: TicketRecord; onClose: () => void }) {
@@ -21,7 +21,7 @@ export function ApprovalQrModal({ record, onClose }: { record: TicketRecord; onC
         setError(result.error);
         return;
       }
-      const url = `${window.location.origin}/troubleshooting/approval/${encodeURIComponent(result.data.token)}`;
+      const url = `${window.location.origin}/inbox/approval/${encodeURIComponent(result.data.token)}`;
       const image = await QRCode.toDataURL(url, { width: 320, margin: 2, errorCorrectionLevel: "M", color: { dark: "#14213d", light: "#ffffff" } });
       if (active) {
         setApprovalUrl(url);

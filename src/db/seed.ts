@@ -1,9 +1,12 @@
 import "dotenv/config";
 
+import { eq } from "drizzle-orm";
+
 import { backupJobs, tickets } from "../data/mock-data";
 import { db, pool } from "./connection";
 import {
   backupUsers,
+  masterDivisions,
   surveyAnswers,
   surveyForms,
   surveyQuestions,
@@ -25,6 +28,13 @@ async function seed() {
     })
     .onConflictDoNothing();
 
+  const [itDivision] = await db
+    .select({ id: masterDivisions.id, name: masterDivisions.name })
+    .from(masterDivisions)
+    .where(eq(masterDivisions.name, "IT Team"))
+    .limit(1);
+  if (!itDivision) throw new Error("IT Team must exist in Master Data before seeding tickets.");
+
   await db
     .insert(troubleshootingIssues)
     .values(
@@ -34,6 +44,9 @@ async function seed() {
         category: ticket.category,
         requesterName: ticket.requester,
         division: ticket.division,
+        serviceDivision: itDivision.name,
+        serviceDivisionId: itDivision.id,
+        requestFormKey: "it-support",
         location: ticket.location,
         reportedAt: new Date(`${ticket.reportedDate}T00:00:00+07:00`),
         priority: ticket.priority as

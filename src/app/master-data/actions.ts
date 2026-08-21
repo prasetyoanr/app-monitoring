@@ -12,6 +12,7 @@ import {
   masterLocations,
 } from "@/db/schema";
 import type { ActionResult } from "@/data/types";
+import { getServiceRequestTemplate } from "@/features/service-requests/template-registry";
 
 export type MasterDataType = "division" | "location" | "category";
 
@@ -43,8 +44,55 @@ function validId(id: string) {
 
 function revalidateMasterData(type: MasterDataType) {
   revalidatePath("/master-data");
-  revalidatePath("/troubleshooting");
-  if (type === "division") revalidatePath("/backups");
+  revalidatePath("/inbox");
+  if (type === "division") {
+    revalidatePath("/");
+    revalidatePath("/backups");
+    revalidatePath("/requests");
+    revalidatePath("/reports");
+  }
+}
+
+export async function updateDivisionRequestSettingsAction(
+  id: string,
+  isServiceTarget: boolean,
+  requestFormKey: string | null,
+): Promise<ActionResult> {
+  const currentUser = await requireAdministrator();
+  try {
+    validId(id);
+    const normalizedFormKey = requestFormKey?.trim() || null;
+    if (normalizedFormKey && !getServiceRequestTemplate(normalizedFormKey)) {
+      throw new Error("Template form tidak valid.");
+    }
+
+    const [updated] = await db
+      .update(masterDivisions)
+      .set({
+        isServiceTarget,
+        requestFormKey: isServiceTarget ? normalizedFormKey : null,
+      })
+      .where(eq(masterDivisions.id, id))
+      .returning({ id: masterDivisions.id, name: masterDivisions.name });
+    if (!updated) throw new Error("Divisi tidak ditemukan.");
+
+    await db.insert(auditLogs).values({
+      actorType: "technician",
+      actorId: currentUser.id,
+      action: "master_division.request_settings_updated",
+      entityType: "master_division",
+      entityId: updated.id,
+      metadata: { isServiceTarget, requestFormKey: isServiceTarget ? normalizedFormKey : null },
+    });
+    revalidateMasterData("division");
+    return { ok: true, data: undefined };
+  } catch (error) {
+    console.error("Unable to update division request settings.", error);
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : "Pengaturan tujuan divisi tidak dapat disimpan.",
+    };
+  }
 }
 
 export async function createMasterItemAction(

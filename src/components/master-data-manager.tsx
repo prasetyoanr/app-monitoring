@@ -7,10 +7,12 @@ import { useState } from "react";
 import {
   createMasterItemAction,
   deleteMasterItemAction,
+  updateDivisionRequestSettingsAction,
   type MasterDataType,
 } from "@/app/master-data/actions";
 import { Card } from "@/components/ui";
-import type { MasterDataRecords, MasterItemRecord } from "@/data/master-data";
+import type { MasterDataRecords, MasterDivisionRecord, MasterItemRecord } from "@/data/master-data";
+import { serviceRequestTemplates } from "@/features/service-requests/template-registry";
 
 interface DeleteTarget extends MasterItemRecord {
   type: MasterDataType;
@@ -52,6 +54,26 @@ export function MasterDataManager({ initialData }: { initialData: MasterDataReco
     router.refresh();
   }
 
+  async function saveDivisionRequestSettings(
+    division: MasterDivisionRecord,
+    isServiceTarget: boolean,
+    requestFormKey: string | null,
+  ) {
+    setPendingAction(`request-settings-${division.id}`);
+    setError("");
+    const result = await updateDivisionRequestSettingsAction(
+      division.id,
+      isServiceTarget,
+      requestFormKey,
+    );
+    setPendingAction("");
+    if (!result.ok) {
+      setError(result.error);
+      return;
+    }
+    router.refresh();
+  }
+
   function masterCard(
     type: MasterDataType,
     title: string,
@@ -74,7 +96,51 @@ export function MasterDataManager({ initialData }: { initialData: MasterDataReco
           {records.map((record, index) => (
             <div key={record.id} className="flex min-h-14 items-center gap-3 px-4 py-3">
               <span className="grid size-7 shrink-0 place-items-center rounded-lg bg-slate-100 text-[10px] font-bold text-slate-500">{index + 1}</span>
-              <span className="min-w-0 flex-1 truncate text-xs font-semibold text-slate-700">{record.name}</span>
+              <div className="min-w-0 flex-1">
+                <span className="block truncate text-xs font-semibold text-slate-700">{record.name}</span>
+                {type === "division" ? (() => {
+                  const division = record as MasterDivisionRecord;
+                  const savingSettings = pendingAction === `request-settings-${division.id}`;
+                  return (
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      <label className="inline-flex items-center gap-1.5 text-[10px] font-semibold text-slate-600">
+                        <input
+                          type="checkbox"
+                          checked={division.isServiceTarget}
+                          disabled={savingSettings}
+                          onChange={(event) => void saveDivisionRequestSettings(
+                            division,
+                            event.target.checked,
+                            event.target.checked ? division.requestFormKey : null,
+                          )}
+                          className="size-3.5 rounded border-slate-300 text-[#3157d5]"
+                        />
+                        Tujuan layanan
+                      </label>
+                      {division.isServiceTarget ? (
+                        <select
+                          value={division.requestFormKey ?? ""}
+                          disabled={savingSettings}
+                          onChange={(event) => void saveDivisionRequestSettings(
+                            division,
+                            true,
+                            event.target.value || null,
+                          )}
+                          className="h-7 max-w-44 rounded-lg border border-slate-200 bg-white px-2 text-[10px] text-slate-600 outline-none focus:border-blue-400"
+                          aria-label={`Template form untuk ${division.name}`}
+                        >
+                          <option value="">Form umum</option>
+                          {serviceRequestTemplates.map((template) => (
+                            <option key={template.key} value={template.key}>
+                              {template.label}
+                            </option>
+                          ))}
+                        </select>
+                      ) : null}
+                    </div>
+                  );
+                })() : null}
+              </div>
               <button type="button" onClick={() => { setError(""); setDeleteTarget({ ...record, type }); }} className="grid size-9 shrink-0 place-items-center rounded-lg bg-rose-50 text-rose-600" aria-label={`Delete ${record.name}`} title="Delete"><Trash2 size={14} /></button>
             </div>
           ))}
@@ -87,9 +153,9 @@ export function MasterDataManager({ initialData }: { initialData: MasterDataReco
     <>
       {error ? <p role="alert" className="mb-4 rounded-xl bg-rose-50 p-3 text-xs font-semibold text-rose-700">{error}</p> : null}
       <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-        {masterCard("division", "Divisions", "Used by Troubleshooting and Backup User forms.", initialData.divisions)}
-        {masterCard("location", "Locations", "Used as work locations in Troubleshooting records.", initialData.locations)}
-        {masterCard("category", "Categories", "Used to classify Troubleshooting records.", initialData.categories)}
+        {masterCard("division", "Divisions", "Used by service request and Backup User forms.", initialData.divisions)}
+        {masterCard("location", "Locations", "Used as work locations in service requests.", initialData.locations)}
+        {masterCard("category", "Categories", "Used to classify service requests.", initialData.categories)}
       </div>
 
       {deleteTarget ? (

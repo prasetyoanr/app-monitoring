@@ -8,13 +8,21 @@ function isPublicPath(pathname: string) {
     pathname === "/register" ||
     pathname.startsWith("/b/") ||
     pathname.startsWith("/s/") ||
-    pathname.startsWith("/troubleshooting/approval/") ||
+    pathname.startsWith("/inbox/approval/") ||
     pathname.startsWith("/backups/submit/")
   );
 }
 
 export function proxy(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
+
+  // Keep existing bookmarks and approval links working after the Inbox rename.
+  if (pathname === "/troubleshooting" || pathname.startsWith("/troubleshooting/")) {
+    const inboxUrl = new URL(request.url);
+    inboxUrl.pathname = pathname.replace(/^\/troubleshooting/, "/inbox");
+    return NextResponse.redirect(inboxUrl);
+  }
+
   if (isPublicPath(pathname)) return NextResponse.next();
 
   if (!request.cookies.has(SESSION_COOKIE_NAME)) {

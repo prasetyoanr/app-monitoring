@@ -9,7 +9,7 @@ import {
   analyzeSurveySubmission,
   GEMINI_SENTIMENT_MODEL,
 } from "@/ai/gemini-survey-analysis";
-import { requireAdministrator, requireAuthenticatedUser } from "@/auth/session";
+import { requireAuthenticatedUser, requireITTeam } from "@/auth/session";
 import { db } from "@/db";
 import {
   auditLogs,
@@ -101,7 +101,7 @@ export async function createSurveyAction(input: {
   status: "draft" | "active";
   questions: SurveyQuestionInput[];
 }): Promise<ActionResult<{ id: string; publicCode: string }>> {
-  const currentUser = await requireAdministrator();
+  const currentUser = await requireITTeam();
   try {
     const title = cleanText(input.title, 200);
     const description = cleanText(input.description, 5_000, false);
@@ -153,7 +153,7 @@ export async function updateSurveyAction(input: {
   status: "draft" | "active";
   questions: SurveyQuestionInput[];
 }): Promise<ActionResult<{ id: string; publicCode: string }>> {
-  const currentUser = await requireAdministrator();
+  const currentUser = await requireITTeam();
   try {
     if (!validUuid(input.id)) throw new Error("Invalid survey ID.");
     const title = cleanText(input.title, 200);
@@ -229,7 +229,7 @@ export async function retrySurveyResponseAnalysisAction(
   surveyId: string,
   submissionId: string,
 ): Promise<ActionResult<{ queuedAnswers: number }>> {
-  const currentUser = await requireAdministrator();
+  const currentUser = await requireITTeam();
   try {
     if (!validUuid(surveyId) || !validUuid(submissionId)) {
       throw new Error("Invalid survey response ID.");
@@ -322,7 +322,7 @@ export async function setSurveyStatusAction(
   id: string,
   status: Extract<SurveyStatus, "active" | "closed">,
 ): Promise<ActionResult> {
-  const currentUser = await requireAdministrator();
+  const currentUser = await requireITTeam();
   try {
     if (!validUuid(id)) throw new Error("Invalid survey ID.");
     if (status === "active") {
@@ -367,7 +367,7 @@ export async function setSurveyStatusAction(
 export async function duplicateSurveyAction(
   id: string,
 ): Promise<ActionResult<{ id: string; publicCode: string; title: string }>> {
-  const currentUser = await requireAdministrator();
+  const currentUser = await requireITTeam();
   try {
     if (!validUuid(id)) throw new Error("Invalid survey ID.");
     const publicCode = randomBytes(12).toString("base64url");
@@ -435,7 +435,7 @@ export async function duplicateSurveyAction(
 }
 
 export async function deleteSurveyAction(id: string): Promise<ActionResult> {
-  const currentUser = await requireAdministrator();
+  const currentUser = await requireITTeam();
   try {
     if (!validUuid(id)) throw new Error("Invalid survey ID.");
     await db.transaction(async (tx) => {

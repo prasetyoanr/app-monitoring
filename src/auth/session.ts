@@ -8,7 +8,7 @@ import { cache } from "react";
 
 import { SESSION_COOKIE_NAME } from "@/auth/constants";
 import { db } from "@/db";
-import { authSessions, technicians } from "@/db/schema";
+import { authSessions, masterDivisions, technicians } from "@/db/schema";
 
 const SESSION_DURATION_MS = 4 * 60 * 60 * 1000;
 
@@ -18,10 +18,19 @@ export interface AuthenticatedUser {
   username: string;
   role: "administrator" | "boss" | "technician" | "requester";
   divisionId: string | null;
+  divisionName: string | null;
 }
 
 function tokenHash(token: string) {
   return createHash("sha256").update(token).digest("hex");
+}
+
+export function isITTeamUser(user: AuthenticatedUser | null | undefined): boolean {
+  if (!user) return false;
+  if (user.role === "administrator") return true;
+  if (!user.divisionName) return false;
+  const div = user.divisionName.trim().toLowerCase();
+  return div === "it team" || div === "it" || div.includes("information technology") || div.startsWith("it");
 }
 
 export async function createSession(technicianId: string) {
@@ -57,11 +66,16 @@ export const getCurrentUser = cache(
         username: technicians.username,
         role: technicians.role,
         divisionId: technicians.divisionId,
+        divisionName: masterDivisions.name,
       })
       .from(authSessions)
       .innerJoin(
         technicians,
         eq(authSessions.technicianId, technicians.id),
+      )
+      .leftJoin(
+        masterDivisions,
+        eq(technicians.divisionId, masterDivisions.id),
       )
       .where(
         and(
@@ -79,6 +93,7 @@ export const getCurrentUser = cache(
       username: row.username,
       role: row.role,
       divisionId: row.divisionId,
+      divisionName: row.divisionName,
     };
   },
 );
@@ -95,11 +110,14 @@ export async function requireAdministrator() {
   return user;
 }
 
+export async function requireITTeam() {
+  const user = await requireAuthenticatedUser();
+  if (!isITTeamUser(user)) redirect("/");
+  return user;
+}
+
 export async function requireServiceAgent() {
   const user = await requireAuthenticatedUser();
-  if (user.role !== "administrator" && user.role !== "technician") {
-    redirect("/");
-  }
   return user;
 }
 

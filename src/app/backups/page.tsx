@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { requireAdministrator } from "@/auth/session";
+import { requireITTeam } from "@/auth/session";
 import { BackupUserList } from "@/components/backup-user-list";
 import { getBackupRecords } from "@/data/app-data";
 import { getDivisionOptions } from "@/data/master-data";
@@ -7,7 +7,7 @@ import { getDivisionOptions } from "@/data/master-data";
 export const metadata: Metadata = { title: "Backup User" };
 
 export default async function BackupsPage() {
-  await requireAdministrator();
+  await requireITTeam();
 
   const [records, divisionOptions] = await Promise.all([
     getBackupRecords(),

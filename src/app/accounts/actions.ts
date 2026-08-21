@@ -33,7 +33,7 @@ function optionalUuid(value: string) {
 async function validatedDivisionId(role: AccountRole, rawValue: string) {
   const divisionId = optionalUuid(rawValue);
   if (role !== "administrator" && !divisionId) {
-    throw new Error("Petugas dan atasan harus memiliki divisi.");
+    throw new Error("Staf dan atasan harus memiliki divisi.");
   }
   if (!divisionId) return null;
   const [division] = await db
@@ -50,8 +50,8 @@ export async function createAccountAction(
 ): Promise<ActionResult<{ id: string }>> {
   const currentUser = await requireAdministrator();
   try {
-    const name = formValue(formData, "name", 120);
     const username = formValue(formData, "username", 80).toLowerCase();
+    const name = username;
     const password = formValue(formData, "password", 128);
     const role = formValue(formData, "role", 20) as AccountRole;
 

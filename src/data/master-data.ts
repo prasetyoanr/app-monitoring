@@ -14,8 +14,13 @@ export interface MasterItemRecord {
   name: string;
 }
 
+export interface MasterDivisionRecord extends MasterItemRecord {
+  isServiceTarget: boolean;
+  requestFormKey: string | null;
+}
+
 export interface MasterDataRecords {
-  divisions: MasterItemRecord[];
+  divisions: MasterDivisionRecord[];
   locations: MasterItemRecord[];
   categories: MasterItemRecord[];
 }
@@ -23,7 +28,12 @@ export interface MasterDataRecords {
 export async function getMasterDataRecords(): Promise<MasterDataRecords> {
   const [divisions, locations, categories] = await Promise.all([
     db
-      .select({ id: masterDivisions.id, name: masterDivisions.name })
+      .select({
+        id: masterDivisions.id,
+        name: masterDivisions.name,
+        isServiceTarget: masterDivisions.isServiceTarget,
+        requestFormKey: masterDivisions.requestFormKey,
+      })
       .from(masterDivisions)
       .orderBy(asc(masterDivisions.name)),
     db

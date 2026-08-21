@@ -2,13 +2,30 @@
 
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { Camera, CheckCircle2, LoaderCircle, Plus, TicketCheck, Upload, X } from "lucide-react";
-import { type ChangeEvent, type FormEvent, useEffect, useRef, useState } from "react";
+import {
+  ArrowRight,
+  ArrowUpRight,
+  Building2,
+  CalendarDays,
+  Landmark,
+  MapPin,
+  Plus,
+  Scale,
+  ShoppingCart,
+  TicketCheck,
+  UsersRound,
+  Wrench,
+  X,
+} from "lucide-react";
+import { useState } from "react";
 
-import { createRequesterTicketAction } from "@/app/troubleshooting/actions";
-import type { TicketRecord } from "@/data/types";
 import { Card, PageHeader, StatusBadge } from "@/components/ui";
-import { compressWorkPhoto, formatPhotoSize } from "@/lib/work-photo";
+import type { TicketRecord } from "@/data/types";
+
+type TargetDivision = {
+  id: string;
+  name: string;
+};
 
 function statusTone(status: TicketRecord["status"]): "green" | "blue" | "amber" | "red" | "gray" {
   if (status === "Completed") return "green";
@@ -18,164 +35,175 @@ function statusTone(status: TicketRecord["status"]): "green" | "blue" | "amber" 
   return "gray";
 }
 
+function formatFieldKey(key: string): string {
+  return key
+    .replace(/([A-Z])/g, " $1")
+    .replace(/^./, (value) => value.toUpperCase())
+    .trim();
+}
+
+function getDivisionIcon(name: string) {
+  const normalizedName = name.toLowerCase();
+  if (normalizedName.includes("purchase") || normalizedName.includes("procurement") || normalizedName.includes("pengadaan")) return ShoppingCart;
+  if (normalizedName.includes("finance") || normalizedName.includes("keuangan")) return Landmark;
+  if (normalizedName.includes("legal") || normalizedName.includes("hukum")) return Scale;
+  if (normalizedName.includes("human") || /(^|\s)hr(\s|$)/.test(normalizedName)) return UsersRound;
+  if (normalizedName.includes("teknologi") || normalizedName.includes("informatika") || /(^|\s)it(\s|$)/.test(normalizedName)) return Wrench;
+  return Building2;
+}
+
+function getDivisionAccent() {
+  return {
+    icon: "bg-slate-100 text-slate-700 group-hover:bg-slate-700",
+    label: "text-slate-700",
+    edge: "border-slate-200 hover:border-slate-400 hover:bg-slate-50",
+  };
+}
+
+function targetModalWidthClass(count: number) {
+  if (count <= 1) return "max-w-md";
+  if (count === 2) return "max-w-2xl";
+  if (count === 3) return "max-w-3xl";
+  if (count === 4) return "max-w-5xl";
+  return "max-w-6xl";
+}
+
+function targetGridClass(count: number) {
+  if (count <= 1) return "grid-cols-1";
+  if (count === 2) return "grid-cols-1 sm:grid-cols-2";
+  if (count === 3) return "grid-cols-1 sm:grid-cols-2 md:grid-cols-3";
+  if (count === 4) return "grid-cols-1 sm:grid-cols-2 md:grid-cols-4";
+  return "grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5";
+}
+
 export function RequestPortal({
   initialRecords,
-  categories,
-  locations,
   division,
+  targetDivisions,
+  useOrangeRequestButton,
 }: {
   initialRecords: TicketRecord[];
-  categories: string[];
-  locations: string[];
   division: string | null;
+  targetDivisions: TargetDivision[];
+  useOrangeRequestButton: boolean;
 }) {
   const router = useRouter();
-  const [open, setOpen] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
-  const [compressingPhoto, setCompressingPhoto] = useState(false);
-  const [photoFile, setPhotoFile] = useState<File | null>(null);
-  const [photoPreview, setPhotoPreview] = useState("");
-  const cameraInputRef = useRef<HTMLInputElement>(null);
-  const galleryInputRef = useRef<HTMLInputElement>(null);
+  const [targetModalOpen, setTargetModalOpen] = useState(false);
+  const [selectedDetailRecord, setSelectedDetailRecord] = useState<TicketRecord | null>(null);
+  const targetModalWidth = targetModalWidthClass(targetDivisions.length);
+  const targetGrid = targetGridClass(targetDivisions.length);
 
-  useEffect(() => {
-    return () => {
-      if (photoPreview.startsWith("blob:")) URL.revokeObjectURL(photoPreview);
-    };
-  }, [photoPreview]);
-
-  function resetPhoto() {
-    setPhotoFile(null);
-    setPhotoPreview("");
-    setCompressingPhoto(false);
-  }
-
-  function openRequestForm() {
-    setError(null);
-    resetPhoto();
-    setOpen(true);
-  }
-
-  function closeRequestForm() {
-    setOpen(false);
-    setError(null);
-    resetPhoto();
-  }
-
-  async function selectRequesterPhoto(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
-    event.target.value = "";
-    if (!file) return;
-    setCompressingPhoto(true);
-    setError(null);
-    try {
-      const compressed = await compressWorkPhoto(file);
-      setPhotoFile(compressed);
-      setPhotoPreview(URL.createObjectURL(compressed));
-    } catch (photoError) {
-      setError(photoError instanceof Error ? photoError.message : "Foto tidak dapat diproses.");
-    } finally {
-      setCompressingPhoto(false);
-    }
-  }
-
-  function removeRequesterPhoto() {
-    setPhotoFile(null);
-    setPhotoPreview("");
-  }
-
-  async function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const form = event.currentTarget;
-    const data = new FormData(form);
-    if (photoFile) data.set("requesterPhoto", photoFile);
-    setSaving(true);
-    setError(null);
-    const result = await createRequesterTicketAction(data);
-    setSaving(false);
-    if (!result.ok) {
-      setError(result.error);
-      return;
-    }
-    form.reset();
-    resetPhoto();
-    setOpen(false);
-    router.refresh();
+  function chooseTargetDivision(divisionId: string) {
+    router.push(`/requests/new/${encodeURIComponent(divisionId)}`);
   }
 
   return (
     <>
       <PageHeader
-        eyebrow="Layanan Internal"
-        title="Permintaan Saya"
-        description="Buat permintaan bantuan dan pantau status tiket yang Anda ajukan. Data yang tampil hanya milik akun Anda."
+        eyebrow="Internal Services"
+        title="Division Requests"
+        description="Submit a support or operational request to the relevant division, then track requests submitted by your division."
         action={
-          <button type="button" onClick={openRequestForm} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-[#3157d5] px-4 text-xs font-semibold text-white shadow-lg shadow-blue-600/15 transition hover:bg-[#2445b5]">
-            <Plus size={16} /> Buat Permintaan
+          <button type="button" onClick={() => setTargetModalOpen(true)} disabled={targetDivisions.length === 0} className={`inline-flex h-10 items-center justify-center gap-2 rounded-xl px-4 text-xs font-semibold text-white shadow-lg transition disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none ${useOrangeRequestButton ? "bg-orange-500 shadow-orange-500/20 hover:bg-orange-600" : "bg-[#3157d5] shadow-blue-600/15 hover:bg-[#2445b5]"}`}>
+            <Plus size={16} /> Create Request
           </button>
         }
       />
 
       <Card className="overflow-hidden">
         <div className="border-b border-slate-100 px-4 py-4 sm:px-5">
-          <h2 className="text-sm font-extrabold text-slate-800">Riwayat permintaan</h2>
-          <p className="mt-1 text-[11px] text-slate-500">Divisi: {division ?? "Belum diatur"}</p>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              {/* <h2 className="text-sm font-extrabold text-slate-800">Division Request History</h2> */}
+              <p className="mt-0.5 font-semibold text-sm text-[#004d32]">Requesting Division: <span className="font-semibold text-slate-700">{division ?? "Not assigned"}</span></p>
+            </div>
+            <span className="rounded-lg bg-slate-100 px-2.5 py-1 text-[11px] font-medium text-slate-600">{initialRecords.length} total requests</span>
+          </div>
         </div>
+
         {initialRecords.length === 0 ? (
           <div className="grid place-items-center gap-2 px-5 py-16 text-center">
-            <TicketCheck className="text-indigo-300" size={30} />
-            <p className="text-sm font-semibold text-slate-700">Belum ada permintaan</p>
-            <p className="max-w-sm text-xs leading-5 text-slate-500">Klik “Buat Permintaan” untuk mengirim kebutuhan bantuan ke petugas.</p>
+            <TicketCheck className="text-indigo-300" size={32} />
+            <p className="text-sm font-semibold text-slate-700">No requests yet</p>
+            <p className="max-w-sm text-xs leading-5 text-slate-500">Select “Create Request” to choose a destination division.</p>
           </div>
         ) : (
           <div className="divide-y divide-slate-100">
-            {initialRecords.map((record) => (
-              <article key={record.id} className="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
-                <div className="min-w-0">
+            {initialRecords.map((record) => {
+              const DestinationIcon = getDivisionIcon(record.serviceDivision || "IT Team");
+              return (
+                <article key={record.id} className="px-4 py-4 sm:px-5">
                   <div className="flex flex-wrap items-center gap-2">
-                    <p className="font-mono text-[10px] text-slate-400">{record.id}</p>
-                    <StatusBadge tone={statusTone(record.status)} attention={record.status === "New"}>{record.status}</StatusBadge>
+                    <span className="font-mono text-[10px] font-bold text-slate-400">#{record.id}</span>
+                    <span className="inline-flex items-center gap-1.5 rounded-md bg-blue-50 px-2 py-1 text-[10px] font-bold text-blue-700"><DestinationIcon size={12} /> {record.serviceDivision || "IT Team"}</span>
+                    <span className="ml-auto"><StatusBadge tone={statusTone(record.status)} attention={record.status === "New"}>{record.status}</StatusBadge></span>
                   </div>
-                  <h3 className="mt-1 text-sm font-semibold text-slate-800">{record.title}</h3>
-                  <p className="mt-1 text-[11px] text-slate-500">{record.category} · {record.location} · {record.reportedAt}</p>
-                </div>
-              </article>
-            ))}
+                  <h3 className="mt-3 text-sm font-bold leading-5 text-slate-900">{record.title}</h3>
+                  <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 text-[10px] text-slate-500 sm:gap-x-4 sm:text-[11px]">
+                    <span className="inline-flex items-center gap-1.5"><MapPin size={12} className="text-slate-400" /> {record.location}</span>
+                    <span className="inline-flex items-center gap-1.5"><CalendarDays size={12} className="text-slate-400" /> {record.reportedAt}</span>
+                    <button type="button" onClick={() => setSelectedDetailRecord(record)} className="ml-auto inline-flex items-center gap-1 text-[10px] font-semibold text-blue-600 transition hover:text-blue-800 sm:text-[11px]" aria-label={`View details for ${record.id}`}>Details <ArrowRight size={13} /></button>
+                  </div>
+                </article>
+              );
+            })}
           </div>
         )}
       </Card>
 
-      {open ? (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/50 p-4" role="dialog" aria-modal="true" aria-labelledby="request-title">
+      {targetModalOpen ? (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/50 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="target-division-modal-title" onClick={() => setTargetModalOpen(false)}>
+          <div className={`w-full ${targetModalWidth} overflow-hidden rounded-2xl bg-white shadow-2xl`} onClick={(event) => event.stopPropagation()}>
+            <div className="px-5 py-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                <h2 id="target-division-modal-title" className="text-base font-bold text-slate-900">Choose a Destination Division</h2>
+                  <p className="mt-1 text-[11px] leading-5 text-slate-500">Select the division that will receive your request.</p>
+                </div>
+                <span className="inline-flex w-fit items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1.5 text-[10px] font-semibold text-slate-600"><Building2 size={12} /> From {division ?? "your division"}</span>
+              </div>
+            </div>
+            <div className={`grid max-h-[60vh] gap-3 overflow-y-auto p-4 pt-1 ${targetGrid}`}>
+              {targetDivisions.map((targetDivision) => {
+                const DivisionIcon = getDivisionIcon(targetDivision.name);
+                const accent = getDivisionAccent();
+                return (
+                  <button key={targetDivision.id} type="button" onClick={() => chooseTargetDivision(targetDivision.id)} className={`group relative flex min-h-20 items-center gap-3 overflow-hidden rounded-2xl border bg-white p-4 text-left text-sm font-bold text-slate-800 transition duration-200 hover:-translate-y-0.5 hover:shadow-md active:translate-y-0 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 motion-reduce:transform-none motion-reduce:transition-none ${accent.edge}`}>
+                    <span className={`grid size-10 place-items-center rounded-xl transition duration-200 group-hover:scale-105 group-hover:-rotate-3 group-hover:text-white group-active:scale-95 motion-reduce:transform-none motion-reduce:transition-none ${accent.icon}`}>
+                      <DivisionIcon size={18} />
+                    </span>
+                    <span className="min-w-0 flex-1 truncate">{targetDivision.name}</span>
+                    <span className={`inline-flex shrink-0 items-center gap-1 text-[10px] font-bold opacity-70 transition duration-200 group-hover:translate-x-0.5 group-hover:opacity-100 motion-reduce:transform-none motion-reduce:transition-none ${accent.label}`}><ArrowUpRight size={13} /></span>
+                  </button>
+                );
+              })}
+              {targetDivisions.length === 0 ? <p className="col-span-full px-3 py-8 text-center text-xs text-slate-500">No destination divisions are currently active.</p> : null}
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {selectedDetailRecord ? (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/50 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="detail-modal-title">
           <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white shadow-2xl">
             <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
-              <div><h2 id="request-title" className="text-base font-bold text-slate-900">Buat Permintaan</h2><p className="mt-1 text-[11px] text-slate-500">Permintaan akan diteruskan ke petugas divisi {division ?? "Anda"}.</p></div>
-              <button type="button" onClick={closeRequestForm} className="grid size-8 place-items-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700" aria-label="Tutup"><X size={17} /></button>
+              <div><div className="flex items-center gap-2"><span className="font-mono text-xs font-bold text-slate-400">{selectedDetailRecord.id}</span><StatusBadge tone={statusTone(selectedDetailRecord.status)}>{selectedDetailRecord.status}</StatusBadge></div><h2 id="detail-modal-title" className="mt-1 text-base font-bold text-slate-900">{selectedDetailRecord.title}</h2></div>
+              <button type="button" onClick={() => setSelectedDetailRecord(null)} className="grid size-8 place-items-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700" aria-label="Close"><X size={17} /></button>
             </div>
-            <form onSubmit={submit} className="space-y-4 p-5">
-              <label className="block text-[11px] font-semibold text-slate-600">Judul permintaan<input name="title" required maxLength={200} className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 px-3 text-xs outline-none focus:border-indigo-400" placeholder="Contoh: Laptop tidak dapat terhubung ke Wi-Fi" /></label>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <label className="block text-[11px] font-semibold text-slate-600">Kategori<select name="category" required defaultValue={categories[0] ?? ""} className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-xs outline-none">{categories.map((option) => <option key={option} value={option}>{option}</option>)}</select></label>
-                <label className="block text-[11px] font-semibold text-slate-600">Lokasi<select name="location" required defaultValue={locations[0] ?? ""} className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-xs outline-none">{locations.map((option) => <option key={option} value={option}>{option}</option>)}</select></label>
+            <div className="space-y-5 p-5">
+              <div className="grid grid-cols-2 gap-3 rounded-xl bg-slate-50 p-4 text-xs sm:grid-cols-3">
+                <div><p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Service Destination</p><p className="mt-1 font-bold text-blue-700">{selectedDetailRecord.serviceDivision || "IT Team"}</p></div>
+                <div><p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Category</p><p className="mt-1 font-semibold text-slate-800">{selectedDetailRecord.category}</p></div>
+                <div><p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Location</p><p className="mt-1 font-semibold text-slate-800">{selectedDetailRecord.location}</p></div>
+                <div><p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Request Date</p><p className="mt-1 font-semibold text-slate-800">{selectedDetailRecord.reportedAt}</p></div>
+                <div><p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Priority</p><p className="mt-1 font-semibold text-slate-800">{selectedDetailRecord.priority}</p></div>
+                <div><p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Completion Time</p><p className="mt-1 font-semibold text-slate-800">{selectedDetailRecord.completedDays === null ? "Not completed" : selectedDetailRecord.completedDays === 0 ? "Same day" : `${selectedDetailRecord.completedDays} days`}</p></div>
               </div>
-              <label className="block text-[11px] font-semibold text-slate-600">Jelaskan kebutuhan<textarea name="description" required maxLength={10000} rows={5} className="mt-1.5 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-xs leading-5 outline-none focus:border-indigo-400" placeholder="Tuliskan kendala atau kebutuhan Anda secara rinci." /></label>
-              <section className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4" aria-labelledby="requester-photo-title">
-                  <div className="flex items-start justify-between gap-3">
-                    <div><h3 id="requester-photo-title" className="text-[11px] font-semibold text-slate-700">Foto pendukung <span className="font-normal text-slate-400">(opsional)</span></h3><p className="mt-1 text-[10px] leading-4 text-slate-500">Tambahkan foto kendala jika membantu petugas memahami permintaan. Foto akan dikompres menjadi JPEG maksimal 2 MB.</p></div>
-                    {photoPreview ? <button type="button" onClick={removeRequesterPhoto} disabled={compressingPhoto} className="shrink-0 rounded-lg bg-rose-50 px-2.5 py-1.5 text-[10px] font-semibold text-rose-600 disabled:opacity-50">Hapus</button> : null}
-                  </div>
-                  {photoPreview ? <div className="mt-3 overflow-hidden rounded-xl border border-slate-200 bg-white p-2"><Image src={photoPreview} width={720} height={540} unoptimized alt="Pratinjau foto pendukung" className="h-48 w-full rounded-lg object-contain sm:h-56" /><div className="mt-2 flex items-center justify-between gap-2 px-1"><span className="inline-flex items-center gap-1.5 text-[10px] font-semibold text-emerald-600"><CheckCircle2 size={13} /> Siap dikirim</span><span className="text-[10px] text-slate-400">{photoFile ? formatPhotoSize(photoFile.size) : "Foto tersimpan"}</span></div></div> : null}
-                  <div className={`grid grid-cols-[minmax(0,1fr)_3rem] gap-2 ${photoPreview ? "mt-2" : "mt-3"}`}>
-                    <button type="button" onClick={() => cameraInputRef.current?.click()} disabled={compressingPhoto} className={`flex w-full items-center justify-center rounded-xl border border-blue-300 bg-white px-4 text-center font-semibold text-blue-700 disabled:cursor-wait disabled:text-slate-400 ${photoPreview ? "h-10 gap-2 text-[10px]" : "min-h-24 flex-col text-[11px]"}`}>{compressingPhoto ? <LoaderCircle size={photoPreview ? 14 : 22} className="animate-spin" /> : <Camera size={photoPreview ? 14 : 22} />}<span className={photoPreview ? "" : "mt-2"}>{compressingPhoto ? "Memproses foto..." : photoPreview ? "Ambil foto baru" : "Ambil foto"}</span></button>
-                    <button type="button" onClick={() => galleryInputRef.current?.click()} disabled={compressingPhoto} className={`grid w-12 place-items-center rounded-xl border border-slate-200 bg-white text-indigo-600 disabled:cursor-wait disabled:text-slate-300 ${photoPreview ? "h-10" : "min-h-24"}`} aria-label="Pilih foto dari galeri" title="Pilih foto dari galeri"><Upload size={photoPreview ? 16 : 22} /></button>
-                  </div>
-                  <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" onChange={(event) => void selectRequesterPhoto(event)} className="sr-only" />
-                  <input ref={galleryInputRef} type="file" accept="image/*" onChange={(event) => void selectRequesterPhoto(event)} className="sr-only" />
-              </section>
-              {error ? <p className="rounded-xl bg-rose-50 px-3 py-2 text-xs font-medium text-rose-700">{error}</p> : null}
-              <div className="flex justify-end gap-2 border-t border-slate-100 pt-4"><button type="button" onClick={closeRequestForm} className="h-10 rounded-xl px-4 text-xs font-semibold text-slate-500 hover:bg-slate-100">Batal</button><button type="submit" disabled={saving || compressingPhoto} className="h-10 rounded-xl bg-indigo-600 px-4 text-xs font-semibold text-white hover:bg-indigo-700 disabled:opacity-60">{saving ? "Mengirim..." : compressingPhoto ? "Memproses foto..." : "Kirim Permintaan"}</button></div>
-            </form>
+              <div><h3 className="text-xs font-bold uppercase tracking-wider text-slate-700">Request Description</h3><p className="mt-2 whitespace-pre-wrap rounded-xl border border-slate-100 bg-white p-3.5 text-xs leading-relaxed text-slate-700">{selectedDetailRecord.description}</p></div>
+              {Object.keys(selectedDetailRecord.requestData).length > 0 ? <div><h3 className="text-xs font-bold uppercase tracking-wider text-slate-700">Additional Form Information ({selectedDetailRecord.serviceDivision || "Service"})</h3><div className="mt-2 divide-y divide-slate-100 rounded-xl border border-slate-100 bg-white">{Object.entries(selectedDetailRecord.requestData).map(([key, value]) => <div key={key} className="flex flex-col px-3 py-2 text-xs sm:flex-row sm:justify-between"><span className="font-semibold text-slate-500">{formatFieldKey(key)}</span><span className="font-medium text-slate-800">{String(value)}</span></div>)}</div></div> : null}
+              {selectedDetailRecord.requesterPhotoUrl ? <div><h3 className="text-xs font-bold uppercase tracking-wider text-slate-700">Supporting Photo</h3><div className="mt-2 overflow-hidden rounded-xl border border-slate-200 bg-slate-50 p-2"><Image src={selectedDetailRecord.requesterPhotoUrl} width={800} height={600} unoptimized alt="Requester attachment" className="max-h-64 w-full rounded-lg object-contain" /></div></div> : null}
+            </div>
+            <div className="flex justify-end border-t border-slate-100 p-4"><button type="button" onClick={() => setSelectedDetailRecord(null)} className="h-9 rounded-xl bg-slate-100 px-4 text-xs font-semibold text-slate-700 hover:bg-slate-200">Close</button></div>
           </div>
         </div>
       ) : null}

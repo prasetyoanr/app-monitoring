@@ -53,14 +53,14 @@ export async function registerRequesterAction(
     const [account] = await db.transaction(async (tx) => {
       const created = await tx
         .insert(technicians)
-        .values({ name: username, username, passwordHash, role: "requester", divisionId: division.id })
+        .values({ name: username, username, passwordHash, role: "technician", divisionId: division.id })
         .returning({ id: technicians.id });
       await tx.insert(auditLogs).values({
         actorType: "system",
         action: "account.self_registered",
         entityType: "technician",
         entityId: created[0].id,
-        metadata: { role: "requester", divisionId: division.id },
+        metadata: { role: "technician", divisionId: division.id },
       });
       return created;
     });

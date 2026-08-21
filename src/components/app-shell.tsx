@@ -12,10 +12,12 @@ import {
   Gauge,
   HardDriveDownload,
   FileBarChart,
+  Inbox,
   LogOut,
   Menu,
-  TicketCheck,
+  Send,
   UserCog,
+  UserRound,
   X,
   type LucideIcon,
 } from "lucide-react";
@@ -26,23 +28,21 @@ type NavigationItem = {
   label: string;
   href: string;
   icon: LucideIcon;
-  administratorOnly?: boolean;
-  staffOnly?: boolean;
-  requesterOnly?: boolean;
+  itTeamOnly?: boolean;
 };
 
 const navigationBase: NavigationItem[] = [
   { label: "Overview", href: "/", icon: Gauge },
-  { label: "Troubleshooting", href: "/troubleshooting", icon: TicketCheck, staffOnly: true },
-  { label: "Permintaan Saya", href: "/requests", icon: TicketCheck, requesterOnly: true },
-  { label: "Backup User", href: "/backups", icon: HardDriveDownload, administratorOnly: true },
-  { label: "Surveys", href: "/surveys", icon: ClipboardCheck, staffOnly: true },
-  { label: "Reports", href: "/reports", icon: FileBarChart, staffOnly: true },
+  { label: "Request", href: "/requests", icon: Send },
+  { label: "Inbox", href: "/inbox", icon: Inbox },
+  { label: "Surveys", href: "/surveys", icon: ClipboardCheck, itTeamOnly: true },
+  { label: "Reports", href: "/reports", icon: FileBarChart, itTeamOnly: true },
+  { label: "Backup User", href: "/backups", icon: HardDriveDownload, itTeamOnly: true },
 ];
 
 const primaryPagePaths = new Set([
   "/",
-  "/troubleshooting",
+  "/inbox",
   "/requests",
   "/backups",
   "/surveys",
@@ -69,6 +69,8 @@ export function AppShell({
     name: string;
     username: string;
     role: "administrator" | "boss" | "technician" | "requester";
+    divisionId?: string | null;
+    divisionName?: string | null;
   };
 }) {
   const pathname = usePathname();
@@ -106,19 +108,42 @@ export function AppShell({
     document.addEventListener("pointerdown", closeNotification);
     return () => document.removeEventListener("pointerdown", closeNotification);
   }, [notificationOpen]);
-  const roleLabel = user.role === "administrator" ? "Administrator" : user.role === "technician" ? "Petugas" : user.role === "requester" ? "Pemohon" : "Atasan";
-  const displayName = user.role === "requester" ? user.username : user.name;
-  const initials = displayName
-    .split(" ")
-    .slice(0, 2)
-    .map((part) => part[0])
-    .join("")
-    .toUpperCase();
+
+  const normalizedDivision = user.divisionName?.trim().toLowerCase() ?? "";
+  const isIT =
+    user.role === "administrator" ||
+    normalizedDivision === "it team" ||
+    normalizedDivision === "it" ||
+    normalizedDivision.includes("information technology") ||
+    normalizedDivision.startsWith("it");
+  const themeClass =
+    user.role === "administrator"
+      ? "theme-admin"
+      : isIT
+        ? "theme-it"
+        : "theme-logo";
+
+  const roleLabel =
+    user.role === "administrator"
+      ? "Administrator"
+      : user.role === "boss"
+        ? "Atasan"
+        : "Staf";
+
+  const divisionLabel = user.divisionName ? `${user.divisionName}` : "";
+
+  const displayName = user.name || user.username;
+
   const navigation = navigationBase
-    .filter((item) => (!item.administratorOnly || user.role === "administrator") && (!item.staffOnly || user.role !== "requester") && (!item.requesterOnly || user.role === "requester"))
+    .filter((item) => !item.itTeamOnly || isIT)
     .map((item) => ({
       ...item,
-      count: item.href === "/troubleshooting" ? counts.issues : item.href === "/backups" ? counts.backups : undefined,
+      count:
+        item.href === "/inbox"
+          ? counts.issues
+          : item.href === "/backups"
+            ? counts.backups
+            : undefined,
     }));
   const showBackButton = !primaryPagePaths.has(pathname);
 
@@ -127,14 +152,14 @@ export function AppShell({
     pathname === "/register" ||
     pathname.startsWith("/b/") ||
     pathname.startsWith("/s/") ||
-    pathname.startsWith("/troubleshooting/approval/") ||
+    pathname.startsWith("/inbox/approval/") ||
     pathname.startsWith("/backups/submit/")
   ) {
     return <>{children}</>;
   }
 
   return (
-    <div className="app-shell">
+    <div className={`app-shell ${themeClass}`}>
       <header className="app-navbar sticky top-0 z-40 border-b border-white/10 bg-indigo-950 text-white">
         <div className="mx-auto flex h-[72px] max-w-[1600px] items-center gap-4 px-4 sm:px-6 xl:px-8">
           <Link href="/" className="flex shrink-0 items-center gap-2.5" onClick={() => setMenuOpen(false)}>
@@ -170,12 +195,12 @@ export function AppShell({
               <div ref={notificationRef} className="relative">
                 <button type="button" onClick={() => setNotificationOpen((open) => !open)} className="relative grid size-10 place-items-center rounded-xl border border-white/10 bg-white/10 text-indigo-100/80 transition hover:border-cyan-300/30 hover:bg-white/15 hover:text-white" aria-label={counts.newRequests > 0 ? `${counts.newRequests} permintaan baru` : "Notifikasi"} aria-expanded={notificationOpen} aria-haspopup="dialog" title="Notifikasi">
                   <Bell size={17} />
-                  {counts.newRequests > 0 ? <span className="absolute -right-1 -top-1 grid min-w-4 place-items-center rounded-full bg-rose-500 px-1 text-[9px] font-bold leading-4 text-white ring-2 ring-indigo-950">{counts.newRequests > 99 ? "99+" : counts.newRequests}</span> : null}
+                  {counts.newRequests > 0 ? <span className="absolute -right-1 -top-1 grid min-w-4 place-items-center rounded-full bg-rose-500 px-1 text-[9px] font-bold leading-4 text-white ring-1 ring-white">{counts.newRequests > 99 ? "99+" : counts.newRequests}</span> : null}
                 </button>
                 {notificationOpen ? (
                   <div className="absolute right-0 top-12 z-50 w-[min(21rem,calc(100vw-2rem))] overflow-hidden rounded-2xl border border-indigo-100 bg-white text-slate-700 shadow-2xl shadow-indigo-950/25" role="dialog" aria-label="Notifikasi permintaan baru">
                     <div className="bg-slate-100 border-b border-slate-100 px-4 py-3"><p className="mt-1 text-xs font-bold text-slate-800">{counts.newRequests > 0 ? `${counts.newRequests} Permintaan baru.` : "Tidak ada permintaan baru."}</p></div>
-                    {notifications.length > 0 ? <div className="max-h-72 divide-y divide-slate-100 overflow-y-auto">{notifications.map((notification) => <Link key={notification.id} href="/troubleshooting" onClick={() => setNotificationOpen(false)} className="block px-4 py-3 transition hover:bg-indigo-50"><p className="truncate text-[11px] font-semibold text-slate-800">{notification.title}</p><p className="mt-1 text-[10px] text-slate-500">{notification.requester} · {notification.division}</p><p className="mt-1 text-[9px] text-slate-400">{notification.reportedAt}</p></Link>)}</div> : <div className="px-4 py-6 text-center text-[11px] text-slate-400">Semua permintaan sudah ditangani.</div>}
+                    {notifications.length > 0 ? <div className="max-h-72 divide-y divide-slate-100 overflow-y-auto">{notifications.map((notification) => <Link key={notification.id} href="/inbox" onClick={() => setNotificationOpen(false)} className="block px-4 py-3 transition hover:bg-indigo-50"><p className="truncate text-[11px] font-semibold text-slate-800">{notification.title}</p><p className="mt-1 text-[10px] text-slate-500">{notification.requester} · {notification.division}</p><p className="mt-1 text-[9px] text-slate-400">{notification.reportedAt}</p></Link>)}</div> : <div className="px-4 py-6 text-center text-[11px] text-slate-400">Semua permintaan sudah ditangani.</div>}
                   </div>
                 ) : null}
               </div>
@@ -183,12 +208,12 @@ export function AppShell({
             <div ref={userMenuRef} className="relative hidden sm:block">
               <button
                 onClick={() => setUserMenuOpen((open) => !open)}
-                className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/10 py-1 pl-1 pr-2.5 text-left hover:border-cyan-300/30 hover:bg-white/15"
+                className="flex min-h-10 items-center gap-2.5 rounded-xl border border-white/10 bg-white/10 px-3 py-1.5 text-left hover:border-cyan-300/30 hover:bg-white/15"
                 aria-expanded={userMenuOpen}
                 aria-haspopup="menu"
               >
-                <span className="grid size-8 place-items-center rounded-lg bg-indigo-500 text-[9px] font-bold text-white shadow-lg shadow-indigo-950/30">{initials}</span>
-                <span><span className="block max-w-28 truncate text-[10px] font-semibold leading-3 text-white">{displayName}</span><span className="block text-[9px] text-indigo-200/70">{roleLabel}</span></span>
+                <UserRound size={18} className="shrink-0 text-white/85" />
+                <span><span className="block max-w-28 truncate text-[10px] font-semibold leading-3 text-white">{displayName}</span><span className="block text-[9px] text-indigo-200/70">{roleLabel} {divisionLabel}</span></span>
                 <ChevronDown size={13} className={`text-indigo-200/70 transition ${userMenuOpen ? "rotate-180" : ""}`} />
               </button>
               {userMenuOpen ? (

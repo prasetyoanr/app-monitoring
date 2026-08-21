@@ -5,10 +5,9 @@ export type ServiceRequestFieldType =
   | "number"
   | "date"
   | "master-category"
-  | "master-location"
   | "photo";
 
-export type TicketField = "title" | "category" | "location" | "description";
+export type TicketField = "title" | "category" | "description";
 
 export interface ServiceRequestField {
   key: string;
@@ -27,6 +26,5 @@ export interface ServiceRequestTemplate {
   serviceDivision: string;
   label: string;
   description: string;
-  fallbackLocation?: string;
   fields: readonly ServiceRequestField[];
 }

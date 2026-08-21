@@ -4,7 +4,7 @@ import Image from "next/image";
 import { CalendarDays, Camera, CheckCircle2, Eye, Filter, LoaderCircle, MapPin, Pencil, Plus, QrCode, Search, Trash2, Upload, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
-import { deleteIssueAction, saveIssueAction } from "@/app/troubleshooting/actions";
+import { deleteIssueAction, saveIssueAction } from "@/app/inbox/actions";
 import { ApprovalQrModal } from "@/components/approval-qr-modal";
 import { Card, StatusBadge } from "@/components/ui";
 import type { TicketRecord } from "@/data/types";
@@ -40,7 +40,7 @@ function optionsWithCurrent(options: string[], current?: string) {
   return current && !options.includes(current) ? [current, ...options] : options;
 }
 
-export function TicketList({ initialRecords, canManage, divisionOptions, locationOptions, categoryOptions }: { initialRecords: TicketRecord[]; canManage: boolean; divisionOptions: string[]; locationOptions: string[]; categoryOptions: string[] }) {
+export function TicketList({ initialRecords, canManage, canCreateIssue, divisionOptions, locationOptions, categoryOptions }: { initialRecords: TicketRecord[]; canManage: boolean; canCreateIssue: boolean; divisionOptions: string[]; locationOptions: string[]; categoryOptions: string[] }) {
   const router = useRouter();
   const defaultLocation = locationOptions.includes("HO")
     ? "HO"
@@ -195,11 +195,11 @@ export function TicketList({ initialRecords, canManage, divisionOptions, locatio
             {filterStartDate || filterEndDate ? <button type="button" onClick={() => { setFilterStartDate(""); setFilterEndDate(""); }} aria-label="Clear date range" title="Clear date range" className="grid size-10 shrink-0 place-items-center rounded-xl border border-slate-200 bg-white text-slate-500"><X size={14} /></button> : null}
           </div>
         </div>
-        {canManage ? <button onClick={() => openForm("create")} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-[#3157d5] px-4 text-xs font-semibold text-white shadow-lg shadow-blue-600/15 hover:bg-[#2445b5]"><Plus size={16} /> Add Issue</button> : null}
+        {canCreateIssue ? <button onClick={() => openForm("create")} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-[#3157d5] px-4 text-xs font-semibold text-white shadow-lg shadow-blue-600/15 hover:bg-[#2445b5]"><Plus size={16} /> Add Issue</button> : null}
       </div>
 
       <Card className="table-card overflow-hidden">
-        <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-4 py-3.5 sm:px-5"><div><p className="text-xs font-bold text-slate-800">Troubleshooting Records</p><p className="mt-1 text-[10px] text-slate-400">Internal IT records for the Head Office and Factory</p></div><span className="shrink-0 rounded-lg bg-blue-50 px-2.5 py-1 text-[10px] font-semibold text-blue-700">{filtered.length} records</span></div>
+        <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-4 py-3.5 sm:px-5"><div><p className="text-xs font-bold text-slate-800">Service Inbox</p><p className="mt-1 text-[10px] text-slate-400">Internal service requests for Head Office and Factory</p></div><span className="shrink-0 rounded-lg bg-blue-50 px-2.5 py-1 text-[10px] font-semibold text-blue-700">{filtered.length} records</span></div>
 
         <div className="divide-y divide-slate-100 md:hidden">
           {filtered.map((ticket) => (
@@ -212,7 +212,7 @@ export function TicketList({ initialRecords, canManage, divisionOptions, locatio
                 <div><p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Request Date</p><p className="mt-1 text-[11px] font-medium text-slate-700">{ticket.reportedAt}</p></div>
               </div>
               <div className="mt-4 flex flex-wrap items-center gap-3"><span className={`inline-flex items-center gap-1 text-[10px] font-semibold ${ticket.hasWorkPhoto ? "text-emerald-600" : "text-slate-400"}`}>{ticket.hasWorkPhoto ? <CheckCircle2 size={12} /> : <Camera size={12} />}{ticket.hasWorkPhoto ? "Photo available" : "No photo"}</span><span className={`ml-auto text-[10px] font-semibold ${ticket.completedDays === null ? "text-slate-400" : "text-emerald-600"}`}>{completionLabel(ticket.completedDays)}</span></div>
-              <div className={`mt-4 gap-2 border-t border-slate-100 pt-4 ${canManage ? "grid grid-cols-2" : "flex"}`}><button onClick={() => setDetailRecord(ticket)} className="inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-lg bg-[#3157d5] px-2 text-[10px] font-semibold text-white" aria-label={`View details ${ticket.id}`}><Eye size={13} /> Detail</button>{canManage ? <><button disabled={!canRequestApproval(ticket)} onClick={() => setApprovalRecord(ticket)} className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-violet-600 px-2 text-[10px] font-semibold text-white disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400" aria-label={`Request client signature ${ticket.id}`} title={approvalActionTitle(ticket)}><QrCode size={13} /> QR Signature</button><button onClick={() => openForm("edit", ticket)} className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-amber-500 px-2 text-[10px] font-semibold text-white" aria-label={`Edit ${ticket.id}`}><Pencil size={13} /> Edit</button><button onClick={() => setPendingDelete(ticket)} className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-rose-600 px-2 text-[10px] font-semibold text-white" aria-label={`Delete ${ticket.id}`}><Trash2 size={13} /> Delete</button></> : null}</div>
+              <div className={`mt-4 gap-2 border-t border-slate-100 pt-4 ${canManage ? "grid grid-cols-2" : "flex"}`}><button onClick={() => setDetailRecord(ticket)} className="inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-lg bg-[#3157d5] px-2 text-[10px] font-semibold text-white" aria-label={`View details ${ticket.id}`}><Eye size={13} /> View Details</button>{canManage ? <><button disabled={!canRequestApproval(ticket)} onClick={() => setApprovalRecord(ticket)} className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-violet-600 px-2 text-[10px] font-semibold text-white disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400" aria-label={`Request client signature ${ticket.id}`} title={approvalActionTitle(ticket)}><QrCode size={13} /> QR Signature</button><button onClick={() => openForm("edit", ticket)} className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-amber-500 px-2 text-[10px] font-semibold text-white" aria-label={`Edit ${ticket.id}`}><Pencil size={13} /> Edit</button><button onClick={() => setPendingDelete(ticket)} className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-rose-600 px-2 text-[10px] font-semibold text-white" aria-label={`Delete ${ticket.id}`}><Trash2 size={13} /> Delete</button></> : null}</div>
             </article>
           ))}
         </div>
@@ -228,7 +228,7 @@ export function TicketList({ initialRecords, canManage, divisionOptions, locatio
                   <td className="px-4 py-4"><span className={`inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-[10px] font-bold ${ticket.location === "HO" ? "bg-indigo-50 text-indigo-700" : "bg-cyan-50 text-cyan-700"}`}><MapPin size={11} />{ticket.location}</span></td>
                   <td className="px-4 py-4 text-slate-600">{ticket.requester}</td><td className="px-4 py-4"><span className="rounded-md bg-slate-100 px-2 py-1 text-[10px] font-semibold text-slate-600">{ticket.division}</span></td><td className="px-4 py-4 text-[11px] text-slate-500">{ticket.reportedAt}</td>
                   <td className="px-4 py-4"><span className={`inline-flex items-center gap-1.5 text-[10px] font-semibold ${ticket.hasWorkPhoto ? "text-emerald-600" : "text-slate-400"}`}>{ticket.hasWorkPhoto ? <CheckCircle2 size={13} /> : <Camera size={13} />}{ticket.hasWorkPhoto ? "Available" : "Missing"}</span></td><td className="px-4 py-4"><span className={`text-[11px] font-semibold ${ticket.completedDays === null ? "text-slate-400" : "text-emerald-600"}`}>{completionLabel(ticket.completedDays)}</span></td><td className="px-4 py-4"><StatusBadge tone={ticket.status === "Completed" ? "green" : ticket.status === "In Progress" ? "blue" : ticket.status === "New" ? "green" : "amber"} attention={ticket.status === "New"}>{ticket.status}</StatusBadge></td>
-                  <td className="px-5 py-4"><div className="flex justify-center gap-2"><button onClick={() => setDetailRecord(ticket)} className="grid size-8 place-items-center rounded-lg bg-[#3157d5] text-white shadow-sm transition hover:bg-[#2445b5]" aria-label={`View details ${ticket.id}`} title="Detail"><Eye size={14} /></button>{canManage ? <><button disabled={!canRequestApproval(ticket)} onClick={() => setApprovalRecord(ticket)} className="grid size-8 place-items-center rounded-lg bg-violet-600 text-white shadow-sm transition hover:bg-violet-700 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400" aria-label={`Request client signature ${ticket.id}`} title={approvalActionTitle(ticket)}><QrCode size={14} /></button><button onClick={() => openForm("edit", ticket)} className="grid size-8 place-items-center rounded-lg bg-amber-500 text-white shadow-sm transition hover:bg-amber-600" aria-label={`Edit ${ticket.id}`} title="Edit"><Pencil size={14} /></button><button onClick={() => setPendingDelete(ticket)} className="grid size-8 place-items-center rounded-lg bg-rose-600 text-white shadow-sm transition hover:bg-rose-700" aria-label={`Delete ${ticket.id}`} title="Delete"><Trash2 size={14} /></button></> : null}</div></td>
+                  <td className="px-5 py-4"><div className="flex justify-center gap-2"><button onClick={() => setDetailRecord(ticket)} className="grid size-8 place-items-center rounded-lg bg-[#3157d5] text-white shadow-sm transition hover:bg-[#2445b5]" aria-label={`View details ${ticket.id}`} title="View details"><Eye size={14} /></button>{canManage ? <><button disabled={!canRequestApproval(ticket)} onClick={() => setApprovalRecord(ticket)} className="grid size-8 place-items-center rounded-lg bg-violet-600 text-white shadow-sm transition hover:bg-violet-700 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400" aria-label={`Request client signature ${ticket.id}`} title={approvalActionTitle(ticket)}><QrCode size={14} /></button><button onClick={() => openForm("edit", ticket)} className="grid size-8 place-items-center rounded-lg bg-amber-500 text-white shadow-sm transition hover:bg-amber-600" aria-label={`Edit ${ticket.id}`} title="Edit"><Pencil size={14} /></button><button onClick={() => setPendingDelete(ticket)} className="grid size-8 place-items-center rounded-lg bg-rose-600 text-white shadow-sm transition hover:bg-rose-700" aria-label={`Delete ${ticket.id}`} title="Delete"><Trash2 size={14} /></button></> : null}</div></td>
                 </tr>
               ))}
             </tbody>
@@ -249,7 +249,7 @@ export function TicketList({ initialRecords, canManage, divisionOptions, locatio
             <article className="px-6 py-8 text-slate-800 sm:px-12 sm:py-10">
               <header className="border-b-2 border-slate-900 pb-5 text-center">
                 <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-slate-500">Internal IT Department</p>
-                <h2 id="issue-document-title" className="mt-2 text-xl font-bold uppercase tracking-wide text-slate-950">Troubleshooting Issue Report</h2>
+                <h2 id="issue-document-title" className="mt-2 text-xl font-bold uppercase tracking-wide text-slate-950">Service Request Report</h2>
                 <p className="mt-2 font-mono text-xs text-slate-500">Document No. {detailRecord.id}</p>
               </header>
 
@@ -257,9 +257,10 @@ export function TicketList({ initialRecords, canManage, divisionOptions, locatio
                 <h3 id="report-information-title" className="border-b border-slate-300 pb-2 text-xs font-bold uppercase tracking-wider text-slate-900">Report Information</h3>
                 <dl className="mt-4 grid gap-x-10 gap-y-4 text-xs sm:grid-cols-2">
                   <div><dt className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Request Date</dt><dd className="mt-1 font-medium text-slate-800">{detailRecord.reportedAt}</dd></div>
+                  <div><dt className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Target Service / Division</dt><dd className="mt-1 font-semibold text-blue-700">{detailRecord.serviceDivision || "IT Team"}</dd></div>
                   <div><dt className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Location</dt><dd className="mt-1 font-medium text-slate-800">{detailRecord.location}</dd></div>
                   <div><dt className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Requester</dt><dd className="mt-1 font-medium text-slate-800">{detailRecord.requester}</dd></div>
-                  <div><dt className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Division</dt><dd className="mt-1 font-medium text-slate-800">{detailRecord.division}</dd></div>
+                  <div><dt className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Requester Division</dt><dd className="mt-1 font-medium text-slate-800">{detailRecord.division}</dd></div>
                   <div><dt className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Category</dt><dd className="mt-1 font-medium text-slate-800">{detailRecord.category}</dd></div>
                   <div><dt className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Status</dt><dd className="mt-1 font-medium text-slate-800">{detailRecord.status}</dd></div>
                   <div><dt className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Completion Time</dt><dd className="mt-1 font-medium text-slate-800">{completionLabel(detailRecord.completedDays)}</dd></div>
@@ -271,6 +272,22 @@ export function TicketList({ initialRecords, canManage, divisionOptions, locatio
                 <h4 className="mt-4 text-base font-bold leading-6 text-slate-950">{detailRecord.title}</h4>
                 <p className="mt-3 whitespace-pre-wrap text-xs leading-6 text-slate-600">{detailRecord.description}</p>
               </section>
+
+              {detailRecord.requestData && Object.keys(detailRecord.requestData).length > 0 ? (
+                <section className="mt-8" aria-labelledby="form-data-detail-title">
+                  <h3 id="form-data-detail-title" className="border-b border-slate-300 pb-2 text-xs font-bold uppercase tracking-wider text-slate-900">Additional Request Information</h3>
+                  <dl className="mt-4 grid gap-x-10 gap-y-3 text-xs sm:grid-cols-2">
+                    {Object.entries(detailRecord.requestData).map(([key, val]) => (
+                      <div key={key} className="rounded-lg border border-slate-100 bg-slate-50/70 p-2.5">
+                        <dt className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                          {key.replace(/([A-Z])/g, " $1").replace(/^./, (str) => str.toUpperCase())}
+                        </dt>
+                        <dd className="mt-1 font-medium text-slate-800">{String(val)}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                </section>
+              ) : null}
 
               <section className="mt-8" aria-labelledby="requester-photo-detail-title">
                 <h3 id="requester-photo-detail-title" className="border-b border-slate-300 pb-2 text-xs font-bold uppercase tracking-wider text-slate-900">Requester Photo</h3>
@@ -312,7 +329,7 @@ export function TicketList({ initialRecords, canManage, divisionOptions, locatio
               </section>
 
               <footer className="mt-12 border-t border-slate-300 pt-4 text-[10px] leading-5 text-slate-400">
-                This document is an internal troubleshooting record generated from OneService.
+                This document is an internal service request record generated by OneService.
               </footer>
             </article>
           </div>

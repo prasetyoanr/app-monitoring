@@ -1,27 +1,24 @@
 import "server-only";
 
-import { and, count, desc, eq, gte, sql } from "drizzle-orm";
+import { count, desc, eq } from "drizzle-orm";
 
 import { requireAuthenticatedUser } from "@/auth/session";
 import { db } from "@/db";
 import { backupUsers, troubleshootingIssues } from "@/db/schema";
-import { jakartaDateInput } from "@/lib/jakarta-date";
 
 export async function getDashboardData() {
   const currentUser = await requireAuthenticatedUser();
-  const todayStart = new Date(`${jakartaDateInput()}T00:00:00+07:00`);
-  const trendStart = new Date(todayStart.getTime() - 13 * 86_400_000);
-  const trendDate = sql<string>`to_char(${troubleshootingIssues.reportedAt} at time zone 'Asia/Jakarta', 'YYYY-MM-DD')`;
-  const requesterFilter = currentUser.role === "requester"
-    ? eq(troubleshootingIssues.requesterId, currentUser.id)
-    : undefined;
+  const divisionFilter =
+    currentUser.role === "administrator"
+      ? undefined
+      : eq(troubleshootingIssues.division, currentUser.divisionName ?? "");
 
-  const [issueCounts, backupCounts, recentIssues, trend] =
+  const [issueCounts, backupCounts, recentIssues] =
     await Promise.all([
       db
         .select({ status: troubleshootingIssues.status, total: count() })
         .from(troubleshootingIssues)
-        .where(requesterFilter)
+        .where(divisionFilter)
         .groupBy(troubleshootingIssues.status),
       db
         .select({ status: backupUsers.status, total: count() })
@@ -37,18 +34,12 @@ export async function getDashboardData() {
           completedDays: troubleshootingIssues.completedDays,
         })
         .from(troubleshootingIssues)
-        .where(requesterFilter)
+        .where(divisionFilter)
         .orderBy(
           desc(troubleshootingIssues.reportedAt),
           desc(troubleshootingIssues.id),
         )
         .limit(4),
-      db
-        .select({ date: trendDate, total: count() })
-        .from(troubleshootingIssues)
-        .where(requesterFilter ? and(gte(troubleshootingIssues.reportedAt, trendStart), requesterFilter) : gte(troubleshootingIssues.reportedAt, trendStart))
-        .groupBy(trendDate)
-        .orderBy(trendDate),
     ]);
 
   const issueTotal = issueCounts.reduce((sum, row) => sum + row.total, 0);
@@ -70,6 +61,5 @@ export async function getDashboardData() {
     overdueBackups:
       visibleBackupCounts.find((row) => row.status === "Overdue")?.total ?? 0,
     recentIssues,
-    trend,
   };
 }

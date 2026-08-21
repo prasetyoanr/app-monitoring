@@ -3,7 +3,7 @@ import "server-only";
 import { createHash } from "node:crypto";
 import { and, count, desc, eq, isNotNull, sql } from "drizzle-orm";
 
-import { requireAdministrator, requireAuthenticatedUser } from "@/auth/session";
+import { requireAuthenticatedUser, requireITTeam } from "@/auth/session";
 import { db } from "@/db";
 import {
   backupUserInvitations,
@@ -76,11 +76,11 @@ function toTicketRecord(
     description: row.description,
     hasWorkPhoto,
     workPhotoUrl: hasWorkPhoto
-      ? `/troubleshooting/${encodeURIComponent(row.id)}/photo?v=${row.updatedAt.getTime()}`
+      ? `/inbox/${encodeURIComponent(row.id)}/photo?v=${row.updatedAt.getTime()}`
       : null,
     hasRequesterPhoto,
     requesterPhotoUrl: hasRequesterPhoto
-      ? `/troubleshooting/${encodeURIComponent(row.id)}/requester-photo?v=${row.updatedAt.getTime()}`
+      ? `/inbox/${encodeURIComponent(row.id)}/requester-photo?v=${row.updatedAt.getTime()}`
       : null,
     clientApproval,
   };
@@ -88,7 +88,7 @@ function toTicketRecord(
 
 export async function getTicketRecords(): Promise<TicketRecord[]> {
   const currentUser = await requireAuthenticatedUser();
-  const issueQuery = db
+  const baseQuery = db
     .select({
       id: troubleshootingIssues.id,
       title: troubleshootingIssues.title,
@@ -111,11 +111,19 @@ export async function getTicketRecords(): Promise<TicketRecord[]> {
     })
     .from(troubleshootingIssues)
     .leftJoin(technicians, eq(troubleshootingIssues.requesterId, technicians.id));
+
+  // Administrator sees all tickets; service teams only see tickets addressed to their division.
+  const issueQuery =
+    currentUser.role === "administrator"
+      ? baseQuery
+      : currentUser.divisionId
+        ? baseQuery.where(
+            eq(troubleshootingIssues.serviceDivisionId, currentUser.divisionId),
+          )
+        : baseQuery.where(sql`false`);
+
   const [rows, approvedRows] = await Promise.all([
-    (currentUser.role === "requester"
-      ? issueQuery.where(eq(troubleshootingIssues.requesterId, currentUser.id))
-      : issueQuery
-    ).orderBy(desc(troubleshootingIssues.reportedAt), desc(troubleshootingIssues.id)),
+    issueQuery.orderBy(desc(troubleshootingIssues.reportedAt), desc(troubleshootingIssues.id)),
     db
       .selectDistinctOn([troubleshootingApprovals.issueId], {
         issueId: troubleshootingApprovals.issueId,
@@ -140,7 +148,69 @@ export async function getTicketRecords(): Promise<TicketRecord[]> {
       clientName: approval.clientName,
       approvedAt: jakartaDateTime.format(approval.respondedAt).replace(",", ""),
       approvedAtIso: dateTimeInputValue(approval.respondedAt),
-      signatureUrl: `/troubleshooting/${encodeURIComponent(approval.issueId)}/signature?v=${approval.respondedAt.getTime()}`,
+      signatureUrl: `/inbox/${encodeURIComponent(approval.issueId)}/signature?v=${approval.respondedAt.getTime()}`,
+    });
+  }
+  return rows.map((row) =>
+    toTicketRecord(row, row.hasWorkPhoto, row.hasRequesterPhoto, approvalsByIssue.get(row.id) ?? null),
+  );
+}
+
+export async function getDivisionRequestRecords(): Promise<TicketRecord[]> {
+  const currentUser = await requireAuthenticatedUser();
+  if (!currentUser.divisionName) return [];
+
+  const issueQuery = db
+    .select({
+      id: troubleshootingIssues.id,
+      title: troubleshootingIssues.title,
+      category: troubleshootingIssues.category,
+      requesterName: troubleshootingIssues.requesterName,
+      requesterUsername: technicians.username,
+      division: troubleshootingIssues.division,
+      serviceDivision: troubleshootingIssues.serviceDivision,
+      requestFormKey: troubleshootingIssues.requestFormKey,
+      requestData: troubleshootingIssues.requestData,
+      location: troubleshootingIssues.location,
+      reportedAt: troubleshootingIssues.reportedAt,
+      priority: troubleshootingIssues.priority,
+      status: troubleshootingIssues.status,
+      completedDays: troubleshootingIssues.completedDays,
+      description: troubleshootingIssues.description,
+      updatedAt: troubleshootingIssues.updatedAt,
+      hasWorkPhoto: sql<boolean>`${troubleshootingIssues.workPhotoData} is not null`,
+      hasRequesterPhoto: sql<boolean>`${troubleshootingIssues.requesterPhotoData} is not null`,
+    })
+    .from(troubleshootingIssues)
+    .leftJoin(technicians, eq(troubleshootingIssues.requesterId, technicians.id))
+    .where(eq(troubleshootingIssues.division, currentUser.divisionName));
+  const [rows, approvedRows] = await Promise.all([
+    issueQuery.orderBy(desc(troubleshootingIssues.reportedAt), desc(troubleshootingIssues.id)),
+    db
+      .selectDistinctOn([troubleshootingApprovals.issueId], {
+        issueId: troubleshootingApprovals.issueId,
+        clientName: troubleshootingApprovals.clientName,
+        respondedAt: troubleshootingApprovals.respondedAt,
+      })
+      .from(troubleshootingApprovals)
+      .where(eq(troubleshootingApprovals.status, "approved"))
+      .orderBy(
+        troubleshootingApprovals.issueId,
+        desc(troubleshootingApprovals.respondedAt),
+      ),
+  ]);
+  const approvalsByIssue = new Map<string, TicketRecord["clientApproval"]>();
+  for (const approval of approvedRows) {
+    if (
+      approvalsByIssue.has(approval.issueId) ||
+      !approval.clientName ||
+      !approval.respondedAt
+    ) continue;
+    approvalsByIssue.set(approval.issueId, {
+      clientName: approval.clientName,
+      approvedAt: jakartaDateTime.format(approval.respondedAt).replace(",", ""),
+      approvedAtIso: dateTimeInputValue(approval.respondedAt),
+      signatureUrl: `/inbox/${encodeURIComponent(approval.issueId)}/signature?v=${approval.respondedAt.getTime()}`,
     });
   }
   return rows.map((row) =>
@@ -149,7 +219,7 @@ export async function getTicketRecords(): Promise<TicketRecord[]> {
 }
 
 export async function getBackupRecords(): Promise<BackupRecord[]> {
-  await requireAdministrator();
+  await requireITTeam();
   const rows = await db
     .select({
       id: backupUsers.id,
@@ -188,6 +258,19 @@ export async function getBackupRecords(): Promise<BackupRecord[]> {
 
 export async function getNavigationCounts() {
   const currentUser = await requireAuthenticatedUser();
+  const newRequestFilter =
+    currentUser.role === "administrator"
+      ? and(
+          isNotNull(troubleshootingIssues.requesterId),
+          eq(troubleshootingIssues.status, "New"),
+        )
+      : currentUser.role === "technician" && currentUser.divisionId
+        ? and(
+            isNotNull(troubleshootingIssues.requesterId),
+            eq(troubleshootingIssues.status, "New"),
+            eq(troubleshootingIssues.serviceDivisionId, currentUser.divisionId),
+          )
+        : null;
   const [[issues], [backups], [newRequests], newRequestRows] = await Promise.all([
     (currentUser.role === "requester"
       ? db.select({ value: count() }).from(troubleshootingIssues).where(eq(troubleshootingIssues.requesterId, currentUser.id))
@@ -195,18 +278,13 @@ export async function getNavigationCounts() {
     currentUser.role === "requester"
       ? Promise.resolve([{ value: 0 }])
       : db.select({ value: count() }).from(backupUsers),
-    currentUser.role === "administrator" || currentUser.role === "technician"
+    newRequestFilter
       ? db
           .select({ value: count() })
           .from(troubleshootingIssues)
-          .where(
-            and(
-              isNotNull(troubleshootingIssues.requesterId),
-              eq(troubleshootingIssues.status, "New"),
-            ),
-          )
+          .where(newRequestFilter)
       : Promise.resolve([{ value: 0 }]),
-    currentUser.role === "administrator" || currentUser.role === "technician"
+    newRequestFilter
       ? db
           .select({
             id: troubleshootingIssues.id,
@@ -217,12 +295,7 @@ export async function getNavigationCounts() {
             reportedAt: troubleshootingIssues.reportedAt,
           })
           .from(troubleshootingIssues)
-          .where(
-            and(
-              isNotNull(troubleshootingIssues.requesterId),
-              eq(troubleshootingIssues.status, "New"),
-            ),
-          )
+          .where(newRequestFilter)
           .leftJoin(technicians, eq(troubleshootingIssues.requesterId, technicians.id))
           .orderBy(desc(troubleshootingIssues.reportedAt), desc(troubleshootingIssues.id))
           .limit(5)

@@ -96,6 +96,8 @@ export const masterDivisions = pgTable(
   {
     id: uuid("id").defaultRandom().primaryKey(),
     name: varchar("name", { length: 120 }).notNull(),
+    isServiceTarget: boolean("is_service_target").notNull().default(false),
+    requestFormKey: varchar("request_form_key", { length: 80 }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -216,6 +218,9 @@ export const troubleshootingIssues = pgTable(
     serviceDivision: varchar("service_division", { length: 120 })
       .notNull()
       .default("IT Team"),
+    serviceDivisionId: uuid("service_division_id")
+      .notNull()
+      .references(() => masterDivisions.id, { onDelete: "restrict" }),
     requestFormKey: varchar("request_form_key", { length: 80 })
       .notNull()
       .default("it-support"),
@@ -252,6 +257,7 @@ export const troubleshootingIssues = pgTable(
     ),
     index("troubleshooting_issues_requester_idx").on(table.requesterId),
     index("troubleshooting_issues_service_division_idx").on(table.serviceDivision),
+    index("troubleshooting_issues_service_division_id_idx").on(table.serviceDivisionId),
     check(
       "troubleshooting_issues_completed_days_check",
       sql`${table.completedDays} is null or ${table.completedDays} >= 0`,

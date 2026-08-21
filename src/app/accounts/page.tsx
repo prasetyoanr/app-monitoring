@@ -19,7 +19,7 @@ export default async function AccountsPage() {
       <PageHeader
         eyebrow="Khusus administrator"
         title="Manajemen Pengguna"
-        description="Kelola akun, divisi, petugas, atasan, dan akses sistem. Semua akun aktif dapat menjadi pemohon tiket."
+        description="Kelola akun, divisi, staf, atasan, dan akses sistem. Semua akun aktif dapat menjadi pemohon tiket."
       />
       <AccountManager initialAccounts={accounts} currentUserId={currentUser.id} divisions={masterData.divisions} />
     </>

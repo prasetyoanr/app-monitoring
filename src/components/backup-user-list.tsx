@@ -223,7 +223,7 @@ export function BackupUserList({ initialRecords, canManage, divisionOptions }: {
                   <div><dt className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Division</dt><dd className="mt-1 font-medium text-slate-800">{detailRecord.division}</dd></div>
                   <div><dt className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Username</dt><dd className="mt-1 font-medium text-slate-800">{detailRecord.username}</dd></div>
                   <div><dt className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Email</dt><dd className="mt-1 break-all font-medium text-slate-800">{detailRecord.email}</dd></div>
-                  <div><dt className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Synology Password</dt><dd className="mt-1 whitespace-pre-wrap break-words font-medium text-slate-800">{canManage ? detailCredentialLoading ? "Loading..." : (detailCredential || "Not available") : detailRecord.hasPasswordInformation ? "Available — restricted to administrator" : "Not available"}</dd></div>
+                  <div><dt className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Synology Password</dt><dd className="mt-1 whitespace-pre-wrap break-words font-medium text-slate-800">{canManage ? detailCredentialLoading ? "Loading..." : (detailCredential || "Not available") : detailRecord.hasPasswordInformation ? "Available — restricted to IT team" : "Not available"}</dd></div>
                 </dl>
               </section>
               <section className="mt-8" aria-labelledby="backup-information-title">
