@@ -37,6 +37,11 @@ export const issueStatusEnum = pgEnum("issue_status", [
   "Reopened",
 ]);
 
+export const issueSourceEnum = pgEnum("issue_source", [
+  "manual",
+  "division_request",
+]);
+
 export const approvalStatusEnum = pgEnum("approval_status", [
   "pending",
   "approved",
@@ -96,6 +101,10 @@ export const masterDivisions = pgTable(
   {
     id: uuid("id").defaultRandom().primaryKey(),
     name: varchar("name", { length: 120 }).notNull(),
+    slug: varchar("slug", { length: 80 }).notNull(),
+    inboxProfileKey: varchar("inbox_profile_key", { length: 80 })
+      .notNull()
+      .default("basic-service"),
     isServiceTarget: boolean("is_service_target").notNull().default(false),
     requestFormKey: varchar("request_form_key", { length: 80 }),
     createdAt: timestamp("created_at", { withTimezone: true })
@@ -104,6 +113,11 @@ export const masterDivisions = pgTable(
   },
   (table) => [
     uniqueIndex("master_divisions_name_unique").on(sql`lower(${table.name})`),
+    uniqueIndex("master_divisions_slug_unique").on(table.slug),
+    check(
+      "master_divisions_slug_format_check",
+      sql`${table.slug} ~ '^[a-z0-9]+(-[a-z0-9]+)*$'`,
+    ),
   ],
 );
 
@@ -214,6 +228,7 @@ export const troubleshootingIssues = pgTable(
     requesterId: uuid("requester_id").references(() => technicians.id, {
       onDelete: "set null",
     }),
+    source: issueSourceEnum("source").notNull().default("manual"),
     division: varchar("division", { length: 120 }).notNull(),
     serviceDivision: varchar("service_division", { length: 120 })
       .notNull()
@@ -278,6 +293,60 @@ export const troubleshootingIssues = pgTable(
       "troubleshooting_issues_requester_photo_size_check",
       sql`${table.requesterPhotoData} is null or octet_length(${table.requesterPhotoData}) <= 2097152`,
     ),
+  ],
+);
+
+export const requestStatusNotifications = pgTable(
+  "request_status_notifications",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    recipientId: uuid("recipient_id")
+      .notNull()
+      .references(() => technicians.id, { onDelete: "cascade" }),
+    issueId: varchar("issue_id", { length: 32 })
+      .notNull()
+      .references(() => troubleshootingIssues.id, { onDelete: "cascade" }),
+    status: issueStatusEnum("status").notNull(),
+    requesterNote: text("requester_note"),
+    readAt: timestamp("read_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("request_status_notifications_recipient_idx").on(
+      table.recipientId,
+      table.createdAt,
+    ),
+    index("request_status_notifications_unread_idx").on(
+      table.recipientId,
+      table.readAt,
+    ),
+    index("request_status_notifications_issue_idx").on(table.issueId),
+  ],
+);
+
+export const requestStatusHistory = pgTable(
+  "request_status_history",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    issueId: varchar("issue_id", { length: 32 })
+      .notNull()
+      .references(() => troubleshootingIssues.id, { onDelete: "cascade" }),
+    changedById: uuid("changed_by_id").references(() => technicians.id, {
+      onDelete: "set null",
+    }),
+    previousStatus: issueStatusEnum("previous_status").notNull(),
+    status: issueStatusEnum("status").notNull(),
+    reason: text("reason"),
+    requesterNote: text("requester_note"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("request_status_history_issue_idx").on(table.issueId, table.createdAt),
+    index("request_status_history_actor_idx").on(table.changedById),
   ],
 );
 

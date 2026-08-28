@@ -1,5 +1,6 @@
 "use server";
 
+import { randomUUID } from "node:crypto";
 import { count, eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
@@ -13,6 +14,8 @@ import {
 } from "@/db/schema";
 import type { ActionResult } from "@/data/types";
 import { getServiceRequestTemplate } from "@/features/service-requests/template-registry";
+import { isInboxProfileKey } from "@/features/service-inbox/profile-registry";
+import { divisionSlugFromName } from "@/lib/division-slug";
 
 export type MasterDataType = "division" | "location" | "category";
 
@@ -57,6 +60,7 @@ export async function updateDivisionRequestSettingsAction(
   id: string,
   isServiceTarget: boolean,
   requestFormKey: string | null,
+  inboxProfileKey: string,
 ): Promise<ActionResult> {
   const currentUser = await requireAdministrator();
   try {
@@ -65,12 +69,16 @@ export async function updateDivisionRequestSettingsAction(
     if (normalizedFormKey && !getServiceRequestTemplate(normalizedFormKey)) {
       throw new Error("Template form tidak valid.");
     }
+    if (!isInboxProfileKey(inboxProfileKey)) {
+      throw new Error("Profil Inbox tidak valid.");
+    }
 
     const [updated] = await db
       .update(masterDivisions)
       .set({
         isServiceTarget,
         requestFormKey: isServiceTarget ? normalizedFormKey : null,
+        inboxProfileKey,
       })
       .where(eq(masterDivisions.id, id))
       .returning({ id: masterDivisions.id, name: masterDivisions.name });
@@ -82,7 +90,11 @@ export async function updateDivisionRequestSettingsAction(
       action: "master_division.request_settings_updated",
       entityType: "master_division",
       entityId: updated.id,
-      metadata: { isServiceTarget, requestFormKey: isServiceTarget ? normalizedFormKey : null },
+      metadata: {
+        inboxProfileKey,
+        isServiceTarget,
+        requestFormKey: isServiceTarget ? normalizedFormKey : null,
+      },
     });
     revalidateMasterData("division");
     return { ok: true, data: undefined };
@@ -110,10 +122,26 @@ export async function createMasterItemAction(
       .limit(1);
     if (duplicate) throw new Error(`${masterLabel(type)} already exists.`);
 
-    const [created] = await db
-      .insert(table)
-      .values({ name })
-      .returning({ id: table.id });
+    const [created] = type === "division"
+      ? await (async () => {
+          const baseSlug = divisionSlugFromName(name);
+          const [slugCollision] = await db
+            .select({ id: masterDivisions.id })
+            .from(masterDivisions)
+            .where(eq(masterDivisions.slug, baseSlug))
+            .limit(1);
+          const slug = slugCollision
+            ? `${baseSlug.slice(0, 71).replace(/-+$/g, "")}-${randomUUID().slice(0, 8)}`
+            : baseSlug;
+          return db
+            .insert(masterDivisions)
+            .values({ name, slug })
+            .returning({ id: masterDivisions.id });
+        })()
+      : await db
+          .insert(table)
+          .values({ name })
+          .returning({ id: table.id });
     await db.insert(auditLogs).values({
       actorType: "technician",
       actorId: currentUser.id,

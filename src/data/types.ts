@@ -1,4 +1,5 @@
 export type IssuePriority = "Low" | "Medium" | "High" | "Critical";
+export type IssueSource = "manual" | "division_request";
 export type IssueStatus =
   | "New"
   | "In Progress"
@@ -11,8 +12,10 @@ export interface TicketRecord {
   title: string;
   category: string;
   requester: string;
+  source: IssueSource;
   division: string;
   serviceDivision: string;
+  inboxProfileKey: string;
   requestFormKey: string;
   requestData: Record<string, string>;
   location: string;

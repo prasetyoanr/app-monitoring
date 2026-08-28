@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useRouter } from "next/navigation";
+import Link from "next/link";
 import {
   ArrowRight,
   ArrowUpRight,
@@ -21,10 +21,12 @@ import { useState } from "react";
 
 import { Card, PageHeader, StatusBadge } from "@/components/ui";
 import type { TicketRecord } from "@/data/types";
+import { issueStatusLabel } from "@/lib/issue-status";
 
 type TargetDivision = {
   id: string;
   name: string;
+  slug: string;
 };
 
 function statusTone(status: TicketRecord["status"]): "green" | "blue" | "amber" | "red" | "gray" {
@@ -87,15 +89,10 @@ export function RequestPortal({
   targetDivisions: TargetDivision[];
   useOrangeRequestButton: boolean;
 }) {
-  const router = useRouter();
   const [targetModalOpen, setTargetModalOpen] = useState(false);
   const [selectedDetailRecord, setSelectedDetailRecord] = useState<TicketRecord | null>(null);
   const targetModalWidth = targetModalWidthClass(targetDivisions.length);
   const targetGrid = targetGridClass(targetDivisions.length);
-
-  function chooseTargetDivision(divisionId: string) {
-    router.push(`/requests/new/${encodeURIComponent(divisionId)}`);
-  }
 
   return (
     <>
@@ -136,7 +133,7 @@ export function RequestPortal({
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="font-mono text-[10px] font-bold text-slate-400">#{record.id}</span>
                     <span className="inline-flex items-center gap-1.5 rounded-md bg-blue-50 px-2 py-1 text-[10px] font-bold text-blue-700"><DestinationIcon size={12} /> {record.serviceDivision || "IT Team"}</span>
-                    <span className="ml-auto"><StatusBadge tone={statusTone(record.status)} attention={record.status === "New"}>{record.status}</StatusBadge></span>
+                    <span className="ml-auto"><StatusBadge tone={statusTone(record.status)} attention={record.status === "New"}>{issueStatusLabel(record.status)}</StatusBadge></span>
                   </div>
                   <h3 className="mt-3 text-sm font-bold leading-5 text-slate-900">{record.title}</h3>
                   <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 text-[10px] text-slate-500 sm:gap-x-4 sm:text-[11px]">
@@ -168,13 +165,13 @@ export function RequestPortal({
                 const DivisionIcon = getDivisionIcon(targetDivision.name);
                 const accent = getDivisionAccent();
                 return (
-                  <button key={targetDivision.id} type="button" onClick={() => chooseTargetDivision(targetDivision.id)} className={`group relative flex min-h-20 items-center gap-3 overflow-hidden rounded-2xl border bg-white p-4 text-left text-sm font-bold text-slate-800 transition duration-200 hover:-translate-y-0.5 hover:shadow-md active:translate-y-0 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 motion-reduce:transform-none motion-reduce:transition-none ${accent.edge}`}>
+                  <Link key={targetDivision.id} href={`/requests/new/${encodeURIComponent(targetDivision.slug)}`} onClick={() => setTargetModalOpen(false)} className={`group relative flex min-h-20 items-center gap-3 overflow-hidden rounded-2xl border bg-white p-4 text-left text-sm font-bold text-slate-800 transition duration-200 hover:-translate-y-0.5 hover:shadow-md active:translate-y-0 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 motion-reduce:transform-none motion-reduce:transition-none ${accent.edge}`}>
                     <span className={`grid size-10 place-items-center rounded-xl transition duration-200 group-hover:scale-105 group-hover:-rotate-3 group-hover:text-white group-active:scale-95 motion-reduce:transform-none motion-reduce:transition-none ${accent.icon}`}>
                       <DivisionIcon size={18} />
                     </span>
                     <span className="min-w-0 flex-1 truncate">{targetDivision.name}</span>
                     <span className={`inline-flex shrink-0 items-center gap-1 text-[10px] font-bold opacity-70 transition duration-200 group-hover:translate-x-0.5 group-hover:opacity-100 motion-reduce:transform-none motion-reduce:transition-none ${accent.label}`}><ArrowUpRight size={13} /></span>
-                  </button>
+                  </Link>
                 );
               })}
               {targetDivisions.length === 0 ? <p className="col-span-full px-3 py-8 text-center text-xs text-slate-500">No destination divisions are currently active.</p> : null}
@@ -187,7 +184,7 @@ export function RequestPortal({
         <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/50 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="detail-modal-title">
           <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white shadow-2xl">
             <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
-              <div><div className="flex items-center gap-2"><span className="font-mono text-xs font-bold text-slate-400">{selectedDetailRecord.id}</span><StatusBadge tone={statusTone(selectedDetailRecord.status)}>{selectedDetailRecord.status}</StatusBadge></div><h2 id="detail-modal-title" className="mt-1 text-base font-bold text-slate-900">{selectedDetailRecord.title}</h2></div>
+              <div><div className="flex items-center gap-2"><span className="font-mono text-xs font-bold text-slate-400">{selectedDetailRecord.id}</span><StatusBadge tone={statusTone(selectedDetailRecord.status)}>{issueStatusLabel(selectedDetailRecord.status)}</StatusBadge></div><h2 id="detail-modal-title" className="mt-1 text-base font-bold text-slate-900">{selectedDetailRecord.title}</h2></div>
               <button type="button" onClick={() => setSelectedDetailRecord(null)} className="grid size-8 place-items-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700" aria-label="Close"><X size={17} /></button>
             </div>
             <div className="space-y-5 p-5">

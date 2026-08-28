@@ -1,0 +1,3445 @@
+{
+  "version": "8",
+  "dialect": "postgres",
+  "id": "450644c5-6ac0-4560-9de0-e9a4fa4848e6",
+  "prevIds": [
+    "e7373aea-d20a-4b23-b215-185b08837d90"
+  ],
+  "ddl": [
+    {
+      "values": [
+        "pending",
+        "approved",
+        "rejected",
+        "expired"
+      ],
+      "name": "approval_status",
+      "entityType": "enums",
+      "schema": "public"
+    },
+    {
+      "values": [
+        "technician",
+        "requester",
+        "client",
+        "system"
+      ],
+      "name": "audit_actor_type",
+      "entityType": "enums",
+      "schema": "public"
+    },
+    {
+      "values": [
+        "pending",
+        "submitted",
+        "expired",
+        "revoked"
+      ],
+      "name": "backup_invitation_status",
+      "entityType": "enums",
+      "schema": "public"
+    },
+    {
+      "values": [
+        "Success",
+        "Failed",
+        "Overdue",
+        "Pending"
+      ],
+      "name": "backup_status",
+      "entityType": "enums",
+      "schema": "public"
+    },
+    {
+      "values": [
+        "Low",
+        "Medium",
+        "High",
+        "Critical"
+      ],
+      "name": "issue_priority",
+      "entityType": "enums",
+      "schema": "public"
+    },
+    {
+      "values": [
+        "New",
+        "In Progress",
+        "Waiting for Client Approval",
+        "Completed",
+        "Reopened"
+      ],
+      "name": "issue_status",
+      "entityType": "enums",
+      "schema": "public"
+    },
+    {
+      "values": [
+        "pending",
+        "completed",
+        "failed"
+      ],
+      "name": "survey_analysis_status",
+      "entityType": "enums",
+      "schema": "public"
+    },
+    {
+      "values": [
+        "draft",
+        "active",
+        "closed"
+      ],
+      "name": "survey_form_status",
+      "entityType": "enums",
+      "schema": "public"
+    },
+    {
+      "values": [
+        "installation",
+        "repair"
+      ],
+      "name": "survey_kpi_category",
+      "entityType": "enums",
+      "schema": "public"
+    },
+    {
+      "values": [
+        "short_answer",
+        "paragraph",
+        "multiple_choice",
+        "checkboxes",
+        "dropdown",
+        "linear_scale"
+      ],
+      "name": "survey_question_type",
+      "entityType": "enums",
+      "schema": "public"
+    },
+    {
+      "values": [
+        "very_positive",
+        "positive",
+        "neutral",
+        "negative",
+        "very_negative",
+        "not_applicable"
+      ],
+      "name": "survey_sentiment_label",
+      "entityType": "enums",
+      "schema": "public"
+    },
+    {
+      "values": [
+        "administrator",
+        "boss",
+        "technician",
+        "requester"
+      ],
+      "name": "technician_role",
+      "entityType": "enums",
+      "schema": "public"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "audit_logs",
+      "entityType": "tables",
+      "schema": "public"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "auth_sessions",
+      "entityType": "tables",
+      "schema": "public"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "backup_user_invitations",
+      "entityType": "tables",
+      "schema": "public"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "backup_users",
+      "entityType": "tables",
+      "schema": "public"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "master_categories",
+      "entityType": "tables",
+      "schema": "public"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "master_divisions",
+      "entityType": "tables",
+      "schema": "public"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "master_locations",
+      "entityType": "tables",
+      "schema": "public"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "survey_answer_analyses",
+      "entityType": "tables",
+      "schema": "public"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "survey_answers",
+      "entityType": "tables",
+      "schema": "public"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "survey_forms",
+      "entityType": "tables",
+      "schema": "public"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "survey_questions",
+      "entityType": "tables",
+      "schema": "public"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "survey_responses",
+      "entityType": "tables",
+      "schema": "public"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "survey_submissions",
+      "entityType": "tables",
+      "schema": "public"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "technicians",
+      "entityType": "tables",
+      "schema": "public"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "troubleshooting_approvals",
+      "entityType": "tables",
+      "schema": "public"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "troubleshooting_issues",
+      "entityType": "tables",
+      "schema": "public"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "gen_random_uuid()",
+      "generated": null,
+      "identity": null,
+      "name": "id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "audit_logs"
+    },
+    {
+      "type": "audit_actor_type",
+      "typeSchema": "public",
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "actor_type",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "audit_logs"
+    },
+    {
+      "type": "varchar(120)",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "actor_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "audit_logs"
+    },
+    {
+      "type": "varchar(120)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "action",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "audit_logs"
+    },
+    {
+      "type": "varchar(80)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "entity_type",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "audit_logs"
+    },
+    {
+      "type": "varchar(120)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "entity_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "audit_logs"
+    },
+    {
+      "type": "jsonb",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "metadata",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "audit_logs"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "audit_logs"
+    },
+    {
+      "type": "varchar(64)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "token_hash",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "auth_sessions"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "technician_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "auth_sessions"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "expires_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "auth_sessions"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "auth_sessions"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "last_used_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "auth_sessions"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "gen_random_uuid()",
+      "generated": null,
+      "identity": null,
+      "name": "id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "backup_user_invitations"
+    },
+    {
+      "type": "varchar(64)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "token_hash",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "backup_user_invitations"
+    },
+    {
+      "type": "backup_invitation_status",
+      "typeSchema": "public",
+      "notNull": true,
+      "dimensions": 0,
+      "default": "'pending'",
+      "generated": null,
+      "identity": null,
+      "name": "status",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "backup_user_invitations"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "created_by_technician_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "backup_user_invitations"
+    },
+    {
+      "type": "varchar(32)",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "backup_user_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "backup_user_invitations"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "expires_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "backup_user_invitations"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "submitted_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "backup_user_invitations"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "backup_user_invitations"
+    },
+    {
+      "type": "varchar(32)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "backup_users"
+    },
+    {
+      "type": "varchar(120)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "full_name",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "backup_users"
+    },
+    {
+      "type": "varchar(120)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "'Unassigned'",
+      "generated": null,
+      "identity": null,
+      "name": "division",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "backup_users"
+    },
+    {
+      "type": "varchar(120)",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "username",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "backup_users"
+    },
+    {
+      "type": "varchar(254)",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "email",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "backup_users"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "password_information",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "backup_users"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "sync_path",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "backup_users"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "last_backup_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "backup_users"
+    },
+    {
+      "type": "backup_status",
+      "typeSchema": "public",
+      "notNull": true,
+      "dimensions": 0,
+      "default": "'Pending'",
+      "generated": null,
+      "identity": null,
+      "name": "status",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "backup_users"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "backup_users"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "updated_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "backup_users"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "gen_random_uuid()",
+      "generated": null,
+      "identity": null,
+      "name": "id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "master_categories"
+    },
+    {
+      "type": "varchar(120)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "name",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "master_categories"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "master_categories"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "gen_random_uuid()",
+      "generated": null,
+      "identity": null,
+      "name": "id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "master_divisions"
+    },
+    {
+      "type": "varchar(120)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "name",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "master_divisions"
+    },
+    {
+      "type": "varchar(80)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "slug",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "master_divisions"
+    },
+    {
+      "type": "boolean",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "false",
+      "generated": null,
+      "identity": null,
+      "name": "is_service_target",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "master_divisions"
+    },
+    {
+      "type": "varchar(80)",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "request_form_key",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "master_divisions"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "master_divisions"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "gen_random_uuid()",
+      "generated": null,
+      "identity": null,
+      "name": "id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "master_locations"
+    },
+    {
+      "type": "varchar(120)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "name",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "master_locations"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "master_locations"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "gen_random_uuid()",
+      "generated": null,
+      "identity": null,
+      "name": "id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "survey_answer_analyses"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "answer_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "survey_answer_analyses"
+    },
+    {
+      "type": "survey_analysis_status",
+      "typeSchema": "public",
+      "notNull": true,
+      "dimensions": 0,
+      "default": "'pending'",
+      "generated": null,
+      "identity": null,
+      "name": "status",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "survey_answer_analyses"
+    },
+    {
+      "type": "varchar(32)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "'gemini'",
+      "generated": null,
+      "identity": null,
+      "name": "provider",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "survey_answer_analyses"
+    },
+    {
+      "type": "varchar(120)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "model",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "survey_answer_analyses"
+    },
+    {
+      "type": "survey_sentiment_label",
+      "typeSchema": "public",
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "sentiment_label",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "survey_answer_analyses"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "sentiment_score",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "survey_answer_analyses"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "confidence_percent",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "survey_answer_analyses"
+    },
+    {
+      "type": "varchar(500)",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "summary",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "survey_answer_analyses"
+    },
+    {
+      "type": "varchar(500)",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "error_message",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "survey_answer_analyses"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "manual_score",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "survey_answer_analyses"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "analyzed_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "survey_answer_analyses"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "survey_answer_analyses"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "updated_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "survey_answer_analyses"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "gen_random_uuid()",
+      "generated": null,
+      "identity": null,
+      "name": "id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "survey_answers"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "submission_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "survey_answers"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "question_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "survey_answers"
+    },
+    {
+      "type": "jsonb",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "value",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "survey_answers"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "gen_random_uuid()",
+      "generated": null,
+      "identity": null,
+      "name": "id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "survey_forms"
+    },
+    {
+      "type": "varchar(200)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "title",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "survey_forms"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "''",
+      "generated": null,
+      "identity": null,
+      "name": "description",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "survey_forms"
+    },
+    {
+      "type": "survey_form_status",
+      "typeSchema": "public",
+      "notNull": true,
+      "dimensions": 0,
+      "default": "'draft'",
+      "generated": null,
+      "identity": null,
+      "name": "status",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "survey_forms"
+    },
+    {
+      "type": "varchar(16)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "public_code",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "survey_forms"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "created_by_technician_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "survey_forms"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "expires_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "survey_forms"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "survey_forms"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "updated_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "survey_forms"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "gen_random_uuid()",
+      "generated": null,
+      "identity": null,
+      "name": "id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "survey_questions"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "survey_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "survey_questions"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "position",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "survey_questions"
+    },
+    {
+      "type": "survey_question_type",
+      "typeSchema": "public",
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "type",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "survey_questions"
+    },
+    {
+      "type": "survey_kpi_category",
+      "typeSchema": "public",
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "kpi_category",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "survey_questions"
+    },
+    {
+      "type": "varchar(500)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "title",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "survey_questions"
+    },
+    {
+      "type": "boolean",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "false",
+      "generated": null,
+      "identity": null,
+      "name": "is_required",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "survey_questions"
+    },
+    {
+      "type": "jsonb",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "'[]'",
+      "generated": null,
+      "identity": null,
+      "name": "options",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "survey_questions"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "survey_questions"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "gen_random_uuid()",
+      "generated": null,
+      "identity": null,
+      "name": "id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "survey_responses"
+    },
+    {
+      "type": "varchar(32)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "issue_reference",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "survey_responses"
+    },
+    {
+      "type": "varchar(120)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "client_name",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "survey_responses"
+    },
+    {
+      "type": "varchar(120)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "department",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "survey_responses"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "score",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "survey_responses"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "comment",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "survey_responses"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "responded_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "survey_responses"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "gen_random_uuid()",
+      "generated": null,
+      "identity": null,
+      "name": "id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "survey_submissions"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "survey_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "survey_submissions"
+    },
+    {
+      "type": "varchar(120)",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "client_name",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "survey_submissions"
+    },
+    {
+      "type": "varchar(120)",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "division",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "survey_submissions"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "submitted_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "survey_submissions"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "gen_random_uuid()",
+      "generated": null,
+      "identity": null,
+      "name": "id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "technicians"
+    },
+    {
+      "type": "varchar(120)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "name",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "technicians"
+    },
+    {
+      "type": "varchar(80)",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "username",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "technicians"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "password_hash",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "technicians"
+    },
+    {
+      "type": "technician_role",
+      "typeSchema": "public",
+      "notNull": true,
+      "dimensions": 0,
+      "default": "'boss'",
+      "generated": null,
+      "identity": null,
+      "name": "role",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "technicians"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "division_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "technicians"
+    },
+    {
+      "type": "boolean",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "true",
+      "generated": null,
+      "identity": null,
+      "name": "is_active",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "technicians"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "0",
+      "generated": null,
+      "identity": null,
+      "name": "failed_login_attempts",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "technicians"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "locked_until",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "technicians"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "technicians"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "updated_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "technicians"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "gen_random_uuid()",
+      "generated": null,
+      "identity": null,
+      "name": "id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "troubleshooting_approvals"
+    },
+    {
+      "type": "varchar(32)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "issue_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "troubleshooting_approvals"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "requested_by_technician_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "troubleshooting_approvals"
+    },
+    {
+      "type": "varchar(64)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "token_hash",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "troubleshooting_approvals"
+    },
+    {
+      "type": "approval_status",
+      "typeSchema": "public",
+      "notNull": true,
+      "dimensions": 0,
+      "default": "'pending'",
+      "generated": null,
+      "identity": null,
+      "name": "status",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "troubleshooting_approvals"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "expires_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "troubleshooting_approvals"
+    },
+    {
+      "type": "varchar(120)",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "client_name",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "troubleshooting_approvals"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "client_note",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "troubleshooting_approvals"
+    },
+    {
+      "type": "bytea",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "signature_data",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "troubleshooting_approvals"
+    },
+    {
+      "type": "varchar(80)",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "signature_mime_type",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "troubleshooting_approvals"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "requested_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "troubleshooting_approvals"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "responded_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "troubleshooting_approvals"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "troubleshooting_approvals"
+    },
+    {
+      "type": "varchar(32)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "troubleshooting_issues"
+    },
+    {
+      "type": "varchar(200)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "title",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "troubleshooting_issues"
+    },
+    {
+      "type": "varchar(80)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "category",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "troubleshooting_issues"
+    },
+    {
+      "type": "varchar(120)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "requester_name",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "troubleshooting_issues"
+    },
+    {
+      "type": "varchar(254)",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "requester_email",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "troubleshooting_issues"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "requester_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "troubleshooting_issues"
+    },
+    {
+      "type": "varchar(120)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "division",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "troubleshooting_issues"
+    },
+    {
+      "type": "varchar(120)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "'IT Team'",
+      "generated": null,
+      "identity": null,
+      "name": "service_division",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "troubleshooting_issues"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "service_division_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "troubleshooting_issues"
+    },
+    {
+      "type": "varchar(80)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "'it-support'",
+      "generated": null,
+      "identity": null,
+      "name": "request_form_key",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "troubleshooting_issues"
+    },
+    {
+      "type": "jsonb",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "'{}'",
+      "generated": null,
+      "identity": null,
+      "name": "request_data",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "troubleshooting_issues"
+    },
+    {
+      "type": "varchar(160)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "location",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "troubleshooting_issues"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "reported_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "troubleshooting_issues"
+    },
+    {
+      "type": "issue_priority",
+      "typeSchema": "public",
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "priority",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "troubleshooting_issues"
+    },
+    {
+      "type": "issue_status",
+      "typeSchema": "public",
+      "notNull": true,
+      "dimensions": 0,
+      "default": "'New'",
+      "generated": null,
+      "identity": null,
+      "name": "status",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "troubleshooting_issues"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "completed_days",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "troubleshooting_issues"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "description",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "troubleshooting_issues"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "''",
+      "generated": null,
+      "identity": null,
+      "name": "resolution",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "troubleshooting_issues"
+    },
+    {
+      "type": "bytea",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "work_photo_data",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "troubleshooting_issues"
+    },
+    {
+      "type": "varchar(40)",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "work_photo_mime_type",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "troubleshooting_issues"
+    },
+    {
+      "type": "varchar(255)",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "work_photo_file_name",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "troubleshooting_issues"
+    },
+    {
+      "type": "bytea",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "requester_photo_data",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "troubleshooting_issues"
+    },
+    {
+      "type": "varchar(40)",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "requester_photo_mime_type",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "troubleshooting_issues"
+    },
+    {
+      "type": "varchar(255)",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "requester_photo_file_name",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "troubleshooting_issues"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "assigned_technician_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "troubleshooting_issues"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "troubleshooting_issues"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "updated_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "troubleshooting_issues"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "entity_type",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "entity_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "audit_logs_entity_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "audit_logs"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "created_at",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "audit_logs_created_at_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "audit_logs"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "technician_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "auth_sessions_technician_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "auth_sessions"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "expires_at",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "auth_sessions_expires_at_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "auth_sessions"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "token_hash",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": true,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "backup_user_invitations_token_hash_unique",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "backup_user_invitations"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "status",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "expires_at",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "backup_user_invitations_status_expiry_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "backup_user_invitations"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "backup_user_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "backup_user_invitations_backup_user_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "backup_user_invitations"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "status",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "backup_users_status_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "backup_users"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "last_backup_at",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "backup_users_last_backup_at_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "backup_users"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "lower(\"name\")",
+          "isExpression": true,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": true,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "master_categories_name_unique",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "master_categories"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "lower(\"name\")",
+          "isExpression": true,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": true,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "master_divisions_name_unique",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "master_divisions"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "slug",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": true,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "master_divisions_slug_unique",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "master_divisions"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "lower(\"name\")",
+          "isExpression": true,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": true,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "master_locations_name_unique",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "master_locations"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "answer_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": true,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "survey_answer_analyses_answer_unique",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "survey_answer_analyses"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "status",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "survey_answer_analyses_status_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "survey_answer_analyses"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "submission_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "question_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": true,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "survey_answers_submission_question_unique",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "survey_answers"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "question_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "survey_answers_question_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "survey_answers"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "public_code",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": true,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "survey_forms_public_code_unique",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "survey_forms"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "status",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "created_at",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "survey_forms_status_created_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "survey_forms"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "survey_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "position",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "survey_questions_survey_position_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "survey_questions"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "responded_at",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "survey_responses_responded_at_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "survey_responses"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "issue_reference",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "survey_responses_issue_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "survey_responses"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "survey_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "submitted_at",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "survey_submissions_survey_submitted_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "survey_submissions"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "username",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": true,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "technicians_username_unique",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "technicians"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "division_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "technicians_division_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "technicians"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "token_hash",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": true,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "troubleshooting_approvals_token_hash_unique",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "troubleshooting_approvals"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "issue_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "troubleshooting_approvals_issue_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "troubleshooting_approvals"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "status",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "expires_at",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "troubleshooting_approvals_status_expiry_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "troubleshooting_approvals"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "issue_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": true,
+      "where": "\"status\" = 'pending'",
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "troubleshooting_approvals_one_pending_per_issue_unique",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "troubleshooting_approvals"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "status",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "troubleshooting_issues_status_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "troubleshooting_issues"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "reported_at",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "troubleshooting_issues_reported_at_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "troubleshooting_issues"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "assigned_technician_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "troubleshooting_issues_assignee_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "troubleshooting_issues"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "requester_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "troubleshooting_issues_requester_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "troubleshooting_issues"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "service_division",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "troubleshooting_issues_service_division_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "troubleshooting_issues"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "service_division_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "troubleshooting_issues_service_division_id_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "troubleshooting_issues"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "technician_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "technicians",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "name": "auth_sessions_technician_id_technicians_id_fkey",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "auth_sessions"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "created_by_technician_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "technicians",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "SET NULL",
+      "name": "backup_user_invitations_KIYhttCQmtMT_fkey",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "backup_user_invitations"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "backup_user_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "backup_users",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "SET NULL",
+      "name": "backup_user_invitations_backup_user_id_backup_users_id_fkey",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "backup_user_invitations"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "answer_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "survey_answers",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "name": "survey_answer_analyses_answer_id_survey_answers_id_fkey",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "survey_answer_analyses"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "submission_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "survey_submissions",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "name": "survey_answers_submission_id_survey_submissions_id_fkey",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "survey_answers"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "question_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "survey_questions",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "name": "survey_answers_question_id_survey_questions_id_fkey",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "survey_answers"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "created_by_technician_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "technicians",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "SET NULL",
+      "name": "survey_forms_created_by_technician_id_technicians_id_fkey",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "survey_forms"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "survey_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "survey_forms",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "name": "survey_questions_survey_id_survey_forms_id_fkey",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "survey_questions"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "survey_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "survey_forms",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "name": "survey_submissions_survey_id_survey_forms_id_fkey",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "survey_submissions"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "division_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "master_divisions",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "SET NULL",
+      "name": "technicians_division_id_master_divisions_id_fkey",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "technicians"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "issue_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "troubleshooting_issues",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "name": "troubleshooting_approvals_1D6ChWVRDzDh_fkey",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "troubleshooting_approvals"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "requested_by_technician_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "technicians",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "SET NULL",
+      "name": "troubleshooting_approvals_x15JsPA8bHRf_fkey",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "troubleshooting_approvals"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "requester_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "technicians",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "SET NULL",
+      "name": "troubleshooting_issues_requester_id_technicians_id_fkey",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "troubleshooting_issues"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "service_division_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "master_divisions",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "RESTRICT",
+      "name": "troubleshooting_issues_Rnvx2fU0eOOP_fkey",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "troubleshooting_issues"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "assigned_technician_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "technicians",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "SET NULL",
+      "name": "troubleshooting_issues_zPMOafikuU2f_fkey",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "troubleshooting_issues"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "audit_logs_pkey",
+      "schema": "public",
+      "table": "audit_logs",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "token_hash"
+      ],
+      "nameExplicit": false,
+      "name": "auth_sessions_pkey",
+      "schema": "public",
+      "table": "auth_sessions",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "backup_user_invitations_pkey",
+      "schema": "public",
+      "table": "backup_user_invitations",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "backup_users_pkey",
+      "schema": "public",
+      "table": "backup_users",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "master_categories_pkey",
+      "schema": "public",
+      "table": "master_categories",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "master_divisions_pkey",
+      "schema": "public",
+      "table": "master_divisions",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "master_locations_pkey",
+      "schema": "public",
+      "table": "master_locations",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "survey_answer_analyses_pkey",
+      "schema": "public",
+      "table": "survey_answer_analyses",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "survey_answers_pkey",
+      "schema": "public",
+      "table": "survey_answers",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "survey_forms_pkey",
+      "schema": "public",
+      "table": "survey_forms",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "survey_questions_pkey",
+      "schema": "public",
+      "table": "survey_questions",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "survey_responses_pkey",
+      "schema": "public",
+      "table": "survey_responses",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "survey_submissions_pkey",
+      "schema": "public",
+      "table": "survey_submissions",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "technicians_pkey",
+      "schema": "public",
+      "table": "technicians",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "troubleshooting_approvals_pkey",
+      "schema": "public",
+      "table": "troubleshooting_approvals",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "troubleshooting_issues_pkey",
+      "schema": "public",
+      "table": "troubleshooting_issues",
+      "entityType": "pks"
+    },
+    {
+      "value": "\"token_hash\" ~ '^[0-9a-f]{64}$'",
+      "name": "auth_sessions_token_hash_format_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "auth_sessions"
+    },
+    {
+      "value": "\"expires_at\" > \"created_at\"",
+      "name": "auth_sessions_expiry_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "auth_sessions"
+    },
+    {
+      "value": "\"token_hash\" ~ '^[0-9a-f]{64}$'",
+      "name": "backup_user_invitations_token_hash_format_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "backup_user_invitations"
+    },
+    {
+      "value": "\"expires_at\" > \"created_at\"",
+      "name": "backup_user_invitations_expiry_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "backup_user_invitations"
+    },
+    {
+      "value": "\"slug\" ~ '^[a-z0-9]+(-[a-z0-9]+)*$'",
+      "name": "master_divisions_slug_format_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "master_divisions"
+    },
+    {
+      "value": "\"sentiment_score\" is null or \"sentiment_score\" between 1 and 5",
+      "name": "survey_answer_analyses_score_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "survey_answer_analyses"
+    },
+    {
+      "value": "\"confidence_percent\" is null or \"confidence_percent\" between 0 and 100",
+      "name": "survey_answer_analyses_confidence_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "survey_answer_analyses"
+    },
+    {
+      "value": "\"manual_score\" is null or \"manual_score\" between 1 and 5",
+      "name": "survey_answer_analyses_manual_score_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "survey_answer_analyses"
+    },
+    {
+      "value": "\"public_code\" ~ '^[A-Za-z0-9_-]{16}$'",
+      "name": "survey_forms_public_code_format_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "survey_forms"
+    },
+    {
+      "value": "\"position\" >= 0",
+      "name": "survey_questions_position_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "survey_questions"
+    },
+    {
+      "value": "\"score\" between 1 and 5",
+      "name": "survey_responses_score_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "survey_responses"
+    },
+    {
+      "value": "\"failed_login_attempts\" >= 0",
+      "name": "technicians_failed_login_attempts_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "technicians"
+    },
+    {
+      "value": "\"token_hash\" ~ '^[0-9a-f]{64}$'",
+      "name": "troubleshooting_approvals_token_hash_format_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "troubleshooting_approvals"
+    },
+    {
+      "value": "\"expires_at\" > \"requested_at\"",
+      "name": "troubleshooting_approvals_expiry_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "troubleshooting_approvals"
+    },
+    {
+      "value": "(\"signature_data\" is null and \"signature_mime_type\" is null) or (\"signature_data\" is not null and \"signature_mime_type\" is not null)",
+      "name": "troubleshooting_approvals_signature_pair_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "troubleshooting_approvals"
+    },
+    {
+      "value": "(\"status\" <> 'approved' or (\"client_name\" is not null and \"signature_data\" is not null and \"responded_at\" is not null)) and (\"status\" <> 'rejected' or (\"client_name\" is not null and \"responded_at\" is not null))",
+      "name": "troubleshooting_approvals_decision_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "troubleshooting_approvals"
+    },
+    {
+      "value": "\"completed_days\" is null or \"completed_days\" >= 0",
+      "name": "troubleshooting_issues_completed_days_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "troubleshooting_issues"
+    },
+    {
+      "value": "(\"work_photo_data\" is null and \"work_photo_mime_type\" is null and \"work_photo_file_name\" is null) or (\"work_photo_data\" is not null and \"work_photo_mime_type\" is not null and \"work_photo_file_name\" is not null)",
+      "name": "troubleshooting_issues_work_photo_pair_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "troubleshooting_issues"
+    },
+    {
+      "value": "\"work_photo_data\" is null or octet_length(\"work_photo_data\") <= 2097152",
+      "name": "troubleshooting_issues_work_photo_size_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "troubleshooting_issues"
+    },
+    {
+      "value": "(\"requester_photo_data\" is null and \"requester_photo_mime_type\" is null and \"requester_photo_file_name\" is null) or (\"requester_photo_data\" is not null and \"requester_photo_mime_type\" is not null and \"requester_photo_file_name\" is not null)",
+      "name": "troubleshooting_issues_requester_photo_pair_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "troubleshooting_issues"
+    },
+    {
+      "value": "\"requester_photo_data\" is null or octet_length(\"requester_photo_data\") <= 2097152",
+      "name": "troubleshooting_issues_requester_photo_size_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "troubleshooting_issues"
+    }
+  ],
+  "renames": []
+}

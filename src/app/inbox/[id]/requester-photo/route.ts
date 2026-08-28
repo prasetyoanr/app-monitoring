@@ -1,6 +1,7 @@
 import { eq } from "drizzle-orm";
 
 import { getCurrentUser } from "@/auth/session";
+import { canViewServiceIssue } from "@/auth/issue-access";
 import { db } from "@/db";
 import { troubleshootingIssues } from "@/db/schema";
 
@@ -24,6 +25,8 @@ export async function GET(
       mimeType: troubleshootingIssues.requesterPhotoMimeType,
       updatedAt: troubleshootingIssues.updatedAt,
       requesterId: troubleshootingIssues.requesterId,
+      requesterDivision: troubleshootingIssues.division,
+      serviceDivisionId: troubleshootingIssues.serviceDivisionId,
     })
     .from(troubleshootingIssues)
     .where(eq(troubleshootingIssues.id, id))
@@ -32,7 +35,7 @@ export async function GET(
   if (
     !photo?.data ||
     photo.mimeType !== "image/jpeg" ||
-    (currentUser.role === "requester" && photo.requesterId !== currentUser.id)
+    !canViewServiceIssue(currentUser, photo)
   ) {
     return new Response("Not found", { status: 404 });
   }

@@ -5,10 +5,13 @@ import { and, eq, gt } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 import { isITTeamUser, requireAuthenticatedUser, requireServiceAgent } from "@/auth/session";
+import { canManageServiceIssue } from "@/auth/issue-access";
 import { db } from "@/db";
 import {
   auditLogs,
   masterDivisions,
+  requestStatusHistory,
+  requestStatusNotifications,
   troubleshootingApprovals,
   troubleshootingIssues,
 } from "@/db/schema";
@@ -21,15 +24,15 @@ import {
   genericServiceRequestTemplate,
   getServiceRequestTemplate,
 } from "@/features/service-requests/template-registry";
+import { getServiceInboxProfile } from "@/features/service-inbox/profile-registry";
+import {
+  getBasicStatusTransitionRequirement,
+  getITRequestStatusTransitionRequirement,
+} from "@/features/service-inbox/status-transitions";
+import { issueStatusLabel } from "@/lib/issue-status";
 import { generateRecordId } from "@/lib/record-id";
 
 const priorities: IssuePriority[] = ["Low", "Medium", "High", "Critical"];
-const editableStatuses: IssueStatus[] = [
-  "New",
-  "In Progress",
-  "Waiting for Client Approval",
-  "Reopened",
-];
 const MAX_WORK_PHOTO_BYTES = 2 * 1024 * 1024;
 type PhotoIntent = "keep" | "replace" | "remove";
 
@@ -90,6 +93,9 @@ export async function saveIssueAction(
 ): Promise<ActionResult<{ id: string }>> {
   const currentUser = await requireServiceAgent();
   try {
+    if (!isITTeamUser(currentUser)) {
+      throw new Error("Non-IT divisions can only update request handling status.");
+    }
     const id = optionalField(formData, "id", 32) || (await nextIssueId());
     const title = field(formData, "title", 200);
     const requesterName = field(formData, "requester", 120);
@@ -106,10 +112,6 @@ export async function saveIssueAction(
       throw new Error("Invalid work photo action.");
     }
     const photoIntent = requestedPhotoIntent as PhotoIntent;
-    const workPhotoData = await uploadedWorkPhoto(formData);
-    if (photoIntent === "replace" && !workPhotoData) {
-      throw new Error("Select a work photo before saving.");
-    }
 
     const [existing] = await db
       .select({
@@ -117,23 +119,62 @@ export async function saveIssueAction(
         priority: troubleshootingIssues.priority,
         completedDays: troubleshootingIssues.completedDays,
         workPhotoData: troubleshootingIssues.workPhotoData,
+        source: troubleshootingIssues.source,
+        serviceDivisionId: troubleshootingIssues.serviceDivisionId,
+        inboxProfileKey: masterDivisions.inboxProfileKey,
       })
       .from(troubleshootingIssues)
+      .innerJoin(
+        masterDivisions,
+        eq(troubleshootingIssues.serviceDivisionId, masterDivisions.id),
+      )
       .where(eq(troubleshootingIssues.id, id))
       .limit(1);
     if (!existing && !isITTeamUser(currentUser)) {
       throw new Error("The Add Issue feature is available to the IT division only.");
     }
+    if (existing && !canManageServiceIssue(currentUser, existing.serviceDivisionId)) {
+      throw new Error("You cannot manage requests assigned to another division.");
+    }
+    if (
+      existing?.source === "division_request" &&
+      currentUser.role !== "administrator"
+    ) {
+      throw new Error("Requests from another division can only update status and work evidence.");
+    }
+    const inboxProfile = getServiceInboxProfile(
+      existing?.inboxProfileKey ?? "it-service",
+    );
+    const uploadedPhotoEntry = formData.get("workPhoto");
+    if (
+      !inboxProfile.features.workPhoto &&
+      ((uploadedPhotoEntry instanceof File && uploadedPhotoEntry.size > 0) ||
+        photoIntent !== "keep")
+    ) {
+      throw new Error("Work photos are not enabled for this division.");
+    }
+    const workPhotoData = inboxProfile.features.workPhoto
+      ? await uploadedWorkPhoto(formData)
+      : null;
+    if (photoIntent === "replace" && !workPhotoData) {
+      throw new Error("Select a work photo before saving.");
+    }
     const priority = (submittedPriority || existing?.priority || "Medium") as IssuePriority;
     if (!priorities.includes(priority)) throw new Error("Invalid priority.");
-    const mayKeepCompleted = existing?.status === "Completed" && requestedStatus === "Completed";
-    if (!editableStatuses.includes(requestedStatus) && !mayKeepCompleted) {
+    const mayKeepCompleted =
+      !inboxProfile.features.directCompletion &&
+      existing?.status === "Completed" &&
+      requestedStatus === "Completed";
+    if (!inboxProfile.editableStatuses.includes(requestedStatus) && !mayKeepCompleted) {
       throw new Error("Completed status can only be set through client approval.");
     }
     const hasFinalWorkPhoto =
       Boolean(workPhotoData) ||
       (photoIntent === "keep" && Boolean(existing?.workPhotoData));
-    if (requestedStatus === "Waiting for Client Approval" && !hasFinalWorkPhoto) {
+    if (
+      requestedStatus === "Waiting for Client Approval" &&
+      (!inboxProfile.features.approvalQr || !hasFinalWorkPhoto)
+    ) {
       throw new Error("Add a work photo before requesting client approval.");
     }
     const reportedAt = new Date(`${reportedDate}T00:00:00+07:00`);
@@ -162,7 +203,15 @@ export async function saveIssueAction(
       reportedAt,
       priority,
       status: requestedStatus,
-      completedDays: mayKeepCompleted ? existing.completedDays : null,
+      completedDays:
+        requestedStatus === "Completed" && inboxProfile.features.directCompletion
+          ? Math.max(
+              0,
+              Math.floor((Date.now() - reportedAt.getTime()) / 86_400_000),
+            )
+          : mayKeepCompleted
+            ? existing.completedDays
+            : null,
       updatedAt: new Date(),
       ...photoValues,
     };
@@ -189,6 +238,7 @@ export async function saveIssueAction(
       await db.insert(troubleshootingIssues).values({
         id,
         ...values,
+        source: "manual",
         serviceDivision: itServiceDivision.name,
         serviceDivisionId: itServiceDivision.id,
         requestFormKey: "it-support",
@@ -211,6 +261,156 @@ export async function saveIssueAction(
     return {
       ok: false,
       error: error instanceof Error ? error.message : "Unable to save issue.",
+    };
+  }
+}
+
+export async function updateIssueStatusAction(
+  id: string,
+  requestedStatusValue: string,
+  reasonValue = "",
+  requesterNoteValue = "",
+): Promise<ActionResult<{ id: string }>> {
+  const currentUser = await requireServiceAgent();
+  try {
+    if (!/^(?:INC-[0-9]{4}-[0-9]{4,6}|TR-[0-9]{4}-[0-9]{4})$/.test(id)) {
+      throw new Error("Invalid issue ID.");
+    }
+
+    const requestedStatus = requestedStatusValue.trim() as IssueStatus;
+    const reason = reasonValue.trim();
+    const requesterNote = requesterNoteValue.trim();
+    if (reason.length > 1_000) {
+      throw new Error("The internal reason must not exceed 1000 characters.");
+    }
+    if (requesterNote.length > 500) {
+      throw new Error("The requester note must not exceed 500 characters.");
+    }
+    const [issue] = await db
+      .select({
+        status: troubleshootingIssues.status,
+        reportedAt: troubleshootingIssues.reportedAt,
+        completedDays: troubleshootingIssues.completedDays,
+        requesterId: troubleshootingIssues.requesterId,
+        source: troubleshootingIssues.source,
+        workPhotoData: troubleshootingIssues.workPhotoData,
+        serviceDivisionId: troubleshootingIssues.serviceDivisionId,
+        inboxProfileKey: masterDivisions.inboxProfileKey,
+      })
+      .from(troubleshootingIssues)
+      .innerJoin(
+        masterDivisions,
+        eq(troubleshootingIssues.serviceDivisionId, masterDivisions.id),
+      )
+      .where(eq(troubleshootingIssues.id, id))
+      .limit(1);
+
+    if (!issue) throw new Error("Issue was not found.");
+    if (!canManageServiceIssue(currentUser, issue.serviceDivisionId)) {
+      throw new Error("You cannot manage requests assigned to another division.");
+    }
+
+    const inboxProfile = getServiceInboxProfile(issue.inboxProfileKey);
+    const isITRequestWorkflow =
+      inboxProfile.key === "it-service" && issue.source === "division_request";
+    if (
+      inboxProfile.key !== "basic-service" &&
+      !isITRequestWorkflow
+    ) {
+      throw new Error("This issue does not use status-only handling.");
+    }
+    if (
+      isITRequestWorkflow &&
+      !isITTeamUser(currentUser) &&
+      currentUser.role !== "administrator"
+    ) {
+      throw new Error("Only the IT division can update this request.");
+    }
+    if (!inboxProfile.editableStatuses.includes(requestedStatus)) {
+      throw new Error("Invalid status for this division.");
+    }
+    const transitionRequirement = isITRequestWorkflow
+      ? getITRequestStatusTransitionRequirement(issue.status, requestedStatus)
+      : getBasicStatusTransitionRequirement(issue.status, requestedStatus);
+    if (transitionRequirement === "unchanged") {
+      return { ok: true, data: { id } };
+    }
+    if (transitionRequirement === "invalid") {
+      throw new Error(`Status cannot be changed from ${issueStatusLabel(issue.status)} to ${issueStatusLabel(requestedStatus)}.`);
+    }
+    if (transitionRequirement === "reason" && reason.length < 5) {
+      throw new Error("Provide an internal reason of at least 5 characters.");
+    }
+    if (
+      requestedStatus === "Waiting for Client Approval" &&
+      !issue.workPhotoData
+    ) {
+      throw new Error("Add a work photo before requesting client approval.");
+    }
+
+    const completedDays =
+      requestedStatus === "Completed"
+        ? issue.status === "Completed"
+          ? issue.completedDays
+          : Math.max(
+              0,
+              Math.floor((Date.now() - issue.reportedAt.getTime()) / 86_400_000),
+            )
+        : null;
+
+    await db.transaction(async (tx) => {
+      await tx
+        .update(troubleshootingIssues)
+        .set({
+          status: requestedStatus,
+          completedDays,
+          updatedAt: new Date(),
+        })
+        .where(eq(troubleshootingIssues.id, id));
+
+      if (issue.requesterId) {
+        await tx.insert(requestStatusNotifications).values({
+          recipientId: issue.requesterId,
+          issueId: id,
+          status: requestedStatus,
+          requesterNote: requesterNote || null,
+        });
+      }
+
+      await tx.insert(requestStatusHistory).values({
+        issueId: id,
+        changedById: currentUser.id,
+        previousStatus: issue.status,
+        status: requestedStatus,
+        reason: reason || null,
+        requesterNote: requesterNote || null,
+      });
+
+      await tx.insert(auditLogs).values({
+        actorType: "technician",
+        actorId: currentUser.id,
+        action: "issue.status_updated",
+        entityType: "troubleshooting_issue",
+        entityId: id,
+        metadata: {
+          previousStatus: issue.status,
+          status: requestedStatus,
+          reason: reason || null,
+          requesterNote: requesterNote || null,
+          requesterNotified: Boolean(issue.requesterId),
+        },
+      });
+    });
+    revalidatePath("/");
+    revalidatePath("/inbox");
+    revalidatePath("/requests");
+    revalidatePath("/reports");
+    return { ok: true, data: { id } };
+  } catch (error) {
+    console.error("Unable to update issue status.", error);
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : "Unable to update status.",
     };
   }
 }
@@ -243,6 +443,7 @@ export async function createRequesterTicketAction(
         name: masterDivisions.name,
         isServiceTarget: masterDivisions.isServiceTarget,
         requestFormKey: masterDivisions.requestFormKey,
+        inboxProfileKey: masterDivisions.inboxProfileKey,
       })
       .from(masterDivisions)
       .where(eq(masterDivisions.id, serviceDivisionId))
@@ -252,6 +453,7 @@ export async function createRequesterTicketAction(
     }
     const template =
       getServiceRequestTemplate(serviceDivision.requestFormKey) ?? genericServiceRequestTemplate;
+    const inboxProfile = getServiceInboxProfile(serviceDivision.inboxProfileKey);
 
     const requestData: Record<string, string> = {};
     let title = "";
@@ -262,6 +464,7 @@ export async function createRequesterTicketAction(
 
     for (const formField of template.fields) {
       if (formField.type === "photo") {
+        if (!inboxProfile.features.requesterPhoto) continue;
         const photo = await uploadedJpegPhoto(
           formData,
           formField.key,
@@ -303,8 +506,21 @@ export async function createRequesterTicketAction(
       description = optionalField(formData, "description", 10_000) || template.description;
     }
 
-    // Also check for legacy photo upload field name if not captured yet
-    if (!requesterPhotoData) {
+    if (!inboxProfile.features.requesterPhoto) {
+      const submittedPhotoFields = [
+        formData.get("requesterPhoto"),
+        ...template.fields
+          .filter((formField) => formField.type === "photo")
+          .map((formField) => formData.get(formField.key)),
+      ];
+      if (
+        submittedPhotoFields.some(
+          (entry) => entry instanceof File && entry.size > 0,
+        )
+      ) {
+        throw new Error("Supporting photos are not enabled for this division.");
+      }
+    } else if (!requesterPhotoData) {
       requesterPhotoData = await uploadedJpegPhoto(
         formData,
         "requesterPhoto",
@@ -324,6 +540,7 @@ export async function createRequesterTicketAction(
       requesterName: currentUser.username,
       requesterEmail: null,
       requesterId: currentUser.id,
+      source: "division_request",
       division: division.name,
       serviceDivision: serviceDivision.name,
       serviceDivisionId: serviceDivision.id,
@@ -366,11 +583,122 @@ export async function createRequesterTicketAction(
   }
 }
 
+export async function updateIssueWorkPhotoAction(
+  formData: FormData,
+): Promise<ActionResult<{ id: string }>> {
+  const currentUser = await requireServiceAgent();
+  try {
+    if (!isITTeamUser(currentUser)) {
+      throw new Error("Work evidence is only available to the IT division.");
+    }
+    const id = field(formData, "id", 32);
+    if (!/^(?:INC-[0-9]{4}-[0-9]{4,6}|TR-[0-9]{4}-[0-9]{4})$/.test(id)) {
+      throw new Error("Invalid issue ID.");
+    }
+    const requestedPhotoIntent = optionalField(formData, "photoIntent", 10) || "keep";
+    if (!["keep", "replace", "remove"].includes(requestedPhotoIntent)) {
+      throw new Error("Invalid work photo action.");
+    }
+    const photoIntent = requestedPhotoIntent as PhotoIntent;
+    const [issue] = await db
+      .select({
+        source: troubleshootingIssues.source,
+        status: troubleshootingIssues.status,
+        serviceDivisionId: troubleshootingIssues.serviceDivisionId,
+        inboxProfileKey: masterDivisions.inboxProfileKey,
+      })
+      .from(troubleshootingIssues)
+      .innerJoin(
+        masterDivisions,
+        eq(troubleshootingIssues.serviceDivisionId, masterDivisions.id),
+      )
+      .where(eq(troubleshootingIssues.id, id))
+      .limit(1);
+    if (!issue) throw new Error("Issue was not found.");
+    if (!canManageServiceIssue(currentUser, issue.serviceDivisionId)) {
+      throw new Error("You cannot manage requests assigned to another division.");
+    }
+    if (issue.source !== "division_request") {
+      throw new Error("Manual IT issues use the full edit form.");
+    }
+    if (!getServiceInboxProfile(issue.inboxProfileKey).features.workPhoto) {
+      throw new Error("Work photos are not enabled for this division.");
+    }
+    if (issue.status === "Waiting for Client Approval" && photoIntent === "remove") {
+      throw new Error("The work photo cannot be removed while client approval is pending.");
+    }
+
+    const workPhotoData = await uploadedWorkPhoto(formData);
+    if (photoIntent === "replace" && !workPhotoData) {
+      throw new Error("Select a work photo before saving.");
+    }
+    const photoValues = workPhotoData
+      ? {
+          workPhotoData,
+          workPhotoMimeType: "image/jpeg",
+          workPhotoFileName: `work-photo-${id}.jpg`,
+        }
+      : photoIntent === "remove"
+        ? {
+            workPhotoData: null,
+            workPhotoMimeType: null,
+            workPhotoFileName: null,
+          }
+        : {};
+
+    await db.transaction(async (tx) => {
+      await tx
+        .update(troubleshootingIssues)
+        .set({ ...photoValues, updatedAt: new Date() })
+        .where(eq(troubleshootingIssues.id, id));
+      await tx.insert(auditLogs).values({
+        actorType: "technician",
+        actorId: currentUser.id,
+        action: "issue.work_photo_updated",
+        entityType: "troubleshooting_issue",
+        entityId: id,
+        metadata: { photoIntent },
+      });
+    });
+    revalidatePath("/");
+    revalidatePath("/inbox");
+    revalidatePath("/reports");
+    return { ok: true, data: { id } };
+  } catch (error) {
+    console.error("Unable to update work evidence.", error);
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : "Unable to update work evidence.",
+    };
+  }
+}
+
 export async function deleteIssueAction(id: string): Promise<ActionResult> {
   const currentUser = await requireServiceAgent();
   try {
+    if (!isITTeamUser(currentUser)) {
+      throw new Error("Only the IT division or an administrator can delete requests.");
+    }
     if (!/^(?:INC-[0-9]{4}-[0-9]{4,6}|TR-[0-9]{4}-[0-9]{4})$/.test(id)) {
       throw new Error("Invalid issue ID.");
+    }
+    const [issue] = await db
+      .select({
+        source: troubleshootingIssues.source,
+        serviceDivisionId: troubleshootingIssues.serviceDivisionId,
+      })
+      .from(troubleshootingIssues)
+      .where(eq(troubleshootingIssues.id, id))
+      .limit(1);
+    if (!issue) throw new Error("Issue was not found.");
+    if (!canManageServiceIssue(currentUser, issue.serviceDivisionId)) {
+      throw new Error("You cannot delete requests assigned to another division.");
+    }
+    if (
+      issue.source === "division_request" &&
+      currentUser.role !== "administrator"
+    ) {
+      throw new Error("Requests from another division cannot be deleted.");
     }
     const [deleted] = await db
       .delete(troubleshootingIssues)
@@ -403,11 +731,24 @@ export async function requestApprovalAction(
       .select({
         status: troubleshootingIssues.status,
         workPhotoData: troubleshootingIssues.workPhotoData,
+        serviceDivisionId: troubleshootingIssues.serviceDivisionId,
+        inboxProfileKey: masterDivisions.inboxProfileKey,
       })
       .from(troubleshootingIssues)
+      .innerJoin(
+        masterDivisions,
+        eq(troubleshootingIssues.serviceDivisionId, masterDivisions.id),
+      )
       .where(eq(troubleshootingIssues.id, issueId))
       .limit(1);
-    if (!issue || issue.status !== "Waiting for Client Approval") {
+    if (!issue || !canManageServiceIssue(currentUser, issue.serviceDivisionId)) {
+      throw new Error("Issue is not available to your division.");
+    }
+    const inboxProfile = getServiceInboxProfile(issue.inboxProfileKey);
+    if (!inboxProfile.features.approvalQr) {
+      throw new Error("QR approval is not enabled for this division.");
+    }
+    if (issue.status !== "Waiting for Client Approval") {
       throw new Error("Issue is not ready for client approval.");
     }
     if (!issue.workPhotoData) {
@@ -497,11 +838,23 @@ export async function approveIssueAction(input: {
       if (!approval) throw new Error("Approval link is invalid or expired.");
 
       const [issue] = await tx
-        .select({ reportedAt: troubleshootingIssues.reportedAt })
+        .select({
+          reportedAt: troubleshootingIssues.reportedAt,
+          requesterId: troubleshootingIssues.requesterId,
+          status: troubleshootingIssues.status,
+          inboxProfileKey: masterDivisions.inboxProfileKey,
+        })
         .from(troubleshootingIssues)
+        .innerJoin(
+          masterDivisions,
+          eq(troubleshootingIssues.serviceDivisionId, masterDivisions.id),
+        )
         .where(eq(troubleshootingIssues.id, approval.issueId))
         .limit(1);
       if (!issue) throw new Error("Issue was not found.");
+      if (!getServiceInboxProfile(issue.inboxProfileKey).features.approvalQr) {
+        throw new Error("QR approval is no longer enabled for this division.");
+      }
       const completedDays = Math.max(
         0,
         Math.floor((respondedAt.getTime() - issue.reportedAt.getTime()) / 86_400_000),
@@ -510,6 +863,19 @@ export async function approveIssueAction(input: {
         .update(troubleshootingIssues)
         .set({ status: "Completed", completedDays, updatedAt: respondedAt })
         .where(eq(troubleshootingIssues.id, approval.issueId));
+      if (issue.requesterId) {
+        await tx.insert(requestStatusNotifications).values({
+          recipientId: issue.requesterId,
+          issueId: approval.issueId,
+          status: "Completed",
+        });
+      }
+      await tx.insert(requestStatusHistory).values({
+        issueId: approval.issueId,
+        changedById: null,
+        previousStatus: issue.status,
+        status: "Completed",
+      });
       await tx.insert(auditLogs).values({
         actorType: "client",
         actorId: clientName,
@@ -521,6 +887,7 @@ export async function approveIssueAction(input: {
 
     revalidatePath("/");
     revalidatePath("/inbox");
+    revalidatePath("/requests");
     revalidatePath("/reports");
     return { ok: true, data: { respondedAt: respondedAt.toISOString() } };
   } catch (error) {
@@ -558,10 +925,42 @@ export async function rejectIssueAction(input: {
         )
         .returning({ issueId: troubleshootingApprovals.issueId });
       if (!approval) throw new Error("Approval link is invalid or expired.");
+      const [issue] = await tx
+        .select({
+          requesterId: troubleshootingIssues.requesterId,
+          status: troubleshootingIssues.status,
+          inboxProfileKey: masterDivisions.inboxProfileKey,
+        })
+        .from(troubleshootingIssues)
+        .innerJoin(
+          masterDivisions,
+          eq(troubleshootingIssues.serviceDivisionId, masterDivisions.id),
+        )
+        .where(eq(troubleshootingIssues.id, approval.issueId))
+        .limit(1);
+      if (!issue || !getServiceInboxProfile(issue.inboxProfileKey).features.approvalQr) {
+        throw new Error("QR approval is no longer enabled for this division.");
+      }
       await tx
         .update(troubleshootingIssues)
         .set({ status: "Reopened", updatedAt: respondedAt })
         .where(eq(troubleshootingIssues.id, approval.issueId));
+      if (issue.requesterId) {
+        await tx.insert(requestStatusNotifications).values({
+          recipientId: issue.requesterId,
+          issueId: approval.issueId,
+          status: "Reopened",
+          requesterNote: reason,
+        });
+      }
+      await tx.insert(requestStatusHistory).values({
+        issueId: approval.issueId,
+        changedById: null,
+        previousStatus: issue.status,
+        status: "Reopened",
+        reason,
+        requesterNote: reason,
+      });
       await tx.insert(auditLogs).values({
         actorType: "client",
         actorId: clientName,
@@ -573,6 +972,7 @@ export async function rejectIssueAction(input: {
     });
     revalidatePath("/");
     revalidatePath("/inbox");
+    revalidatePath("/requests");
     revalidatePath("/reports");
     return { ok: true, data: { respondedAt: respondedAt.toISOString() } };
   } catch (error) {

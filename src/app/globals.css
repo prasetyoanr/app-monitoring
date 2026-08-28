@@ -190,7 +190,7 @@ textarea:focus {
 
 .nav-link {
   position: relative;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .nav-link::after {

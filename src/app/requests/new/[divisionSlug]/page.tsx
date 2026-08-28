@@ -1,4 +1,4 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 
 import { requireAuthenticatedUser } from "@/auth/session";
 import { ServiceRequestForm } from "@/components/service-request-form";
@@ -10,20 +10,24 @@ export const metadata = { title: "Create Request" };
 export default async function NewRequestPage({
   params,
 }: {
-  params: Promise<{ divisionId: string }>;
+  params: Promise<{ divisionSlug: string }>;
 }) {
-  const [{ divisionId }, currentUser, masterData] = await Promise.all([
+  const [{ divisionSlug }, currentUser, masterData] = await Promise.all([
     params,
     requireAuthenticatedUser(),
     getMasterDataRecords(),
   ]);
   const targetDivision = masterData.divisions.find(
     (division) =>
-      division.id === divisionId &&
+      (division.slug === divisionSlug || division.id === divisionSlug) &&
       division.isServiceTarget &&
       division.id !== currentUser.divisionId,
   );
   if (!targetDivision) notFound();
+
+  if (divisionSlug !== targetDivision.slug) {
+    redirect(`/requests/new/${encodeURIComponent(targetDivision.slug)}`);
+  }
 
   return (
     <div className="w-full">

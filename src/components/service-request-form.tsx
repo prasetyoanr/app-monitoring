@@ -17,6 +17,7 @@ import {
   getServiceRequestTemplate,
   type ServiceRequestField,
 } from "@/features/service-requests/template-registry";
+import { getServiceInboxProfile } from "@/features/service-inbox/profile-registry";
 import { compressWorkPhoto, formatPhotoSize } from "@/lib/work-photo";
 import { Card } from "@/components/ui";
 
@@ -24,6 +25,7 @@ type TargetDivision = {
   id: string;
   name: string;
   requestFormKey: string | null;
+  inboxProfileKey: string;
 };
 
 export function ServiceRequestForm({
@@ -39,8 +41,13 @@ export function ServiceRequestForm({
   const template =
     getServiceRequestTemplate(targetDivision.requestFormKey) ??
     genericServiceRequestTemplate;
+  const inboxProfile = getServiceInboxProfile(targetDivision.inboxProfileKey);
   const titleField = template.fields.find((field) => field.ticketField === "title");
-  const customFields = template.fields.filter((field) => field.ticketField !== "title");
+  const customFields = template.fields.filter(
+    (field) =>
+      field.ticketField !== "title" &&
+      (field.type !== "photo" || inboxProfile.features.requesterPhoto),
+  );
   const hasSupportingPhoto = customFields.some((field) => field.type === "photo");
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -85,7 +92,7 @@ export function ServiceRequestForm({
     const data = new FormData(event.currentTarget);
     data.set("serviceDivisionId", targetDivision.id);
 
-    const photoField = template.fields.find((field) => field.type === "photo");
+    const photoField = customFields.find((field) => field.type === "photo");
     if (photoFile) {
       data.set(photoField?.key ?? "requesterPhoto", photoFile);
       data.set("requesterPhoto", photoFile);

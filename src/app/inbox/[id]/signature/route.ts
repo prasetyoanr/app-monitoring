@@ -1,6 +1,7 @@
 import { and, desc, eq } from "drizzle-orm";
 
 import { getCurrentUser } from "@/auth/session";
+import { canViewServiceIssue } from "@/auth/issue-access";
 import { db } from "@/db";
 import { troubleshootingApprovals, troubleshootingIssues } from "@/db/schema";
 
@@ -24,6 +25,8 @@ export async function GET(
       mimeType: troubleshootingApprovals.signatureMimeType,
       respondedAt: troubleshootingApprovals.respondedAt,
       requesterId: troubleshootingIssues.requesterId,
+      requesterDivision: troubleshootingIssues.division,
+      serviceDivisionId: troubleshootingIssues.serviceDivisionId,
     })
     .from(troubleshootingApprovals)
     .innerJoin(troubleshootingIssues, eq(troubleshootingApprovals.issueId, troubleshootingIssues.id))
@@ -39,7 +42,8 @@ export async function GET(
   if (
     !signature?.data ||
     signature.mimeType !== "image/png" ||
-    !signature.respondedAt || (currentUser.role === "requester" && signature.requesterId !== currentUser.id)
+    !signature.respondedAt ||
+    !canViewServiceIssue(currentUser, signature)
   ) {
     return new Response("Not found", { status: 404 });
   }

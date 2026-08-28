@@ -37,12 +37,20 @@ export default async function RootLayout({
   const user = await getCurrentUser();
   const counts = user
     ? await getNavigationCounts()
-    : { issues: 0, backups: 0, newRequests: 0, notifications: [] };
+    : {
+        issues: 0,
+        backups: 0,
+        newRequests: 0,
+        inProgressRequests: 0,
+        unreadRequestNotifications: 0,
+        inboxNotifications: [],
+        requestNotifications: [],
+      };
   return (
     <html lang="en">
       <body>
         {user ? (
-          <AppShell counts={counts} notifications={counts.notifications} user={user}>{children}</AppShell>
+          <AppShell counts={counts} notifications={{ inbox: counts.inboxNotifications, request: counts.requestNotifications }} user={user}>{children}</AppShell>
         ) : (
           children
         )}

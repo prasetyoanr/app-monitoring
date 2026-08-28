@@ -24,6 +24,7 @@ export default async function RequestsPage() {
         .map((item) => ({
           id: item.id,
           name: item.name,
+          slug: item.slug,
         }))}
     />
   );

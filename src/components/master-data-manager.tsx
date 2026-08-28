@@ -13,6 +13,7 @@ import {
 import { Card } from "@/components/ui";
 import type { MasterDataRecords, MasterDivisionRecord, MasterItemRecord } from "@/data/master-data";
 import { serviceRequestTemplates } from "@/features/service-requests/template-registry";
+import { serviceInboxProfiles } from "@/features/service-inbox/profile-registry";
 
 interface DeleteTarget extends MasterItemRecord {
   type: MasterDataType;
@@ -58,6 +59,7 @@ export function MasterDataManager({ initialData }: { initialData: MasterDataReco
     division: MasterDivisionRecord,
     isServiceTarget: boolean,
     requestFormKey: string | null,
+    inboxProfileKey: string,
   ) {
     setPendingAction(`request-settings-${division.id}`);
     setError("");
@@ -65,6 +67,7 @@ export function MasterDataManager({ initialData }: { initialData: MasterDataReco
       division.id,
       isServiceTarget,
       requestFormKey,
+      inboxProfileKey,
     );
     setPendingAction("");
     if (!result.ok) {
@@ -112,6 +115,7 @@ export function MasterDataManager({ initialData }: { initialData: MasterDataReco
                             division,
                             event.target.checked,
                             event.target.checked ? division.requestFormKey : null,
+                            division.inboxProfileKey,
                           )}
                           className="size-3.5 rounded border-slate-300 text-[#3157d5]"
                         />
@@ -125,6 +129,7 @@ export function MasterDataManager({ initialData }: { initialData: MasterDataReco
                             division,
                             true,
                             event.target.value || null,
+                            division.inboxProfileKey,
                           )}
                           className="h-7 max-w-44 rounded-lg border border-slate-200 bg-white px-2 text-[10px] text-slate-600 outline-none focus:border-blue-400"
                           aria-label={`Template form untuk ${division.name}`}
@@ -137,6 +142,24 @@ export function MasterDataManager({ initialData }: { initialData: MasterDataReco
                           ))}
                         </select>
                       ) : null}
+                      <select
+                        value={division.inboxProfileKey}
+                        disabled={savingSettings}
+                        onChange={(event) => void saveDivisionRequestSettings(
+                          division,
+                          division.isServiceTarget,
+                          division.requestFormKey,
+                          event.target.value,
+                        )}
+                        className="h-7 max-w-44 rounded-lg border border-slate-200 bg-white px-2 text-[10px] text-slate-600 outline-none focus:border-blue-400"
+                        aria-label={`Profil Inbox untuk ${division.name}`}
+                      >
+                        {serviceInboxProfiles.map((profile) => (
+                          <option key={profile.key} value={profile.key}>
+                            {profile.label}
+                          </option>
+                        ))}
+                      </select>
                     </div>
                   );
                 })() : null}

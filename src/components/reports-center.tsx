@@ -14,6 +14,7 @@ import {
   troubleshootingExcelColumns,
 } from "@/lib/excel-export";
 import type { ExcelImageDefinition } from "@/lib/excel-export";
+import { issueStatusLabel } from "@/lib/issue-status";
 import { currentJakartaMonth, monthInputRange } from "@/lib/jakarta-date";
 import {
   calculateSurveyRatingMetrics,
@@ -162,7 +163,7 @@ export function ReportsCenter({ ticketRecords, backupRecords, surveyRecords, can
           division: ticket.division,
           issue: ticket.title,
           category: ticket.category,
-          status: ticket.status,
+          status: issueStatusLabel(ticket.status),
           completionDays: ticket.completedDays,
           workPhoto: ticket.hasWorkPhoto ? "Available" : "Not available",
           clientSignature: ticket.clientApproval ? "Available" : "Not available",

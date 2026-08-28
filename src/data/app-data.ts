@@ -1,13 +1,15 @@
 import "server-only";
 
 import { createHash } from "node:crypto";
-import { and, count, desc, eq, isNotNull, sql } from "drizzle-orm";
+import { and, count, desc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 
 import { requireAuthenticatedUser, requireITTeam } from "@/auth/session";
 import { db } from "@/db";
 import {
   backupUserInvitations,
   backupUsers,
+  masterDivisions,
+  requestStatusNotifications,
   technicians,
   troubleshootingApprovals,
   troubleshootingIssues,
@@ -16,6 +18,7 @@ import type {
   BackupRecord,
   TicketRecord,
 } from "@/data/types";
+import { getServiceInboxProfile } from "@/features/service-inbox/profile-registry";
 import { jakartaDateInput } from "@/lib/jakarta-date";
 
 const jakartaDateTime = new Intl.DateTimeFormat("en-GB", {
@@ -35,6 +38,26 @@ function dateTimeInputValue(date: Date) {
   return `${year}-${month}-${day}T${timePart}`;
 }
 
+function requesterStatusMessage(
+  status: string,
+  serviceDivision: string,
+  requesterNote: string | null,
+) {
+  let message: string;
+  if (status === "In Progress") {
+    message = `Laporan sedang dikerjakan oleh ${serviceDivision}.`;
+  } else if (status === "Waiting for Client Approval") {
+    message = `Laporan menunggu persetujuan klien dari ${serviceDivision}.`;
+  } else if (status === "Completed") {
+    message = `Laporan telah selesai ditangani oleh ${serviceDivision}.`;
+  } else if (status === "Reopened") {
+    message = `Laporan dibuka kembali untuk ditangani oleh ${serviceDivision}.`;
+  } else {
+    message = `Status laporan dikembalikan menjadi Baru oleh ${serviceDivision}.`;
+  }
+  return requesterNote ? `${message} ${requesterNote}` : message;
+}
+
 function toTicketRecord(
   row: Pick<
     typeof troubleshootingIssues.$inferSelect,
@@ -42,6 +65,7 @@ function toTicketRecord(
     | "title"
     | "category"
     | "requesterName"
+    | "source"
     | "division"
     | "serviceDivision"
     | "requestFormKey"
@@ -57,14 +81,17 @@ function toTicketRecord(
   hasWorkPhoto: boolean,
   hasRequesterPhoto: boolean,
   clientApproval: TicketRecord["clientApproval"] = null,
+  inboxProfileKey = "basic-service",
 ): TicketRecord {
   return {
     id: row.id,
     title: row.title,
     category: row.category,
     requester: row.requesterUsername ?? row.requesterName,
+    source: row.source,
     division: row.division,
     serviceDivision: row.serviceDivision,
+    inboxProfileKey,
     requestFormKey: row.requestFormKey,
     requestData: row.requestData,
     location: row.location,
@@ -94,6 +121,7 @@ export async function getTicketRecords(): Promise<TicketRecord[]> {
       title: troubleshootingIssues.title,
       category: troubleshootingIssues.category,
       requesterName: troubleshootingIssues.requesterName,
+      source: troubleshootingIssues.source,
       requesterUsername: technicians.username,
       division: troubleshootingIssues.division,
       serviceDivision: troubleshootingIssues.serviceDivision,
@@ -108,15 +136,17 @@ export async function getTicketRecords(): Promise<TicketRecord[]> {
       updatedAt: troubleshootingIssues.updatedAt,
       hasWorkPhoto: sql<boolean>`${troubleshootingIssues.workPhotoData} is not null`,
       hasRequesterPhoto: sql<boolean>`${troubleshootingIssues.requesterPhotoData} is not null`,
+      inboxProfileKey: masterDivisions.inboxProfileKey,
     })
     .from(troubleshootingIssues)
-    .leftJoin(technicians, eq(troubleshootingIssues.requesterId, technicians.id));
+    .leftJoin(technicians, eq(troubleshootingIssues.requesterId, technicians.id))
+    .innerJoin(masterDivisions, eq(troubleshootingIssues.serviceDivisionId, masterDivisions.id));
 
   // Administrator sees all tickets; service teams only see tickets addressed to their division.
   const issueQuery =
     currentUser.role === "administrator"
       ? baseQuery
-      : currentUser.divisionId
+      : currentUser.role !== "requester" && currentUser.divisionId
         ? baseQuery.where(
             eq(troubleshootingIssues.serviceDivisionId, currentUser.divisionId),
           )
@@ -152,7 +182,13 @@ export async function getTicketRecords(): Promise<TicketRecord[]> {
     });
   }
   return rows.map((row) =>
-    toTicketRecord(row, row.hasWorkPhoto, row.hasRequesterPhoto, approvalsByIssue.get(row.id) ?? null),
+    toTicketRecord(
+      row,
+      row.hasWorkPhoto,
+      row.hasRequesterPhoto,
+      approvalsByIssue.get(row.id) ?? null,
+      row.inboxProfileKey,
+    ),
   );
 }
 
@@ -166,6 +202,7 @@ export async function getDivisionRequestRecords(): Promise<TicketRecord[]> {
       title: troubleshootingIssues.title,
       category: troubleshootingIssues.category,
       requesterName: troubleshootingIssues.requesterName,
+      source: troubleshootingIssues.source,
       requesterUsername: technicians.username,
       division: troubleshootingIssues.division,
       serviceDivision: troubleshootingIssues.serviceDivision,
@@ -180,9 +217,11 @@ export async function getDivisionRequestRecords(): Promise<TicketRecord[]> {
       updatedAt: troubleshootingIssues.updatedAt,
       hasWorkPhoto: sql<boolean>`${troubleshootingIssues.workPhotoData} is not null`,
       hasRequesterPhoto: sql<boolean>`${troubleshootingIssues.requesterPhotoData} is not null`,
+      inboxProfileKey: masterDivisions.inboxProfileKey,
     })
     .from(troubleshootingIssues)
     .leftJoin(technicians, eq(troubleshootingIssues.requesterId, technicians.id))
+    .innerJoin(masterDivisions, eq(troubleshootingIssues.serviceDivisionId, masterDivisions.id))
     .where(eq(troubleshootingIssues.division, currentUser.divisionName));
   const [rows, approvedRows] = await Promise.all([
     issueQuery.orderBy(desc(troubleshootingIssues.reportedAt), desc(troubleshootingIssues.id)),
@@ -214,7 +253,13 @@ export async function getDivisionRequestRecords(): Promise<TicketRecord[]> {
     });
   }
   return rows.map((row) =>
-    toTicketRecord(row, row.hasWorkPhoto, row.hasRequesterPhoto, approvalsByIssue.get(row.id) ?? null),
+    toTicketRecord(
+      row,
+      row.hasWorkPhoto,
+      row.hasRequesterPhoto,
+      approvalsByIssue.get(row.id) ?? null,
+      row.inboxProfileKey,
+    ),
   );
 }
 
@@ -258,20 +303,46 @@ export async function getBackupRecords(): Promise<BackupRecord[]> {
 
 export async function getNavigationCounts() {
   const currentUser = await requireAuthenticatedUser();
-  const newRequestFilter =
+  const serviceDivisionFilter =
     currentUser.role === "administrator"
-      ? and(
-          isNotNull(troubleshootingIssues.requesterId),
-          eq(troubleshootingIssues.status, "New"),
-        )
-      : currentUser.role === "technician" && currentUser.divisionId
+      ? isNotNull(troubleshootingIssues.requesterId)
+      : currentUser.role !== "requester" && currentUser.divisionId
         ? and(
             isNotNull(troubleshootingIssues.requesterId),
-            eq(troubleshootingIssues.status, "New"),
             eq(troubleshootingIssues.serviceDivisionId, currentUser.divisionId),
           )
         : null;
-  const [[issues], [backups], [newRequests], newRequestRows] = await Promise.all([
+  const newRequestFilter =
+    serviceDivisionFilter
+      ? and(serviceDivisionFilter, eq(troubleshootingIssues.status, "New"))
+      : null;
+  const inProgressRequestFilter =
+    serviceDivisionFilter
+      ? and(
+          serviceDivisionFilter,
+          eq(troubleshootingIssues.status, "In Progress"),
+        )
+      : null;
+  const activeInboxFilter =
+    serviceDivisionFilter
+      ? and(
+          serviceDivisionFilter,
+          inArray(troubleshootingIssues.status, ["New", "In Progress"]),
+        )
+      : null;
+  const requestNotificationFilter = eq(
+    requestStatusNotifications.recipientId,
+    currentUser.id,
+  );
+  const [
+    [issues],
+    [backups],
+    [newRequests],
+    [inProgressRequests],
+    inboxNotificationRows,
+    [unreadRequestNotifications],
+    requestNotificationRows,
+  ] = await Promise.all([
     (currentUser.role === "requester"
       ? db.select({ value: count() }).from(troubleshootingIssues).where(eq(troubleshootingIssues.requesterId, currentUser.id))
       : db.select({ value: count() }).from(troubleshootingIssues)),
@@ -284,7 +355,13 @@ export async function getNavigationCounts() {
           .from(troubleshootingIssues)
           .where(newRequestFilter)
       : Promise.resolve([{ value: 0 }]),
-    newRequestFilter
+    inProgressRequestFilter
+      ? db
+          .select({ value: count() })
+          .from(troubleshootingIssues)
+          .where(inProgressRequestFilter)
+      : Promise.resolve([{ value: 0 }]),
+    activeInboxFilter
       ? db
           .select({
             id: troubleshootingIssues.id,
@@ -292,26 +369,76 @@ export async function getNavigationCounts() {
             requester: troubleshootingIssues.requesterName,
             requesterUsername: technicians.username,
             division: troubleshootingIssues.division,
+            status: troubleshootingIssues.status,
             reportedAt: troubleshootingIssues.reportedAt,
           })
           .from(troubleshootingIssues)
-          .where(newRequestFilter)
+          .where(activeInboxFilter)
           .leftJoin(technicians, eq(troubleshootingIssues.requesterId, technicians.id))
-          .orderBy(desc(troubleshootingIssues.reportedAt), desc(troubleshootingIssues.id))
-          .limit(5)
+          .orderBy(desc(troubleshootingIssues.updatedAt), desc(troubleshootingIssues.id))
+          .limit(10)
       : Promise.resolve([]),
+    db
+      .select({ value: count() })
+      .from(requestStatusNotifications)
+      .where(
+        and(
+          requestNotificationFilter,
+          isNull(requestStatusNotifications.readAt),
+        ),
+      ),
+    db
+      .select({
+        id: requestStatusNotifications.id,
+        issueId: requestStatusNotifications.issueId,
+        status: requestStatusNotifications.status,
+        requesterNote: requestStatusNotifications.requesterNote,
+        createdAt: requestStatusNotifications.createdAt,
+        title: troubleshootingIssues.title,
+        serviceDivision: troubleshootingIssues.serviceDivision,
+      })
+      .from(requestStatusNotifications)
+      .innerJoin(
+        troubleshootingIssues,
+        eq(requestStatusNotifications.issueId, troubleshootingIssues.id),
+      )
+      .where(
+        and(
+          requestNotificationFilter,
+          isNull(requestStatusNotifications.readAt),
+        ),
+      )
+      .orderBy(desc(requestStatusNotifications.createdAt))
+      .limit(10),
   ]);
+  const inboxNotifications = inboxNotificationRows.map((row) => ({
+    id: row.id,
+    title: row.title,
+    description: `${row.requesterUsername ?? row.requester} · ${row.division}`,
+    reportedAt: jakartaDateTime.format(row.reportedAt).replace(",", ""),
+    href: "/inbox",
+    status: row.status,
+  }));
+  const requestNotifications = requestNotificationRows.map((row) => ({
+    id: row.id,
+    title: `${row.issueId} · ${row.title}`,
+    description: requesterStatusMessage(
+      row.status,
+      row.serviceDivision,
+      row.requesterNote,
+    ),
+    reportedAt: jakartaDateTime.format(row.createdAt).replace(",", ""),
+    href: "/requests",
+    status: row.status,
+  }));
   return {
     issues: issues.value,
     backups: backups.value,
     newRequests: newRequests.value,
-    notifications: newRequestRows.map((row) => ({
-      id: row.id,
-      title: row.title,
-      requester: row.requesterUsername ?? row.requester,
-      division: row.division,
-      reportedAt: jakartaDateTime.format(row.reportedAt).replace(",", ""),
-    })),
+    inProgressRequests: inProgressRequests.value,
+    unreadRequestNotifications: unreadRequestNotifications.value,
+    inboxNotifications,
+    requestNotifications,
   };
 }
 
@@ -330,16 +457,26 @@ export interface ApprovalRecord {
 export async function getApprovalByToken(token: string): Promise<ApprovalRecord | null> {
   const tokenHash = createHash("sha256").update(token).digest("hex");
   const [row] = await db
-    .select({ approval: troubleshootingApprovals, issue: troubleshootingIssues })
+    .select({
+      approval: troubleshootingApprovals,
+      issue: troubleshootingIssues,
+      inboxProfileKey: masterDivisions.inboxProfileKey,
+    })
     .from(troubleshootingApprovals)
     .innerJoin(
       troubleshootingIssues,
       eq(troubleshootingApprovals.issueId, troubleshootingIssues.id),
     )
+    .innerJoin(
+      masterDivisions,
+      eq(troubleshootingIssues.serviceDivisionId, masterDivisions.id),
+    )
     .where(eq(troubleshootingApprovals.tokenHash, tokenHash))
     .limit(1);
 
-  if (!row) return null;
+  if (!row || !getServiceInboxProfile(row.inboxProfileKey).features.approvalQr) {
+    return null;
+  }
   const status =
     row.approval.status === "pending" && row.approval.expiresAt <= new Date()
       ? "expired"
@@ -362,6 +499,12 @@ export async function getApprovalByToken(token: string): Promise<ApprovalRecord 
     respondedAt: row.approval.respondedAt?.toISOString() ?? null,
     signatureImage,
     workPhotoImage,
-    ticket: toTicketRecord(row.issue, Boolean(row.issue.workPhotoData), Boolean(row.issue.requesterPhotoData)),
+    ticket: toTicketRecord(
+      row.issue,
+      Boolean(row.issue.workPhotoData),
+      Boolean(row.issue.requesterPhotoData),
+      null,
+      row.inboxProfileKey,
+    ),
   };
 }

@@ -118,6 +118,7 @@ export async function requireITTeam() {
 
 export async function requireServiceAgent() {
   const user = await requireAuthenticatedUser();
+  if (user.role === "requester") redirect("/");
   return user;
 }
 

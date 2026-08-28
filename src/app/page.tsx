@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Activity, ArrowRight, CircleCheck, Clock3, TicketCheck } from "lucide-react";
 import { Card, MetricCard, PageHeader, SectionTitle, StatusBadge } from "@/components/ui";
 import { getDashboardData } from "@/data/dashboard-data";
+import { issueStatusLabel } from "@/lib/issue-status";
 
 export default async function DashboardPage() {
   const {
@@ -45,7 +46,7 @@ export default async function DashboardPage() {
                 key={ticket.id}
                 className={`p-4 ${index === 2 ? "hidden sm:block" : index === 3 ? "hidden md:block" : ""}`}
               >
-                <div className="flex items-start justify-between gap-3"><div className="min-w-0"><h3 className="text-xs font-semibold leading-5 text-slate-800">{ticket.title}</h3><p className="mt-1 font-mono text-[9px] text-slate-400">{ticket.id}</p></div><StatusBadge tone={ticket.status === "Completed" ? "green" : ticket.status === "In Progress" ? "blue" : "amber"}>{ticket.status}</StatusBadge></div>
+                <div className="flex items-start justify-between gap-3"><div className="min-w-0"><h3 className="text-xs font-semibold leading-5 text-slate-800">{ticket.title}</h3><p className="mt-1 font-mono text-[9px] text-slate-400">{ticket.id}</p></div><StatusBadge tone={ticket.status === "Completed" ? "green" : ticket.status === "In Progress" ? "blue" : "amber"}>{issueStatusLabel(ticket.status)}</StatusBadge></div>
                 <div className="mt-3 flex flex-wrap items-center gap-2"><StatusBadge tone={ticket.location === "HO" ? "blue" : "gray"}>{ticket.location}</StatusBadge><span className="text-[10px] text-slate-500">{ticket.category}</span><span className="ml-auto text-[10px] font-semibold text-slate-600">{ticket.completedDays === null ? "Not completed" : ticket.completedDays === 0 ? "Same day" : `${ticket.completedDays} days`}</span></div>
               </article>
             ))}
@@ -55,7 +56,7 @@ export default async function DashboardPage() {
               <thead className="bg-slate-50/80 text-[9px] font-bold uppercase tracking-wider text-slate-400"><tr><th className="px-5 py-3">Record</th><th className="px-4 py-3">Location</th><th className="px-4 py-3">Category</th><th className="px-4 py-3">Status</th><th className="px-5 py-3">Completion Time</th></tr></thead>
               <tbody className="divide-y divide-slate-100">
                 {tickets.slice(0, 4).map((ticket) => (
-                  <tr key={ticket.id} className="text-xs"><td className="px-5 py-3.5"><p className="font-semibold text-slate-800">{ticket.title}</p><p className="mt-1 font-mono text-[9px] text-slate-400">{ticket.id}</p></td><td className="px-4 py-3.5"><StatusBadge tone={ticket.location === "HO" ? "blue" : "gray"}>{ticket.location}</StatusBadge></td><td className="px-4 py-3.5 text-slate-500">{ticket.category}</td><td className="px-4 py-3.5"><StatusBadge tone={ticket.status === "Completed" ? "green" : ticket.status === "In Progress" ? "blue" : "amber"}>{ticket.status}</StatusBadge></td><td className="px-5 py-3.5 text-[11px] font-semibold text-slate-600">{ticket.completedDays === null ? "Not completed" : ticket.completedDays === 0 ? "Same day" : `${ticket.completedDays} days`}</td></tr>
+                  <tr key={ticket.id} className="text-xs"><td className="px-5 py-3.5"><p className="font-semibold text-slate-800">{ticket.title}</p><p className="mt-1 font-mono text-[9px] text-slate-400">{ticket.id}</p></td><td className="px-4 py-3.5"><StatusBadge tone={ticket.location === "HO" ? "blue" : "gray"}>{ticket.location}</StatusBadge></td><td className="px-4 py-3.5 text-slate-500">{ticket.category}</td><td className="px-4 py-3.5"><StatusBadge tone={ticket.status === "Completed" ? "green" : ticket.status === "In Progress" ? "blue" : "amber"}>{issueStatusLabel(ticket.status)}</StatusBadge></td><td className="px-5 py-3.5 text-[11px] font-semibold text-slate-600">{ticket.completedDays === null ? "Not completed" : ticket.completedDays === 0 ? "Same day" : `${ticket.completedDays} days`}</td></tr>
                 ))}
               </tbody>
             </table>
