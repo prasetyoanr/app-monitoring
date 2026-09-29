@@ -9,6 +9,8 @@ import { cache } from "react";
 import { SESSION_COOKIE_NAME } from "@/auth/constants";
 import { db } from "@/db";
 import { authSessions, masterDivisions, technicians } from "@/db/schema";
+import type { AccountRole } from "@/data/types";
+import { recordAuthorizationDenied } from "@/security/audit";
 
 const SESSION_DURATION_MS = 4 * 60 * 60 * 1000;
 
@@ -16,9 +18,10 @@ export interface AuthenticatedUser {
   id: string;
   name: string;
   username: string;
-  role: "administrator" | "boss" | "technician" | "requester";
+  role: AccountRole;
   divisionId: string | null;
   divisionName: string | null;
+  isGaUnit?: boolean;
 }
 
 function tokenHash(token: string) {
@@ -31,6 +34,15 @@ export function isITTeamUser(user: AuthenticatedUser | null | undefined): boolea
   if (!user.divisionName) return false;
   const div = user.divisionName.trim().toLowerCase();
   return div === "it team" || div === "it" || div.includes("information technology") || div.startsWith("it");
+}
+
+export function isITRoleUser(user: AuthenticatedUser | null | undefined): boolean {
+  return Boolean(
+    user &&
+      user.role !== "administrator" &&
+      ["service_agent", "approver"].includes(user.role) &&
+      isITTeamUser(user),
+  );
 }
 
 export async function createSession(technicianId: string) {
@@ -67,6 +79,7 @@ export const getCurrentUser = cache(
         role: technicians.role,
         divisionId: technicians.divisionId,
         divisionName: masterDivisions.name,
+        isGaUnit: masterDivisions.isGaUnit,
       })
       .from(authSessions)
       .innerJoin(
@@ -94,6 +107,7 @@ export const getCurrentUser = cache(
       role: row.role,
       divisionId: row.divisionId,
       divisionName: row.divisionName,
+      isGaUnit: row.isGaUnit ?? false,
     };
   },
 );
@@ -104,21 +118,39 @@ export async function requireAuthenticatedUser() {
   return user;
 }
 
-export async function requireAdministrator() {
+export async function requireAdministrator(capability?: string) {
   const user = await requireAuthenticatedUser();
-  if (user.role !== "administrator") redirect("/");
+  if (user.role !== "administrator") {
+    if (capability) await recordAuthorizationDenied(user, capability);
+    redirect("/");
+  }
   return user;
 }
 
-export async function requireITTeam() {
+export async function requireITTeam(capability?: string) {
   const user = await requireAuthenticatedUser();
-  if (!isITTeamUser(user)) redirect("/");
+  if (!isITTeamUser(user) || !["administrator", "service_agent", "approver"].includes(user.role)) {
+    if (capability) await recordAuthorizationDenied(user, capability);
+    redirect("/");
+  }
   return user;
 }
 
-export async function requireServiceAgent() {
+export async function requireITRoleUser(capability?: string) {
   const user = await requireAuthenticatedUser();
-  if (user.role === "requester") redirect("/");
+  if (!isITRoleUser(user)) {
+    if (capability) await recordAuthorizationDenied(user, capability);
+    redirect("/");
+  }
+  return user;
+}
+
+export async function requireServiceAgent(capability?: string) {
+  const user = await requireAuthenticatedUser();
+  if (user.role !== "administrator" && user.role !== "service_agent") {
+    if (capability) await recordAuthorizationDenied(user, capability);
+    redirect("/");
+  }
   return user;
 }
 

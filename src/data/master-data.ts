@@ -18,6 +18,7 @@ export interface MasterDivisionRecord extends MasterItemRecord {
   slug: string;
   inboxProfileKey: string;
   isServiceTarget: boolean;
+  isGaUnit: boolean;
   requestFormKey: string | null;
 }
 
@@ -36,6 +37,7 @@ export async function getMasterDataRecords(): Promise<MasterDataRecords> {
         slug: masterDivisions.slug,
         inboxProfileKey: masterDivisions.inboxProfileKey,
         isServiceTarget: masterDivisions.isServiceTarget,
+        isGaUnit: masterDivisions.isGaUnit,
         requestFormKey: masterDivisions.requestFormKey,
       })
       .from(masterDivisions)

@@ -1,25 +1,30 @@
 import "server-only";
 
 import { createHash } from "node:crypto";
-import { and, count, desc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 
-import { requireAuthenticatedUser, requireITTeam } from "@/auth/session";
+import { isITRoleUser, requireAuthenticatedUser, requireITRoleUser } from "@/auth/session";
 import { db } from "@/db";
 import {
   backupUserInvitations,
   backupUsers,
   masterDivisions,
   requestStatusNotifications,
+  requestWorkflowHistory,
   technicians,
   troubleshootingApprovals,
   troubleshootingIssues,
 } from "@/db/schema";
 import type {
   BackupRecord,
+  ServiceAgentOption,
   TicketRecord,
 } from "@/data/types";
 import { getServiceInboxProfile } from "@/features/service-inbox/profile-registry";
 import { jakartaDateInput } from "@/lib/jakarta-date";
+import { accountRoleRequiresDivision } from "@/lib/account-role";
+import { serviceInboxScope } from "@/data/issue-scope";
 
 const jakartaDateTime = new Intl.DateTimeFormat("en-GB", {
   timeZone: "Asia/Jakarta",
@@ -30,6 +35,8 @@ const jakartaDateTime = new Intl.DateTimeFormat("en-GB", {
   minute: "2-digit",
   hour12: false,
 });
+
+const assignedTechnicians = alias(technicians, "assigned_technicians");
 
 function dateTimeInputValue(date: Date) {
   const formatted = jakartaDateTime.format(date);
@@ -45,15 +52,15 @@ function requesterStatusMessage(
 ) {
   let message: string;
   if (status === "In Progress") {
-    message = `Laporan sedang dikerjakan oleh ${serviceDivision}.`;
+    message = `The request is being handled by ${serviceDivision}.`;
   } else if (status === "Waiting for Client Approval") {
-    message = `Laporan menunggu persetujuan klien dari ${serviceDivision}.`;
+    message = `The request is waiting for client approval from ${serviceDivision}.`;
   } else if (status === "Completed") {
-    message = `Laporan telah selesai ditangani oleh ${serviceDivision}.`;
+    message = `The request has been completed by ${serviceDivision}.`;
   } else if (status === "Reopened") {
-    message = `Laporan dibuka kembali untuk ditangani oleh ${serviceDivision}.`;
+    message = `The request was reopened for ${serviceDivision} to handle.`;
   } else {
-    message = `Status laporan dikembalikan menjadi Baru oleh ${serviceDivision}.`;
+    message = `The request status was returned to New by ${serviceDivision}.`;
   }
   return requesterNote ? `${message} ${requesterNote}` : message;
 }
@@ -68,6 +75,7 @@ function toTicketRecord(
     | "source"
     | "division"
     | "serviceDivision"
+    | "receivingDivisionId"
     | "requestFormKey"
     | "requestData"
     | "location"
@@ -77,11 +85,16 @@ function toTicketRecord(
     | "completedDays"
     | "description"
     | "updatedAt"
+    | "workflowStatus"
+    | "workflowEnabled"
+    | "approvalRequired"
+    | "assignedTechnicianId"
   > & { requesterUsername?: string | null },
   hasWorkPhoto: boolean,
   hasRequesterPhoto: boolean,
   clientApproval: TicketRecord["clientApproval"] = null,
   inboxProfileKey = "basic-service",
+  assignedTechnicianName: string | null = null,
 ): TicketRecord {
   return {
     id: row.id,
@@ -91,11 +104,14 @@ function toTicketRecord(
     source: row.source,
     division: row.division,
     serviceDivision: row.serviceDivision,
+    receivingDivisionId: row.receivingDivisionId,
     inboxProfileKey,
     requestFormKey: row.requestFormKey,
     requestData: row.requestData,
     location: row.location,
     reportedAt: jakartaDateTime.format(row.reportedAt).split(",")[0],
+    reportedAtIso: row.reportedAt.toISOString(),
+    updatedAtIso: row.updatedAt.toISOString(),
     reportedDate: jakartaDateInput(row.reportedAt),
     priority: row.priority,
     status: row.status,
@@ -110,7 +126,20 @@ function toTicketRecord(
       ? `/inbox/${encodeURIComponent(row.id)}/requester-photo?v=${row.updatedAt.getTime()}`
       : null,
     clientApproval,
+    workflowStatus: row.workflowStatus,
+    workflowEnabled: row.workflowEnabled,
+    workflowNote: null,
+    approvalRequired: row.approvalRequired,
+    assignedTechnicianId: row.assignedTechnicianId,
+    assignedTechnicianName,
   };
+}
+
+export function filterStalledTicketRecords(records: TicketRecord[]) {
+  const staleBefore = Date.now() - 3 * 86_400_000;
+  return records.filter(
+    (record) => record.status !== "Completed" && Date.parse(record.updatedAtIso) < staleBefore,
+  );
 }
 
 export async function getTicketRecords(): Promise<TicketRecord[]> {
@@ -125,6 +154,7 @@ export async function getTicketRecords(): Promise<TicketRecord[]> {
       requesterUsername: technicians.username,
       division: troubleshootingIssues.division,
       serviceDivision: troubleshootingIssues.serviceDivision,
+      receivingDivisionId: troubleshootingIssues.receivingDivisionId,
       requestFormKey: troubleshootingIssues.requestFormKey,
       requestData: troubleshootingIssues.requestData,
       location: troubleshootingIssues.location,
@@ -134,23 +164,21 @@ export async function getTicketRecords(): Promise<TicketRecord[]> {
       completedDays: troubleshootingIssues.completedDays,
       description: troubleshootingIssues.description,
       updatedAt: troubleshootingIssues.updatedAt,
+      workflowStatus: troubleshootingIssues.workflowStatus,
+      workflowEnabled: troubleshootingIssues.workflowEnabled,
+      approvalRequired: troubleshootingIssues.approvalRequired,
+      assignedTechnicianId: troubleshootingIssues.assignedTechnicianId,
+      assignedTechnicianName: assignedTechnicians.name,
       hasWorkPhoto: sql<boolean>`${troubleshootingIssues.workPhotoData} is not null`,
       hasRequesterPhoto: sql<boolean>`${troubleshootingIssues.requesterPhotoData} is not null`,
       inboxProfileKey: masterDivisions.inboxProfileKey,
     })
     .from(troubleshootingIssues)
     .leftJoin(technicians, eq(troubleshootingIssues.requesterId, technicians.id))
+    .leftJoin(assignedTechnicians, eq(troubleshootingIssues.assignedTechnicianId, assignedTechnicians.id))
     .innerJoin(masterDivisions, eq(troubleshootingIssues.serviceDivisionId, masterDivisions.id));
 
-  // Administrator sees all tickets; service teams only see tickets addressed to their division.
-  const issueQuery =
-    currentUser.role === "administrator"
-      ? baseQuery
-      : currentUser.role !== "requester" && currentUser.divisionId
-        ? baseQuery.where(
-            eq(troubleshootingIssues.serviceDivisionId, currentUser.divisionId),
-          )
-        : baseQuery.where(sql`false`);
+  const issueQuery = baseQuery.where(serviceInboxScope(currentUser));
 
   const [rows, approvedRows] = await Promise.all([
     issueQuery.orderBy(desc(troubleshootingIssues.reportedAt), desc(troubleshootingIssues.id)),
@@ -167,6 +195,15 @@ export async function getTicketRecords(): Promise<TicketRecord[]> {
         desc(troubleshootingApprovals.respondedAt),
       ),
   ]);
+  const latestWorkflowNotes = rows.length === 0 ? [] : await db
+    .selectDistinctOn([requestWorkflowHistory.issueId], {
+      issueId: requestWorkflowHistory.issueId,
+      note: requestWorkflowHistory.note,
+    })
+    .from(requestWorkflowHistory)
+    .where(inArray(requestWorkflowHistory.issueId, rows.map((row) => row.id)))
+    .orderBy(requestWorkflowHistory.issueId, desc(requestWorkflowHistory.createdAt));
+  const workflowNotes = new Map(latestWorkflowNotes.map((row) => [row.issueId, row.note]));
   const approvalsByIssue = new Map<string, TicketRecord["clientApproval"]>();
   for (const approval of approvedRows) {
     if (
@@ -181,20 +218,57 @@ export async function getTicketRecords(): Promise<TicketRecord[]> {
       signatureUrl: `/inbox/${encodeURIComponent(approval.issueId)}/signature?v=${approval.respondedAt.getTime()}`,
     });
   }
-  return rows.map((row) =>
-    toTicketRecord(
+  return rows.map((row) => ({
+    ...toTicketRecord(
       row,
       row.hasWorkPhoto,
       row.hasRequesterPhoto,
       approvalsByIssue.get(row.id) ?? null,
       row.inboxProfileKey,
+      row.assignedTechnicianName,
     ),
-  );
+    workflowNote: workflowNotes.get(row.id) ?? null,
+  }));
+}
+
+export async function getAssignableServiceAgents(): Promise<ServiceAgentOption[]> {
+  const currentUser = await requireAuthenticatedUser();
+  if (
+    currentUser.role !== "administrator" &&
+    currentUser.role !== "receptionist" &&
+    currentUser.role !== "approver"
+  ) {
+    return [];
+  }
+  const rows = await db
+    .select({
+      id: technicians.id,
+      name: technicians.name,
+      divisionId: technicians.divisionId,
+      division: masterDivisions.name,
+      isGaUnit: masterDivisions.isGaUnit,
+    })
+    .from(technicians)
+    .innerJoin(masterDivisions, eq(technicians.divisionId, masterDivisions.id))
+    .where(
+      and(
+        eq(technicians.role, "service_agent"),
+        eq(technicians.isActive, true),
+      ),
+    )
+    .orderBy(asc(masterDivisions.name), asc(technicians.name));
+  return rows.map((row) => ({
+    id: row.id,
+    name: row.name,
+    divisionId: row.divisionId!,
+    division: row.division,
+    isGaUnit: row.isGaUnit,
+  }));
 }
 
 export async function getDivisionRequestRecords(): Promise<TicketRecord[]> {
   const currentUser = await requireAuthenticatedUser();
-  if (!currentUser.divisionName) return [];
+  if (!accountRoleRequiresDivision(currentUser.role) || !currentUser.divisionName) return [];
 
   const issueQuery = db
     .select({
@@ -206,6 +280,7 @@ export async function getDivisionRequestRecords(): Promise<TicketRecord[]> {
       requesterUsername: technicians.username,
       division: troubleshootingIssues.division,
       serviceDivision: troubleshootingIssues.serviceDivision,
+      receivingDivisionId: troubleshootingIssues.receivingDivisionId,
       requestFormKey: troubleshootingIssues.requestFormKey,
       requestData: troubleshootingIssues.requestData,
       location: troubleshootingIssues.location,
@@ -215,12 +290,18 @@ export async function getDivisionRequestRecords(): Promise<TicketRecord[]> {
       completedDays: troubleshootingIssues.completedDays,
       description: troubleshootingIssues.description,
       updatedAt: troubleshootingIssues.updatedAt,
+      workflowStatus: troubleshootingIssues.workflowStatus,
+      workflowEnabled: troubleshootingIssues.workflowEnabled,
+      approvalRequired: troubleshootingIssues.approvalRequired,
+      assignedTechnicianId: troubleshootingIssues.assignedTechnicianId,
+      assignedTechnicianName: assignedTechnicians.name,
       hasWorkPhoto: sql<boolean>`${troubleshootingIssues.workPhotoData} is not null`,
       hasRequesterPhoto: sql<boolean>`${troubleshootingIssues.requesterPhotoData} is not null`,
       inboxProfileKey: masterDivisions.inboxProfileKey,
     })
     .from(troubleshootingIssues)
     .leftJoin(technicians, eq(troubleshootingIssues.requesterId, technicians.id))
+    .leftJoin(assignedTechnicians, eq(troubleshootingIssues.assignedTechnicianId, assignedTechnicians.id))
     .innerJoin(masterDivisions, eq(troubleshootingIssues.serviceDivisionId, masterDivisions.id))
     .where(eq(troubleshootingIssues.division, currentUser.divisionName));
   const [rows, approvedRows] = await Promise.all([
@@ -259,12 +340,13 @@ export async function getDivisionRequestRecords(): Promise<TicketRecord[]> {
       row.hasRequesterPhoto,
       approvalsByIssue.get(row.id) ?? null,
       row.inboxProfileKey,
+      row.assignedTechnicianName,
     ),
   );
 }
 
 export async function getBackupRecords(): Promise<BackupRecord[]> {
-  await requireITTeam();
+  await requireITRoleUser();
   const rows = await db
     .select({
       id: backupUsers.id,
@@ -303,15 +385,29 @@ export async function getBackupRecords(): Promise<BackupRecord[]> {
 
 export async function getNavigationCounts() {
   const currentUser = await requireAuthenticatedUser();
-  const serviceDivisionFilter =
-    currentUser.role === "administrator"
-      ? isNotNull(troubleshootingIssues.requesterId)
-      : currentUser.role !== "requester" && currentUser.divisionId
+  const serviceDivisionFilter = currentUser.role === "administrator"
+    ? isNotNull(troubleshootingIssues.requesterId)
+    : currentUser.role === "receptionist"
+      ? and(eq(troubleshootingIssues.workflowEnabled, true), inArray(troubleshootingIssues.workflowStatus, ["submitted", "needs_revision"]))
+      : currentUser.role === "approver"
         ? and(
-            isNotNull(troubleshootingIssues.requesterId),
-            eq(troubleshootingIssues.serviceDivisionId, currentUser.divisionId),
+            eq(troubleshootingIssues.workflowEnabled, true),
+            or(isNull(troubleshootingIssues.approverId), eq(troubleshootingIssues.approverId, currentUser.id)),
+            inArray(troubleshootingIssues.workflowStatus, ["waiting_approver", "ready_for_assignment"]),
           )
-        : null;
+        : currentUser.role === "final_approver"
+          ? and(
+              eq(troubleshootingIssues.workflowEnabled, true),
+              eq(troubleshootingIssues.workflowStatus, "waiting_final_approver"),
+            )
+          : currentUser.role === "service_agent"
+            ? and(
+                eq(troubleshootingIssues.serviceDivisionId, currentUser.divisionId ?? "00000000-0000-4000-8000-000000000000"),
+                isNotNull(troubleshootingIssues.requesterId),
+                or(eq(troubleshootingIssues.workflowEnabled, false), eq(troubleshootingIssues.assignedTechnicianId, currentUser.id)),
+                eq(troubleshootingIssues.workflowStatus, "assigned"),
+              )
+            : null;
   const newRequestFilter =
     serviceDivisionFilter
       ? and(serviceDivisionFilter, eq(troubleshootingIssues.status, "New"))
@@ -345,10 +441,10 @@ export async function getNavigationCounts() {
   ] = await Promise.all([
     (currentUser.role === "requester"
       ? db.select({ value: count() }).from(troubleshootingIssues).where(eq(troubleshootingIssues.requesterId, currentUser.id))
-      : db.select({ value: count() }).from(troubleshootingIssues)),
-    currentUser.role === "requester"
-      ? Promise.resolve([{ value: 0 }])
-      : db.select({ value: count() }).from(backupUsers),
+      : db.select({ value: count() }).from(troubleshootingIssues).where(serviceInboxScope(currentUser))),
+    isITRoleUser(currentUser)
+      ? db.select({ value: count() }).from(backupUsers)
+      : Promise.resolve([{ value: 0 }]),
     newRequestFilter
       ? db
           .select({ value: count() })
@@ -505,6 +601,7 @@ export async function getApprovalByToken(token: string): Promise<ApprovalRecord 
       Boolean(row.issue.requesterPhotoData),
       null,
       row.inboxProfileKey,
+      null,
     ),
   };
 }

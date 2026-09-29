@@ -2,6 +2,7 @@
 
 import { CalendarRange, ChevronLeft, ChevronRight, ClipboardCheck, Download, FileSpreadsheet, FolderSync, Wrench } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { recordReportExportAction } from "@/app/reports/actions";
 import { Card } from "@/components/ui";
 import type { BackupRecord, TicketRecord } from "@/data/types";
 import type { SurveyAnswerValue, SurveyKpiCategory, SurveyReportRecord } from "@/data/survey-types";
@@ -50,7 +51,7 @@ function surveyAnswerText(value: SurveyAnswerValue) {
   return Array.isArray(value) ? value.join(" | ") : String(value);
 }
 
-export function ReportsCenter({ ticketRecords, backupRecords, surveyRecords, canAccessBackupReport }: { ticketRecords: TicketRecord[]; backupRecords: BackupRecord[]; surveyRecords: SurveyReportRecord[]; canAccessBackupReport: boolean }) {
+export function ReportsCenter({ ticketRecords, backupRecords, surveyRecords, canAccessBackupReport, canAccessSurveyReport }: { ticketRecords: TicketRecord[]; backupRecords: BackupRecord[]; surveyRecords: SurveyReportRecord[]; canAccessBackupReport: boolean; canAccessSurveyReport: boolean }) {
   const initialMonth = currentJakartaMonth();
   const initialRange = monthInputRange(initialMonth);
   const [mode, setMode] = useState<FilterMode>("month");
@@ -107,11 +108,15 @@ export function ReportsCenter({ ticketRecords, backupRecords, surveyRecords, can
   const invalidRange = mode === "range" && Boolean(startDate && endDate && startDate > endDate);
   const filterLabel = mode === "month" ? month : `${startDate || "start"}_${endDate || "end"}`;
 
-  async function runExport(type: ExportType, callback: () => Promise<void>) {
+  async function runExport(type: ExportType, recordCount: number, callback: () => Promise<void>) {
     setExporting(type);
     setExportError("");
     try {
       await callback();
+      const auditResult = await recordReportExportAction({ type, mode, startDate, endDate, month, recordCount });
+      if (!auditResult.ok) {
+        setExportError("The report was downloaded, but its activity log could not be recorded.");
+      }
     } catch (error) {
       console.error(
         "Unable to export Excel report.",
@@ -149,7 +154,7 @@ export function ReportsCenter({ ticketRecords, backupRecords, surveyRecords, can
       return rowImages;
     });
 
-    await runExport("troubleshooting", () =>
+    await runExport("troubleshooting", filteredTickets.length, () =>
       downloadExcelReport({
         filename: `troubleshooting-report-${filterLabel}.xlsx`,
         sheetName: "Troubleshooting",
@@ -179,7 +184,7 @@ export function ReportsCenter({ ticketRecords, backupRecords, surveyRecords, can
   }
 
   async function exportBackupUsers() {
-    await runExport("backup", () =>
+    await runExport("backup", filteredBackups.length, () =>
       downloadExcelReport({
         filename: `backup-user-report-${filterLabel}.xlsx`,
         sheetName: "Backup Users",
@@ -252,7 +257,7 @@ export function ReportsCenter({ ticketRecords, backupRecords, surveyRecords, can
         targetAchievement: metrics.targetAchievement,
       };
     });
-    await runExport("survey", () =>
+    await runExport("survey", filteredSurveys.length, () =>
       downloadExcelReport({
         filename: `survey-response-report-${filterLabel}.xlsx`,
         sheetName: "Survey Responses",
@@ -351,7 +356,7 @@ export function ReportsCenter({ ticketRecords, backupRecords, surveyRecords, can
           </div>
         </Card> : null}
 
-        <Card className="overflow-hidden">
+        {canAccessSurveyReport ? <Card className="overflow-hidden">
           <div className="border-b border-slate-100 p-5">
             <div className="flex items-start justify-between gap-4">
               <span className="grid size-11 place-items-center rounded-xl bg-amber-50 text-amber-600"><ClipboardCheck size={20} /></span>
@@ -364,7 +369,7 @@ export function ReportsCenter({ ticketRecords, backupRecords, surveyRecords, can
             <div className="flex items-center gap-2 text-[11px] text-slate-500"><FileSpreadsheet size={15} /> Formatted XLSX</div>
             <button disabled={invalidRange || filteredSurveys.length === 0 || exporting !== null} onClick={() => void exportSurveys()} className="inline-flex h-10 items-center gap-2 rounded-xl bg-[#3157d5] px-4 text-xs font-semibold text-white hover:bg-[#2445b5] disabled:cursor-not-allowed disabled:bg-slate-300"><Download size={15} /> {exporting === "survey" ? "Preparing..." : "Export"}</button>
           </div>
-        </Card>
+        </Card> : null}
       </div>
     </div>
   );

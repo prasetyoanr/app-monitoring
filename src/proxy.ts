@@ -6,6 +6,9 @@ function isPublicPath(pathname: string) {
   return (
     pathname === "/login" ||
     pathname === "/register" ||
+    pathname === "/manifest.webmanifest" ||
+    pathname === "/offline.html" ||
+    pathname === "/sw.js" ||
     pathname.startsWith("/b/") ||
     pathname.startsWith("/s/") ||
     pathname.startsWith("/inbox/approval/") ||

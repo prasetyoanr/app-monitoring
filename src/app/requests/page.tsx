@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
 
-import { isITTeamUser, requireAuthenticatedUser } from "@/auth/session";
+import { requireAuthenticatedUser } from "@/auth/session";
 import { RequestPortal } from "@/components/request-portal";
 import { getDivisionRequestRecords } from "@/data/app-data";
 import { getMasterDataRecords } from "@/data/master-data";
+import { GA_DIVISION_SLUG, requestDestinationError } from "@/lib/request-destination";
 
 export const metadata: Metadata = { title: "Request" };
 
@@ -13,19 +14,15 @@ export default async function RequestsPage() {
     getDivisionRequestRecords(),
     getMasterDataRecords(),
   ]);
+  const gaDivision = masterData.divisions.find((item) => item.slug === GA_DIVISION_SLUG);
+  const unavailableReason = requestDestinationError(currentUser.divisionId, gaDivision);
 
   return (
     <RequestPortal
       initialRecords={records}
       division={masterData.divisions.find((item) => item.id === currentUser.divisionId)?.name ?? null}
-      useOrangeRequestButton={!isITTeamUser(currentUser)}
-      targetDivisions={masterData.divisions
-        .filter((item) => item.isServiceTarget && item.id !== currentUser.divisionId)
-        .map((item) => ({
-          id: item.id,
-          name: item.name,
-          slug: item.slug,
-        }))}
+      requestHref={!unavailableReason && gaDivision ? `/requests/new/${gaDivision.slug}` : null}
+      unavailableReason={unavailableReason}
     />
   );
 }

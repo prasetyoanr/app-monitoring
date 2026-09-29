@@ -26,6 +26,28 @@ function safeRedirectPath(value: FormDataEntryValue | null) {
     : "/";
 }
 
+async function recordFailedLogin(input: {
+  username: string;
+  accountId?: string;
+  reason: "invalid_format" | "invalid_credentials" | "inactive" | "locked";
+}) {
+  try {
+    await db.insert(auditLogs).values({
+      actorType: "system",
+      actorId: input.accountId ?? null,
+      action: "authentication.login_failed",
+      entityType: "authentication",
+      entityId: ((input.accountId ?? input.username) || "unknown-user").slice(0, 120),
+      metadata: {
+        username: input.username.slice(0, 80),
+        reason: input.reason,
+      },
+    });
+  } catch (error) {
+    console.error("Unable to record failed login.", error);
+  }
+}
+
 export async function loginAction(
   _previousState: LoginState,
   formData: FormData,
@@ -37,6 +59,7 @@ export async function loginAction(
   const nextPath = safeRedirectPath(formData.get("next"));
 
   if (!/^[a-z0-9._-]{3,80}$/.test(username) || password.length > 128) {
+    await recordFailedLogin({ username, reason: "invalid_format" });
     return { error: "The username or password format is invalid." };
   }
 
@@ -70,6 +93,15 @@ export async function loginAction(
         })
         .where(eq(technicians.id, account.id));
     }
+    await recordFailedLogin({
+      username,
+      accountId: account?.id,
+      reason: !account || !passwordMatches
+        ? "invalid_credentials"
+        : !account.isActive
+          ? "inactive"
+          : "locked",
+    });
     return {
       error: "Login failed. Check your username and password or try again later.",
     };

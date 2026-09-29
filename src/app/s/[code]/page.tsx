@@ -6,7 +6,7 @@ import { getDivisionOptions } from "@/data/master-data";
 import { getPublicSurveyByCode } from "@/data/survey-data";
 
 export const metadata: Metadata = {
-  title: "OneService Survey",
+  title: "General Affairs Management System Survey",
   robots: { index: false, follow: false },
 };
 

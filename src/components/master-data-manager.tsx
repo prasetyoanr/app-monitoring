@@ -60,6 +60,7 @@ export function MasterDataManager({ initialData }: { initialData: MasterDataReco
     isServiceTarget: boolean,
     requestFormKey: string | null,
     inboxProfileKey: string,
+    isGaUnit = division.isGaUnit,
   ) {
     setPendingAction(`request-settings-${division.id}`);
     setError("");
@@ -68,6 +69,7 @@ export function MasterDataManager({ initialData }: { initialData: MasterDataReco
       isServiceTarget,
       requestFormKey,
       inboxProfileKey,
+      isGaUnit,
     );
     setPendingAction("");
     if (!result.ok) {
@@ -107,6 +109,10 @@ export function MasterDataManager({ initialData }: { initialData: MasterDataReco
                   return (
                     <div className="mt-2 flex flex-wrap items-center gap-2">
                       <label className="inline-flex items-center gap-1.5 text-[10px] font-semibold text-slate-600">
+                        <input type="checkbox" checked={division.isGaUnit} disabled={savingSettings} onChange={(event) => void saveDivisionRequestSettings(division, division.isServiceTarget, division.requestFormKey, division.inboxProfileKey, event.target.checked)} className="size-3.5 rounded border-slate-300 text-[#3157d5]" />
+                        Can receive GA assignments
+                      </label>
+                      {division.slug === "ga" ? <label className="inline-flex items-center gap-1.5 text-[10px] font-semibold text-slate-600">
                         <input
                           type="checkbox"
                           checked={division.isServiceTarget}
@@ -119,9 +125,9 @@ export function MasterDataManager({ initialData }: { initialData: MasterDataReco
                           )}
                           className="size-3.5 rounded border-slate-300 text-[#3157d5]"
                         />
-                        Tujuan layanan
-                      </label>
-                      {division.isServiceTarget ? (
+                        Accept requests to GA
+                      </label> : null}
+                      {division.slug === "ga" && division.isServiceTarget ? (
                         <select
                           value={division.requestFormKey ?? ""}
                           disabled={savingSettings}
@@ -132,9 +138,9 @@ export function MasterDataManager({ initialData }: { initialData: MasterDataReco
                             division.inboxProfileKey,
                           )}
                           className="h-7 max-w-44 rounded-lg border border-slate-200 bg-white px-2 text-[10px] text-slate-600 outline-none focus:border-blue-400"
-                          aria-label={`Template form untuk ${division.name}`}
+                          aria-label={`Form template for ${division.name}`}
                         >
-                          <option value="">Form umum</option>
+                          <option value="">General form</option>
                           {serviceRequestTemplates.map((template) => (
                             <option key={template.key} value={template.key}>
                               {template.label}
@@ -152,7 +158,7 @@ export function MasterDataManager({ initialData }: { initialData: MasterDataReco
                           event.target.value,
                         )}
                         className="h-7 max-w-44 rounded-lg border border-slate-200 bg-white px-2 text-[10px] text-slate-600 outline-none focus:border-blue-400"
-                        aria-label={`Profil Inbox untuk ${division.name}`}
+                        aria-label={`Inbox profile for ${division.name}`}
                       >
                         {serviceInboxProfiles.map((profile) => (
                           <option key={profile.key} value={profile.key}>

@@ -15,11 +15,37 @@ import {
   varchar,
 } from "drizzle-orm/pg-core";
 
-export const technicianRoleEnum = pgEnum("technician_role", [
+export const accountRoleEnum = pgEnum("account_role", [
   "administrator",
-  "boss",
-  "technician",
+  "receptionist",
+  "approver",
+  "final_approver",
+  "service_agent",
   "requester",
+]);
+
+export const requestWorkflowStatusEnum = pgEnum("request_workflow_status", [
+  "resolved",
+  "submitted",
+  "waiting_approver",
+  "waiting_final_approver",
+  "ready_for_assignment",
+  "assigned",
+  "needs_revision",
+  "rejected",
+]);
+
+export const requestWorkflowActionEnum = pgEnum("request_workflow_action", [
+  "resolved",
+  "submitted",
+  "routed_directly",
+  "sent_for_approval",
+  "approved",
+  "escalated",
+  "final_approved",
+  "returned",
+  "rejected",
+  "assigned",
 ]);
 
 export const issuePriorityEnum = pgEnum("issue_priority", [
@@ -106,6 +132,7 @@ export const masterDivisions = pgTable(
       .notNull()
       .default("basic-service"),
     isServiceTarget: boolean("is_service_target").notNull().default(false),
+    isGaUnit: boolean("is_ga_unit").notNull().default(false),
     requestFormKey: varchar("request_form_key", { length: 80 }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
@@ -163,7 +190,7 @@ export const technicians = pgTable(
     name: varchar("name", { length: 120 }).notNull(),
     username: varchar("username", { length: 80 }),
     passwordHash: text("password_hash"),
-    role: technicianRoleEnum("role").notNull().default("boss"),
+    role: accountRoleEnum("role").notNull().default("requester"),
     divisionId: uuid("division_id").references(() => masterDivisions.id, {
       onDelete: "set null",
     }),
@@ -236,6 +263,7 @@ export const troubleshootingIssues = pgTable(
     serviceDivisionId: uuid("service_division_id")
       .notNull()
       .references(() => masterDivisions.id, { onDelete: "restrict" }),
+    receivingDivisionId: uuid("receiving_division_id").references(() => masterDivisions.id, { onDelete: "restrict" }),
     requestFormKey: varchar("request_form_key", { length: 80 })
       .notNull()
       .default("it-support"),
@@ -257,6 +285,22 @@ export const troubleshootingIssues = pgTable(
       () => technicians.id,
       { onDelete: "set null" },
     ),
+    workflowStatus: requestWorkflowStatusEnum("workflow_status")
+      .notNull()
+      .default("submitted"),
+    // Existing requests keep their pre-reception handling during rollout.
+    workflowEnabled: boolean("workflow_enabled").notNull().default(true),
+    approvalRequired: boolean("approval_required"),
+    reviewedById: uuid("reviewed_by_id").references(() => technicians.id, {
+      onDelete: "set null",
+    }),
+    approverId: uuid("approver_id").references(() => technicians.id, {
+      onDelete: "set null",
+    }),
+    finalApproverId: uuid("final_approver_id").references(
+      () => technicians.id,
+      { onDelete: "set null" },
+    ),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -270,9 +314,11 @@ export const troubleshootingIssues = pgTable(
     index("troubleshooting_issues_assignee_idx").on(
       table.assignedTechnicianId,
     ),
+    index("troubleshooting_issues_workflow_idx").on(table.workflowStatus),
     index("troubleshooting_issues_requester_idx").on(table.requesterId),
     index("troubleshooting_issues_service_division_idx").on(table.serviceDivision),
     index("troubleshooting_issues_service_division_id_idx").on(table.serviceDivisionId),
+    index("troubleshooting_issues_receiving_division_id_idx").on(table.receivingDivisionId),
     check(
       "troubleshooting_issues_completed_days_check",
       sql`${table.completedDays} is null or ${table.completedDays} >= 0`,
@@ -293,6 +339,30 @@ export const troubleshootingIssues = pgTable(
       "troubleshooting_issues_requester_photo_size_check",
       sql`${table.requesterPhotoData} is null or octet_length(${table.requesterPhotoData}) <= 2097152`,
     ),
+  ],
+);
+
+export const requestWorkflowHistory = pgTable(
+  "request_workflow_history",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    issueId: varchar("issue_id", { length: 32 })
+      .notNull()
+      .references(() => troubleshootingIssues.id, { onDelete: "cascade" }),
+    actorId: uuid("actor_id").references(() => technicians.id, {
+      onDelete: "set null",
+    }),
+    action: requestWorkflowActionEnum("action").notNull(),
+    previousStatus: requestWorkflowStatusEnum("previous_status"),
+    status: requestWorkflowStatusEnum("status").notNull(),
+    note: text("note"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("request_workflow_history_issue_idx").on(table.issueId, table.createdAt),
+    index("request_workflow_history_actor_idx").on(table.actorId),
   ],
 );
 

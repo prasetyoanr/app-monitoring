@@ -6,12 +6,14 @@ import { revalidatePath } from "next/cache";
 
 import { isITTeamUser, requireAuthenticatedUser, requireServiceAgent } from "@/auth/session";
 import { canManageServiceIssue } from "@/auth/issue-access";
+import { requestDestinationError } from "@/lib/request-destination";
 import { db } from "@/db";
 import {
   auditLogs,
   masterDivisions,
   requestStatusHistory,
   requestStatusNotifications,
+  requestWorkflowHistory,
   troubleshootingApprovals,
   troubleshootingIssues,
 } from "@/db/schema";
@@ -31,6 +33,8 @@ import {
 } from "@/features/service-inbox/status-transitions";
 import { issueStatusLabel } from "@/lib/issue-status";
 import { generateRecordId } from "@/lib/record-id";
+import { issueChangeQuery } from "@/lib/issue-event-query";
+import { recordAuthorizationDenied } from "@/security/audit";
 
 const priorities: IssuePriority[] = ["Low", "Medium", "High", "Critical"];
 const MAX_WORK_PHOTO_BYTES = 2 * 1024 * 1024;
@@ -91,9 +95,10 @@ async function nextIssueId() {
 export async function saveIssueAction(
   formData: FormData,
 ): Promise<ActionResult<{ id: string }>> {
-  const currentUser = await requireServiceAgent();
+  const currentUser = await requireServiceAgent("issue.save");
   try {
     if (!isITTeamUser(currentUser)) {
+      await recordAuthorizationDenied(currentUser, "issue.save", { reason: "it_only" });
       throw new Error("Non-IT divisions can only update request handling status.");
     }
     const id = optionalField(formData, "id", 32) || (await nextIssueId());
@@ -134,12 +139,14 @@ export async function saveIssueAction(
       throw new Error("The Add Issue feature is available to the IT division only.");
     }
     if (existing && !canManageServiceIssue(currentUser, existing.serviceDivisionId)) {
+      await recordAuthorizationDenied(currentUser, "issue.save", { reason: "different_division", issueId: id });
       throw new Error("You cannot manage requests assigned to another division.");
     }
     if (
       existing?.source === "division_request" &&
       currentUser.role !== "administrator"
     ) {
+      await recordAuthorizationDenied(currentUser, "issue.save", { reason: "external_request_restricted", issueId: id });
       throw new Error("Requests from another division can only update status and work evidence.");
     }
     const inboxProfile = getServiceInboxProfile(
@@ -242,6 +249,10 @@ export async function saveIssueAction(
         serviceDivision: itServiceDivision.name,
         serviceDivisionId: itServiceDivision.id,
         requestFormKey: "it-support",
+        workflowStatus: "assigned",
+        workflowEnabled: false,
+        approvalRequired: false,
+        assignedTechnicianId: currentUser.id,
       });
     }
 
@@ -271,7 +282,7 @@ export async function updateIssueStatusAction(
   reasonValue = "",
   requesterNoteValue = "",
 ): Promise<ActionResult<{ id: string }>> {
-  const currentUser = await requireServiceAgent();
+  const currentUser = await requireServiceAgent("issue.status.update");
   try {
     if (!/^(?:INC-[0-9]{4}-[0-9]{4,6}|TR-[0-9]{4}-[0-9]{4})$/.test(id)) {
       throw new Error("Invalid issue ID.");
@@ -296,6 +307,9 @@ export async function updateIssueStatusAction(
         workPhotoData: troubleshootingIssues.workPhotoData,
         serviceDivisionId: troubleshootingIssues.serviceDivisionId,
         inboxProfileKey: masterDivisions.inboxProfileKey,
+        workflowStatus: troubleshootingIssues.workflowStatus,
+        workflowEnabled: troubleshootingIssues.workflowEnabled,
+        assignedTechnicianId: troubleshootingIssues.assignedTechnicianId,
       })
       .from(troubleshootingIssues)
       .innerJoin(
@@ -307,7 +321,17 @@ export async function updateIssueStatusAction(
 
     if (!issue) throw new Error("Issue was not found.");
     if (!canManageServiceIssue(currentUser, issue.serviceDivisionId)) {
+      await recordAuthorizationDenied(currentUser, "issue.status.update", { reason: "different_division", issueId: id });
       throw new Error("You cannot manage requests assigned to another division.");
+    }
+    if (
+      currentUser.role !== "administrator" &&
+      issue.source === "division_request" &&
+      issue.workflowEnabled &&
+      (issue.workflowStatus !== "assigned" || issue.assignedTechnicianId !== currentUser.id)
+    ) {
+      await recordAuthorizationDenied(currentUser, "issue.status.update", { reason: "not_assigned", issueId: id });
+      throw new Error("This request must be assigned to you before its work status can be updated.");
     }
 
     const inboxProfile = getServiceInboxProfile(issue.inboxProfileKey);
@@ -324,6 +348,7 @@ export async function updateIssueStatusAction(
       !isITTeamUser(currentUser) &&
       currentUser.role !== "administrator"
     ) {
+      await recordAuthorizationDenied(currentUser, "issue.status.update", { reason: "it_only", issueId: id });
       throw new Error("Only the IT division can update this request.");
     }
     if (!inboxProfile.editableStatuses.includes(requestedStatus)) {
@@ -400,6 +425,7 @@ export async function updateIssueStatusAction(
           requesterNotified: Boolean(issue.requesterId),
         },
       });
+      await tx.execute(issueChangeQuery(id));
     });
     revalidatePath("/");
     revalidatePath("/inbox");
@@ -434,13 +460,11 @@ export async function createRequesterTicketAction(
     if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(serviceDivisionId)) {
       throw new Error("The destination division is invalid.");
     }
-    if (serviceDivisionId === currentUser.divisionId) {
-      throw new Error("A request cannot be submitted to your own division.");
-    }
     const [serviceDivision] = await db
       .select({
         id: masterDivisions.id,
         name: masterDivisions.name,
+        slug: masterDivisions.slug,
         isServiceTarget: masterDivisions.isServiceTarget,
         requestFormKey: masterDivisions.requestFormKey,
         inboxProfileKey: masterDivisions.inboxProfileKey,
@@ -448,9 +472,9 @@ export async function createRequesterTicketAction(
       .from(masterDivisions)
       .where(eq(masterDivisions.id, serviceDivisionId))
       .limit(1);
-    if (!serviceDivision?.isServiceTarget) {
-      throw new Error("The destination division is not available for requests.");
-    }
+    const destinationError = requestDestinationError(currentUser.divisionId, serviceDivision);
+    if (destinationError) throw new Error(destinationError);
+    if (!serviceDivision) throw new Error("The destination division was not found.");
     const template =
       getServiceRequestTemplate(serviceDivision.requestFormKey) ?? genericServiceRequestTemplate;
     const inboxProfile = getServiceInboxProfile(serviceDivision.inboxProfileKey);
@@ -533,41 +557,53 @@ export async function createRequesterTicketAction(
 
     const id = await nextIssueId();
     const reportedAt = new Date();
-    await db.insert(troubleshootingIssues).values({
-      id,
-      title,
-      category,
-      requesterName: currentUser.username,
-      requesterEmail: null,
-      requesterId: currentUser.id,
-      source: "division_request",
-      division: division.name,
-      serviceDivision: serviceDivision.name,
-      serviceDivisionId: serviceDivision.id,
-      requestFormKey: template.key,
-      requestData,
-      location,
-      reportedAt,
-      priority,
-      status: "New",
-      completedDays: null,
-      description,
-      resolution: "",
-      requesterPhotoData,
-      requesterPhotoMimeType: requesterPhotoData ? "image/jpeg" : null,
-      requesterPhotoFileName: requesterPhotoData ? `requester-photo-${id}.jpg` : null,
-    });
-    await db.insert(auditLogs).values({
-      actorType: currentUser.role === "requester" ? "requester" : "technician",
-      actorId: currentUser.id,
-      action: "issue.requested",
-      entityType: "troubleshooting_issue",
-      entityId: id,
-      metadata: {
-        requestFormKey: template.key,
-        serviceDivisionId: serviceDivision.id,
+    await db.transaction(async (tx) => {
+      await tx.insert(troubleshootingIssues).values({
+        id,
+        title,
+        category,
+        requesterName: currentUser.username,
+        requesterEmail: null,
+        requesterId: currentUser.id,
+        source: "division_request",
+        division: division.name,
         serviceDivision: serviceDivision.name,
-      },
+        serviceDivisionId: serviceDivision.id,
+        receivingDivisionId: serviceDivision.id,
+        requestFormKey: template.key,
+        requestData,
+        location,
+        reportedAt,
+        priority,
+        status: "New",
+        workflowStatus: "submitted",
+        completedDays: null,
+        description,
+        resolution: "",
+        requesterPhotoData,
+        requesterPhotoMimeType: requesterPhotoData ? "image/jpeg" : null,
+        requesterPhotoFileName: requesterPhotoData ? `requester-photo-${id}.jpg` : null,
+      });
+      await tx.insert(requestWorkflowHistory).values({
+        issueId: id,
+        actorId: currentUser.id,
+        action: "submitted",
+        previousStatus: null,
+        status: "submitted",
+      });
+      await tx.insert(auditLogs).values({
+        actorType: currentUser.role === "requester" ? "requester" : "technician",
+        actorId: currentUser.id,
+        action: "issue.requested",
+        entityType: "troubleshooting_issue",
+        entityId: id,
+        metadata: {
+          requestFormKey: template.key,
+          serviceDivisionId: serviceDivision.id,
+          serviceDivision: serviceDivision.name,
+        },
+      });
+      await tx.execute(issueChangeQuery(id));
     });
     revalidatePath("/");
     revalidatePath("/requests");
@@ -586,9 +622,10 @@ export async function createRequesterTicketAction(
 export async function updateIssueWorkPhotoAction(
   formData: FormData,
 ): Promise<ActionResult<{ id: string }>> {
-  const currentUser = await requireServiceAgent();
+  const currentUser = await requireServiceAgent("issue.work_photo.update");
   try {
     if (!isITTeamUser(currentUser)) {
+      await recordAuthorizationDenied(currentUser, "issue.work_photo.update", { reason: "it_only" });
       throw new Error("Work evidence is only available to the IT division.");
     }
     const id = field(formData, "id", 32);
@@ -606,6 +643,9 @@ export async function updateIssueWorkPhotoAction(
         status: troubleshootingIssues.status,
         serviceDivisionId: troubleshootingIssues.serviceDivisionId,
         inboxProfileKey: masterDivisions.inboxProfileKey,
+        workflowStatus: troubleshootingIssues.workflowStatus,
+        workflowEnabled: troubleshootingIssues.workflowEnabled,
+        assignedTechnicianId: troubleshootingIssues.assignedTechnicianId,
       })
       .from(troubleshootingIssues)
       .innerJoin(
@@ -616,7 +656,17 @@ export async function updateIssueWorkPhotoAction(
       .limit(1);
     if (!issue) throw new Error("Issue was not found.");
     if (!canManageServiceIssue(currentUser, issue.serviceDivisionId)) {
+      await recordAuthorizationDenied(currentUser, "issue.work_photo.update", { reason: "different_division", issueId: id });
       throw new Error("You cannot manage requests assigned to another division.");
+    }
+    if (
+      currentUser.role !== "administrator" &&
+      issue.source === "division_request" &&
+      issue.workflowEnabled &&
+      (issue.workflowStatus !== "assigned" || issue.assignedTechnicianId !== currentUser.id)
+    ) {
+      await recordAuthorizationDenied(currentUser, "issue.work_photo.update", { reason: "not_assigned", issueId: id });
+      throw new Error("This request must be assigned to you before work evidence can be changed.");
     }
     if (issue.source !== "division_request") {
       throw new Error("Manual IT issues use the full edit form.");
@@ -674,9 +724,10 @@ export async function updateIssueWorkPhotoAction(
 }
 
 export async function deleteIssueAction(id: string): Promise<ActionResult> {
-  const currentUser = await requireServiceAgent();
+  const currentUser = await requireServiceAgent("issue.delete");
   try {
     if (!isITTeamUser(currentUser)) {
+      await recordAuthorizationDenied(currentUser, "issue.delete", { reason: "it_only" });
       throw new Error("Only the IT division or an administrator can delete requests.");
     }
     if (!/^(?:INC-[0-9]{4}-[0-9]{4,6}|TR-[0-9]{4}-[0-9]{4})$/.test(id)) {
@@ -692,12 +743,14 @@ export async function deleteIssueAction(id: string): Promise<ActionResult> {
       .limit(1);
     if (!issue) throw new Error("Issue was not found.");
     if (!canManageServiceIssue(currentUser, issue.serviceDivisionId)) {
+      await recordAuthorizationDenied(currentUser, "issue.delete", { reason: "different_division", issueId: id });
       throw new Error("You cannot delete requests assigned to another division.");
     }
     if (
       issue.source === "division_request" &&
       currentUser.role !== "administrator"
     ) {
+      await recordAuthorizationDenied(currentUser, "issue.delete", { reason: "external_request_restricted", issueId: id });
       throw new Error("Requests from another division cannot be deleted.");
     }
     const [deleted] = await db
@@ -725,11 +778,14 @@ export async function deleteIssueAction(id: string): Promise<ActionResult> {
 export async function requestApprovalAction(
   issueId: string,
 ): Promise<ActionResult<{ token: string; expiresAt: string }>> {
-  const currentUser = await requireServiceAgent();
+  const currentUser = await requireServiceAgent("approval.request");
   try {
     const [issue] = await db
       .select({
         status: troubleshootingIssues.status,
+        workflowEnabled: troubleshootingIssues.workflowEnabled,
+        workflowStatus: troubleshootingIssues.workflowStatus,
+        assignedTechnicianId: troubleshootingIssues.assignedTechnicianId,
         workPhotoData: troubleshootingIssues.workPhotoData,
         serviceDivisionId: troubleshootingIssues.serviceDivisionId,
         inboxProfileKey: masterDivisions.inboxProfileKey,
@@ -742,7 +798,13 @@ export async function requestApprovalAction(
       .where(eq(troubleshootingIssues.id, issueId))
       .limit(1);
     if (!issue || !canManageServiceIssue(currentUser, issue.serviceDivisionId)) {
+      if (issue) await recordAuthorizationDenied(currentUser, "approval.request", { reason: "different_division", issueId });
       throw new Error("Issue is not available to your division.");
+    }
+    if (currentUser.role !== "administrator" && issue.workflowEnabled &&
+      (issue.workflowStatus !== "assigned" || issue.assignedTechnicianId !== currentUser.id)) {
+      await recordAuthorizationDenied(currentUser, "approval.request", { reason: "not_assigned", issueId });
+      throw new Error("This request must be assigned to you before client approval can be requested.");
     }
     const inboxProfile = getServiceInboxProfile(issue.inboxProfileKey);
     if (!inboxProfile.features.approvalQr) {
@@ -883,6 +945,7 @@ export async function approveIssueAction(input: {
         entityType: "troubleshooting_issue",
         entityId: approval.issueId,
       });
+      await tx.execute(issueChangeQuery(approval.issueId));
     });
 
     revalidatePath("/");
@@ -969,6 +1032,7 @@ export async function rejectIssueAction(input: {
         entityId: approval.issueId,
         metadata: { reason },
       });
+      await tx.execute(issueChangeQuery(approval.issueId));
     });
     revalidatePath("/");
     revalidatePath("/inbox");

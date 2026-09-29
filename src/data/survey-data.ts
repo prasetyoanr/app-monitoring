@@ -3,7 +3,7 @@ import "server-only";
 import { and, asc, desc, eq, inArray, ne, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 
-import { requireAuthenticatedUser, requireITTeam } from "@/auth/session";
+import { requireITRoleUser } from "@/auth/session";
 import { db } from "@/db";
 import {
   surveyAnswers,
@@ -39,7 +39,7 @@ function displayStatus(
 }
 
 export async function getSurveyListRecords(): Promise<SurveyListRecord[]> {
-  await requireAuthenticatedUser();
+  await requireITRoleUser();
   const surveyForm = alias(surveyForms, "survey_form");
   const questionCounts = db
     .select({
@@ -91,7 +91,7 @@ export async function getSurveyListRecords(): Promise<SurveyListRecord[]> {
 export async function getEditableSurvey(
   id: string,
 ): Promise<SurveyEditRecord | null> {
-  await requireITTeam();
+  await requireITRoleUser();
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id)) {
     return null;
   }
@@ -181,7 +181,7 @@ export async function getPublicSurveyByCode(
 export async function getSurveyResponseData(
   surveyId: string,
 ): Promise<SurveyResponseData | null> {
-  await requireAuthenticatedUser();
+  await requireITRoleUser();
   const [survey] = await db
     .select({ id: surveyForms.id, title: surveyForms.title })
     .from(surveyForms)
@@ -278,7 +278,7 @@ export async function getSurveyResponseData(
 }
 
 export async function getSurveyReportRecords(): Promise<SurveyReportRecord[]> {
-  await requireAuthenticatedUser();
+  await requireITRoleUser();
   const submissions = await db
     .select({
       surveyId: surveyForms.id,

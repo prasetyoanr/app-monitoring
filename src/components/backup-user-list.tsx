@@ -181,7 +181,7 @@ export function BackupUserList({ initialRecords, canManage, divisionOptions }: {
                 <div className="flex items-center justify-between rounded-xl border border-slate-100 px-3 py-2"><p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Account Data</p><AccountDataIndicator record={record} /></div>
               </div>
               <div className={`mt-4 gap-2 border-t border-slate-100 pt-4 ${canManage ? "grid grid-cols-3" : "flex"}`}>
-                <button onClick={() => openDetail(record)} className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-[#3157d5] px-2 text-[10px] font-semibold text-white" aria-label={`View details ${record.user}`}><Eye size={13} /> Detail</button>
+                <button onClick={() => openDetail(record)} className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-[#3157d5] px-2 text-[10px] font-semibold text-white" aria-label={`View details ${record.user}`}><Eye size={13} /> Details</button>
                 {canManage ? <><button onClick={() => openForm("edit", record)} className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-amber-500 px-2 text-[10px] font-semibold text-white" aria-label={`Edit ${record.user}`}><Pencil size={13} /> Edit</button><button onClick={() => setPendingDelete(record)} className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-rose-600 px-2 text-[10px] font-semibold text-white" aria-label={`Delete ${record.user}`}><Trash2 size={13} /> Delete</button></> : null}
               </div>
             </article>
@@ -200,7 +200,7 @@ export function BackupUserList({ initialRecords, canManage, divisionOptions }: {
                   <td className="px-4 py-4 text-[11px] text-slate-600">{record.submittedAt}</td>
                   <td className="px-4 py-4"><StatusBadge tone={statusTone(record.status)}>{record.status}</StatusBadge></td>
                   <td className="px-4 py-4"><div className="flex justify-center"><AccountDataIndicator record={record} /></div></td>
-                  <td className="px-5 py-4"><div className="flex justify-center gap-2"><button onClick={() => openDetail(record)} className="grid size-8 place-items-center rounded-lg bg-[#3157d5] text-white shadow-sm transition hover:bg-[#2445b5]" aria-label={`View details ${record.user}`} title="Detail"><Eye size={14} /></button>{canManage ? <><button onClick={() => openForm("edit", record)} className="grid size-8 place-items-center rounded-lg bg-amber-500 text-white shadow-sm transition hover:bg-amber-600" aria-label={`Edit ${record.user}`} title="Edit"><Pencil size={14} /></button><button onClick={() => setPendingDelete(record)} className="grid size-8 place-items-center rounded-lg bg-rose-600 text-white shadow-sm transition hover:bg-rose-700" aria-label={`Delete ${record.user}`} title="Delete"><Trash2 size={14} /></button></> : null}</div></td>
+                  <td className="px-5 py-4"><div className="flex justify-center gap-2"><button onClick={() => openDetail(record)} className="grid size-8 place-items-center rounded-lg bg-[#3157d5] text-white shadow-sm transition hover:bg-[#2445b5]" aria-label={`View details ${record.user}`} title="Details"><Eye size={14} /></button>{canManage ? <><button onClick={() => openForm("edit", record)} className="grid size-8 place-items-center rounded-lg bg-amber-500 text-white shadow-sm transition hover:bg-amber-600" aria-label={`Edit ${record.user}`} title="Edit"><Pencil size={14} /></button><button onClick={() => setPendingDelete(record)} className="grid size-8 place-items-center rounded-lg bg-rose-600 text-white shadow-sm transition hover:bg-rose-700" aria-label={`Delete ${record.user}`} title="Delete"><Trash2 size={14} /></button></> : null}</div></td>
                 </tr>
               ))}
             </tbody>
@@ -234,7 +234,7 @@ export function BackupUserList({ initialRecords, canManage, divisionOptions }: {
                   <div><dt className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Status</dt><dd className="mt-1 font-medium text-slate-800">{detailRecord.status}</dd></div>
                 </dl>
               </section>
-              <footer className="mt-12 border-t border-slate-300 pt-4 text-[10px] leading-5 text-slate-400">This document is an internal backup user record generated from OneService.</footer>
+              <footer className="mt-12 border-t border-slate-300 pt-4 text-[10px] leading-5 text-slate-400">This document is an internal backup user record generated from General Affairs Management System.</footer>
             </article>
           </div>
         </div>

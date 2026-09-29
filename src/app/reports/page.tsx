@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 
-import { requireITTeam } from "@/auth/session";
+import { isITRoleUser, requireITTeam } from "@/auth/session";
 import { ReportsCenter } from "@/components/reports-center";
 import { PageHeader } from "@/components/ui";
 import { getBackupRecords, getTicketRecords } from "@/data/app-data";
@@ -9,12 +9,13 @@ import { getSurveyReportRecords } from "@/data/survey-data";
 export const metadata: Metadata = { title: "Reports" };
 
 export default async function ReportsPage() {
-  await requireITTeam();
-  const canAccessBackupReport = true;
+  const currentUser = await requireITTeam();
+  const canAccessBackupReport = isITRoleUser(currentUser);
+  const canAccessSurveyReport = isITRoleUser(currentUser);
   const [ticketRecords, backupRecords, surveyRecords] = await Promise.all([
     getTicketRecords(),
     canAccessBackupReport ? getBackupRecords() : Promise.resolve([]),
-    getSurveyReportRecords(),
+    canAccessSurveyReport ? getSurveyReportRecords() : Promise.resolve([]),
   ]);
   return (
     <>
@@ -28,6 +29,7 @@ export default async function ReportsPage() {
         backupRecords={backupRecords}
         surveyRecords={surveyRecords}
         canAccessBackupReport={canAccessBackupReport}
+        canAccessSurveyReport={canAccessSurveyReport}
       />
     </>
   );

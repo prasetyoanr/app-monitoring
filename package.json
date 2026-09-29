@@ -1,5 +1,5 @@
 {
-  "name": "it-activity-log",
+  "name": "general-affairs-management-system",
   "version": "0.1.8",
   "private": true,
   "scripts": {
@@ -8,6 +8,10 @@
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit --noUnusedLocals --noUnusedParameters",
+    "test:workflow": "tsx --test src/lib/request-workflow.test.ts",
+    "test:queue": "tsx --test src/lib/request-queue.test.ts",
+    "test:realtime": "tsx --test src/lib/issue-realtime.test.ts",
+    "test:realtime:db": "tsx --test src/lib/issue-realtime.integration.test.ts",
     "check": "bun run typecheck && bun run lint && bun run db:check",
     "verify": "bun run check && bun run build",
     "db:generate": "drizzle-kit generate",

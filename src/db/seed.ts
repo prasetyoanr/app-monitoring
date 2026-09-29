@@ -63,6 +63,8 @@ async function seed() {
         completedDays: ticket.completedDays,
         description: ticket.description,
         assignedTechnicianId: technicianId,
+        workflowEnabled: false,
+        workflowStatus: "assigned" as const,
       })),
     )
     .onConflictDoNothing();

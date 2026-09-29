@@ -4,6 +4,7 @@ import { getCurrentUser } from "@/auth/session";
 import { canViewServiceIssue } from "@/auth/issue-access";
 import { db } from "@/db";
 import { troubleshootingIssues } from "@/db/schema";
+import { recordAuthorizationDenied, recordSensitiveDataAccess } from "@/security/audit";
 
 export const runtime = "nodejs";
 
@@ -26,19 +27,26 @@ export async function GET(
       updatedAt: troubleshootingIssues.updatedAt,
       requesterId: troubleshootingIssues.requesterId,
       requesterDivision: troubleshootingIssues.division,
+      source: troubleshootingIssues.source,
+      workflowEnabled: troubleshootingIssues.workflowEnabled,
+      workflowStatus: troubleshootingIssues.workflowStatus,
+      assignedTechnicianId: troubleshootingIssues.assignedTechnicianId,
+      approverId: troubleshootingIssues.approverId,
+      finalApproverId: troubleshootingIssues.finalApproverId,
       serviceDivisionId: troubleshootingIssues.serviceDivisionId,
     })
     .from(troubleshootingIssues)
     .where(eq(troubleshootingIssues.id, id))
     .limit(1);
 
-  if (
-    !photo?.data ||
-    photo.mimeType !== "image/jpeg" ||
-    !canViewServiceIssue(currentUser, photo)
-  ) {
+  if (!photo?.data || photo.mimeType !== "image/jpeg") {
     return new Response("Not found", { status: 404 });
   }
+  if (!canViewServiceIssue(currentUser, photo)) {
+    await recordAuthorizationDenied(currentUser, "sensitive_data.work_photo.view", { issueId: id });
+    return new Response("Not found", { status: 404 });
+  }
+  await recordSensitiveDataAccess(currentUser, "troubleshooting_issue", id, "work_photo");
 
   return new Response(new Uint8Array(photo.data), {
     headers: {

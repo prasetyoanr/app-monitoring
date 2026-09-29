@@ -61,28 +61,31 @@ export async function updateDivisionRequestSettingsAction(
   isServiceTarget: boolean,
   requestFormKey: string | null,
   inboxProfileKey: string,
+  isGaUnit: boolean,
 ): Promise<ActionResult> {
-  const currentUser = await requireAdministrator();
+  const currentUser = await requireAdministrator("master_data.request_settings.update");
   try {
     validId(id);
+    if (typeof isGaUnit !== "boolean" || typeof isServiceTarget !== "boolean") throw new Error("Invalid unit settings.");
     const normalizedFormKey = requestFormKey?.trim() || null;
     if (normalizedFormKey && !getServiceRequestTemplate(normalizedFormKey)) {
-      throw new Error("Template form tidak valid.");
+      throw new Error("The form template is invalid.");
     }
     if (!isInboxProfileKey(inboxProfileKey)) {
-      throw new Error("Profil Inbox tidak valid.");
+      throw new Error("The Inbox profile is invalid.");
     }
 
     const [updated] = await db
       .update(masterDivisions)
       .set({
         isServiceTarget,
+        isGaUnit,
         requestFormKey: isServiceTarget ? normalizedFormKey : null,
         inboxProfileKey,
       })
       .where(eq(masterDivisions.id, id))
       .returning({ id: masterDivisions.id, name: masterDivisions.name });
-    if (!updated) throw new Error("Divisi tidak ditemukan.");
+    if (!updated) throw new Error("Division not found.");
 
     await db.insert(auditLogs).values({
       actorType: "technician",
@@ -93,6 +96,7 @@ export async function updateDivisionRequestSettingsAction(
       metadata: {
         inboxProfileKey,
         isServiceTarget,
+        isGaUnit,
         requestFormKey: isServiceTarget ? normalizedFormKey : null,
       },
     });
@@ -102,7 +106,7 @@ export async function updateDivisionRequestSettingsAction(
     console.error("Unable to update division request settings.", error);
     return {
       ok: false,
-      error: error instanceof Error ? error.message : "Pengaturan tujuan divisi tidak dapat disimpan.",
+      error: error instanceof Error ? error.message : "The division settings could not be saved.",
     };
   }
 }
@@ -111,7 +115,7 @@ export async function createMasterItemAction(
   type: MasterDataType,
   inputName: string,
 ): Promise<ActionResult<{ id: string }>> {
-  const currentUser = await requireAdministrator();
+  const currentUser = await requireAdministrator("master_data.create");
   try {
     const name = validName(inputName);
     const table = masterTable(type);
@@ -165,7 +169,7 @@ export async function deleteMasterItemAction(
   type: MasterDataType,
   id: string,
 ): Promise<ActionResult> {
-  const currentUser = await requireAdministrator();
+  const currentUser = await requireAdministrator("master_data.delete");
   try {
     validId(id);
     const table = masterTable(type);

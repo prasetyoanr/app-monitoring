@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   Camera,
@@ -8,6 +9,7 @@ import {
   LoaderCircle,
   Send,
   Upload,
+  ClipboardList,
 } from "lucide-react";
 import { type ChangeEvent, type FormEvent, useEffect, useRef, useState } from "react";
 
@@ -89,6 +91,7 @@ export function ServiceRequestForm({
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (saving || compressingPhoto) return;
     const data = new FormData(event.currentTarget);
     data.set("serviceDivisionId", targetDivision.id);
 
@@ -100,14 +103,19 @@ export function ServiceRequestForm({
 
     setSaving(true);
     setError(null);
-    const result = await createRequesterTicketAction(data);
-    setSaving(false);
-    if (!result.ok) {
-      setError(result.error);
-      return;
+    try {
+      const result = await createRequesterTicketAction(data);
+      if (!result.ok) {
+        setError(result.error);
+        return;
+      }
+      router.replace("/requests");
+      router.refresh();
+    } catch {
+      setError("The request could not be confirmed. Check your request history before trying again.");
+    } finally {
+      setSaving(false);
     }
-    router.replace("/requests");
-    router.refresh();
   }
 
   function renderField(field: ServiceRequestField) {
@@ -193,11 +201,14 @@ export function ServiceRequestForm({
   }
 
   return (
-    <Card className="p-4 sm:p-5">
-      <form onSubmit={submit} className="w-full space-y-5">
+    <Card className="overflow-hidden">
+      <div className="flex items-center gap-3 border-b border-slate-100 bg-slate-50/60 px-4 py-4 sm:px-6"><span className="grid size-9 place-items-center rounded-xl bg-emerald-100 text-emerald-800"><ClipboardList size={18} /></span><div><h2 className="text-sm font-bold text-slate-900">Request details</h2><p className="mt-0.5 text-[11px] text-slate-500">Fields marked <span className="text-rose-500">*</span> are required.</p></div></div>
+      <form onSubmit={submit} aria-busy={saving} className="w-full space-y-5 p-4 sm:p-6">
+        <fieldset disabled={saving} className="min-w-0 disabled:opacity-70">
+        <legend className="sr-only">GA request information</legend>
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
           {titleField ? (
-            <div className="col-span-full">{renderField(titleField)}</div>
+            <div>{renderField(titleField)}</div>
           ) : null}
           <label className="block text-[11px] font-semibold text-slate-600">
             Location <span className="text-rose-500">*</span>
@@ -219,9 +230,14 @@ export function ServiceRequestForm({
             </div>
           ))}
         </div>
-        {error ? <p className="rounded-xl bg-rose-50 px-3.5 py-2.5 text-xs font-semibold text-rose-700">{error}</p> : null}
-        <div className="flex justify-end border-t border-slate-100 pt-5">
-          <button type="submit" disabled={saving || compressingPhoto} className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-indigo-600 px-5 text-xs font-semibold text-white shadow-md shadow-indigo-600/20 transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"><Send size={15} /> {saving ? "Submitting request..." : compressingPhoto ? "Processing photo..." : `Submit to ${targetDivision.name}`}</button>
+        </fieldset>
+        {error ? <p role="alert" className="rounded-xl bg-rose-50 px-3.5 py-2.5 text-xs font-semibold text-rose-700">{error}</p> : null}
+        <div className="flex flex-col gap-3 border-t border-slate-100 pt-5 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-[11px] text-slate-500">Track updates in your request history after submission.</p>
+          <div className="flex items-center gap-2">
+            {!saving ? <Link href="/requests" className="inline-flex min-h-11 items-center justify-center rounded-xl px-4 text-xs font-semibold text-slate-500 transition hover:bg-slate-100 focus-visible:outline-2 focus-visible:outline-emerald-600">Cancel</Link> : null}
+            <button type="submit" disabled={saving || compressingPhoto} className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-emerald-800 px-5 py-3 text-xs font-semibold text-white shadow-md shadow-emerald-900/10 transition hover:bg-emerald-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 disabled:cursor-not-allowed disabled:opacity-60">{saving ? <LoaderCircle size={15} className="animate-spin motion-reduce:animate-none" /> : <Send size={15} />} {saving ? "Submitting request..." : compressingPhoto ? "Processing photo..." : "Submit to GA"}</button>
+          </div>
         </div>
       </form>
     </Card>

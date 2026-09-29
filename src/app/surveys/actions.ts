@@ -9,7 +9,7 @@ import {
   analyzeSurveySubmission,
   GEMINI_SENTIMENT_MODEL,
 } from "@/ai/gemini-survey-analysis";
-import { requireAuthenticatedUser, requireITTeam } from "@/auth/session";
+import { requireITRoleUser } from "@/auth/session";
 import { db } from "@/db";
 import {
   auditLogs,
@@ -29,6 +29,7 @@ import type {
   SurveyStatus,
 } from "@/data/survey-types";
 import type { ActionResult } from "@/data/types";
+import { recordSensitiveDataAccess } from "@/security/audit";
 
 const choiceTypes = new Set(["multiple_choice", "checkboxes", "dropdown"]);
 const kpiCategories = new Set<SurveyKpiCategory>(["installation", "repair"]);
@@ -101,7 +102,7 @@ export async function createSurveyAction(input: {
   status: "draft" | "active";
   questions: SurveyQuestionInput[];
 }): Promise<ActionResult<{ id: string; publicCode: string }>> {
-  const currentUser = await requireITTeam();
+  const currentUser = await requireITRoleUser("survey.create");
   try {
     const title = cleanText(input.title, 200);
     const description = cleanText(input.description, 5_000, false);
@@ -153,7 +154,7 @@ export async function updateSurveyAction(input: {
   status: "draft" | "active";
   questions: SurveyQuestionInput[];
 }): Promise<ActionResult<{ id: string; publicCode: string }>> {
-  const currentUser = await requireITTeam();
+  const currentUser = await requireITRoleUser("survey.update");
   try {
     if (!validUuid(input.id)) throw new Error("Invalid survey ID.");
     const title = cleanText(input.title, 200);
@@ -229,7 +230,7 @@ export async function retrySurveyResponseAnalysisAction(
   surveyId: string,
   submissionId: string,
 ): Promise<ActionResult<{ queuedAnswers: number }>> {
-  const currentUser = await requireITTeam();
+  const currentUser = await requireITRoleUser("survey.analysis.retry");
   try {
     if (!validUuid(surveyId) || !validUuid(submissionId)) {
       throw new Error("Invalid survey response ID.");
@@ -322,7 +323,7 @@ export async function setSurveyStatusAction(
   id: string,
   status: Extract<SurveyStatus, "active" | "closed">,
 ): Promise<ActionResult> {
-  const currentUser = await requireITTeam();
+  const currentUser = await requireITRoleUser("survey.status.update");
   try {
     if (!validUuid(id)) throw new Error("Invalid survey ID.");
     if (status === "active") {
@@ -367,7 +368,7 @@ export async function setSurveyStatusAction(
 export async function duplicateSurveyAction(
   id: string,
 ): Promise<ActionResult<{ id: string; publicCode: string; title: string }>> {
-  const currentUser = await requireITTeam();
+  const currentUser = await requireITRoleUser("survey.duplicate");
   try {
     if (!validUuid(id)) throw new Error("Invalid survey ID.");
     const publicCode = randomBytes(12).toString("base64url");
@@ -435,7 +436,7 @@ export async function duplicateSurveyAction(
 }
 
 export async function deleteSurveyAction(id: string): Promise<ActionResult> {
-  const currentUser = await requireITTeam();
+  const currentUser = await requireITRoleUser("survey.delete");
   try {
     if (!validUuid(id)) throw new Error("Invalid survey ID.");
     await db.transaction(async (tx) => {
@@ -466,11 +467,12 @@ export async function deleteSurveyAction(id: string): Promise<ActionResult> {
 export async function getSurveyResponsesAction(
   surveyId: string,
 ): Promise<ActionResult<SurveyResponseData>> {
-  await requireAuthenticatedUser();
+  const currentUser = await requireITRoleUser("survey.responses.view");
   try {
     if (!validUuid(surveyId)) throw new Error("Invalid survey ID.");
     const data = await getSurveyResponseData(surveyId);
     if (!data) throw new Error("Survey was not found.");
+    await recordSensitiveDataAccess(currentUser, "survey", surveyId, "survey_responses", { responseCount: data.submissions.length });
     return { ok: true, data };
   } catch (error) {
     console.error("Unable to load survey responses.", error);

@@ -8,8 +8,17 @@ import { requireAdministrator } from "@/auth/session";
 import { db } from "@/db";
 import { auditLogs, authSessions, masterDivisions, technicians } from "@/db/schema";
 import type { AccountRole, ActionResult } from "@/data/types";
+import { accountRoleRequiresDivision } from "@/lib/account-role";
+import { recordAuthorizationDenied } from "@/security/audit";
 
-const accountRoles: AccountRole[] = ["administrator", "boss", "technician", "requester"];
+const accountRoles: AccountRole[] = [
+  "administrator",
+  "receptionist",
+  "approver",
+  "final_approver",
+  "service_agent",
+  "requester",
+];
 
 function formValue(formData: FormData, name: string, maxLength: number) {
   const value = String(formData.get(name) ?? "").trim();
@@ -31,24 +40,22 @@ function optionalUuid(value: string) {
 }
 
 async function validatedDivisionId(role: AccountRole, rawValue: string) {
+  if (!accountRoleRequiresDivision(role)) return null;
   const divisionId = optionalUuid(rawValue);
-  if (role !== "administrator" && !divisionId) {
-    throw new Error("Staf dan atasan harus memiliki divisi.");
-  }
-  if (!divisionId) return null;
+  if (!divisionId) throw new Error("Requesters and GA Members must have a division or unit.");
   const [division] = await db
     .select({ id: masterDivisions.id })
     .from(masterDivisions)
     .where(eq(masterDivisions.id, divisionId))
     .limit(1);
-  if (!division) throw new Error("Divisi tidak ditemukan.");
+  if (!division) throw new Error("Division not found.");
   return division.id;
 }
 
 export async function createAccountAction(
   formData: FormData,
 ): Promise<ActionResult<{ id: string }>> {
-  const currentUser = await requireAdministrator();
+  const currentUser = await requireAdministrator("account.create");
   try {
     const username = formValue(formData, "username", 80).toLowerCase();
     const name = username;
@@ -99,23 +106,25 @@ export async function updateAccountAction(
   id: string,
   formData: FormData,
 ): Promise<ActionResult> {
-  const currentUser = await requireAdministrator();
+  const currentUser = await requireAdministrator("account.update");
   try {
     if (!validAccountId(id)) throw new Error("Account ID is invalid.");
     const name = formValue(formData, "name", 120);
     const role = formValue(formData, "role", 20) as AccountRole;
     if (!accountRoles.includes(role)) throw new Error("Account role is invalid.");
     if (id === currentUser.id && role !== "administrator") {
-      throw new Error("Akun Anda harus tetap menjadi administrator.");
+      await recordAuthorizationDenied(currentUser, "account.update", { reason: "self_role_change" });
+      throw new Error("Your account must remain an administrator.");
     }
     const divisionId = await validatedDivisionId(role, String(formData.get("divisionId") ?? ""));
     const activeValue = String(formData.get("isActive") ?? "");
     if (activeValue !== "true" && activeValue !== "false") {
-      throw new Error("Status akun tidak valid.");
+      throw new Error("The account status is invalid.");
     }
     const isActive = activeValue === "true";
     if (id === currentUser.id && !isActive) {
-      throw new Error("Akun Anda tidak dapat dinonaktifkan sendiri.");
+      await recordAuthorizationDenied(currentUser, "account.update", { reason: "self_deactivation" });
+      throw new Error("You cannot deactivate your own account.");
     }
 
     await db.transaction(async (tx) => {
@@ -151,7 +160,7 @@ export async function resetAccountPasswordAction(
   id: string,
   password: string,
 ): Promise<ActionResult> {
-  const currentUser = await requireAdministrator();
+  const currentUser = await requireAdministrator("account.password_reset");
   try {
     if (!validAccountId(id)) throw new Error("Account ID is invalid.");
     const passwordHash = await hashPassword(password);
@@ -189,10 +198,11 @@ export async function resetAccountPasswordAction(
 }
 
 export async function deleteAccountAction(id: string): Promise<ActionResult> {
-  const currentUser = await requireAdministrator();
+  const currentUser = await requireAdministrator("account.delete");
   try {
     if (!validAccountId(id)) throw new Error("Account ID is invalid.");
     if (id === currentUser.id) {
+      await recordAuthorizationDenied(currentUser, "account.delete", { reason: "self_delete" });
       throw new Error("You cannot delete your own account.");
     }
 

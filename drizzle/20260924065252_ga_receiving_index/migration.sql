@@ -1,0 +1,1 @@
+CREATE INDEX "troubleshooting_issues_receiving_division_id_idx" ON "troubleshooting_issues" ("receiving_division_id");

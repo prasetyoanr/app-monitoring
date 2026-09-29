@@ -22,7 +22,7 @@ function createDatabasePool() {
     idleTimeoutMillis: 30_000,
     keepAlive: true,
     keepAliveInitialDelayMillis: 10_000,
-    application_name: "oneservice",
+    application_name: "ga_management",
   });
 
   // pg emits idle connection failures as pool errors. Handling the event keeps

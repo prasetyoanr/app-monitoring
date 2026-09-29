@@ -14,7 +14,7 @@ export const genericServiceRequestTemplate: ServiceRequestTemplate = {
   key: "generic-request",
   serviceDivision: "",
   label: "General Request",
-  description: "Send your request to the destination division.",
+  description: "Submit a service request to GA. The GA Admin will select the responsible unit and member.",
   fields: [
     {
       key: "title",

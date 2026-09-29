@@ -4,7 +4,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { and, eq, gt } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
-import { requireITTeam } from "@/auth/session";
+import { requireITRoleUser } from "@/auth/session";
 import { db } from "@/db";
 import { auditLogs, backupUserInvitations, backupUsers } from "@/db/schema";
 import type { ActionResult, BackupStatus } from "@/data/types";
@@ -13,6 +13,7 @@ import {
   decryptBackupCredential,
   encryptBackupCredential,
 } from "@/security/backup-credentials";
+import { recordSensitiveDataAccess } from "@/security/audit";
 
 const statuses: BackupStatus[] = ["Success", "Failed", "Overdue", "Pending"];
 
@@ -50,7 +51,7 @@ async function nextBackupId() {
 export async function saveBackupAction(
   formData: FormData,
 ): Promise<ActionResult<{ id: string }>> {
-  const currentUser = await requireITTeam();
+  const currentUser = await requireITRoleUser("backup_user.save");
   try {
     const id = value(formData, "id", 32, false) || (await nextBackupId());
     const fullName = value(formData, "user", 120);
@@ -116,7 +117,7 @@ export async function saveBackupAction(
 export async function createBackupInvitationAction(): Promise<
   ActionResult<{ token: string; expiresAt: string }>
 > {
-  const currentUser = await requireITTeam();
+  const currentUser = await requireITRoleUser("backup_invitation.create");
   try {
     // Fail before creating a usable link when credential encryption is missing.
     encryptBackupCredential("configuration-check");
@@ -159,7 +160,7 @@ export async function createBackupInvitationAction(): Promise<
 export async function getBackupCredentialAction(
   id: string,
 ): Promise<ActionResult<{ passwordInformation: string }>> {
-  const currentUser = await requireITTeam();
+  const currentUser = await requireITRoleUser("backup_credential.view");
   try {
     if (!isValidBackupId(id)) throw new Error("Invalid backup ID.");
     const [record] = await db
@@ -169,13 +170,7 @@ export async function getBackupCredentialAction(
       .limit(1);
     if (!record) throw new Error("Backup record was not found.");
 
-    await db.insert(auditLogs).values({
-      actorType: "technician",
-      actorId: currentUser.id,
-      action: "backup_credential.viewed",
-      entityType: "backup_user",
-      entityId: id,
-    });
+    await recordSensitiveDataAccess(currentUser, "backup_user", id, "backup_credential");
     return {
       ok: true,
       data: {
@@ -283,7 +278,7 @@ export async function submitBackupInvitationAction(input: {
 }
 
 export async function deleteBackupAction(id: string): Promise<ActionResult> {
-  const currentUser = await requireITTeam();
+  const currentUser = await requireITRoleUser("backup_user.delete");
   try {
     if (!isValidBackupId(id)) throw new Error("Invalid ID.");
     const [deleted] = await db

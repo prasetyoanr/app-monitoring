@@ -22,6 +22,7 @@ import {
   type StatusTransitionRequirement,
 } from "@/features/service-inbox/status-transitions";
 import { issueStatusLabel } from "@/lib/issue-status";
+import { requestWorkflowLabel, ticketStatusLabel } from "@/lib/request-workflow";
 import { jakartaDateInput } from "@/lib/jakarta-date";
 import { compressWorkPhoto, formatPhotoSize } from "@/lib/work-photo";
 
@@ -108,7 +109,8 @@ export function TicketList({ initialRecords, canManage, canCreateIssue, useSourc
   const [filterEndDate, setFilterEndDate] = useState("");
   const [mode, setMode] = useState<FormMode>(null);
   const [selected, setSelected] = useState<TicketRecord | null>(null);
-  const [detailRecord, setDetailRecord] = useState<TicketRecord | null>(null);
+  const [detailId, setDetailId] = useState<string | null>(null);
+  const detailRecord = ticketRecords.find((record) => record.id === detailId) ?? null;
   const [approvalRecord, setApprovalRecord] = useState<TicketRecord | null>(null);
   const [pendingDelete, setPendingDelete] = useState<TicketRecord | null>(null);
   const [requestDate, setRequestDate] = useState(jakartaDateInput);
@@ -426,57 +428,72 @@ export function TicketList({ initialRecords, canManage, canCreateIssue, useSourc
             const ticketProfile = getServiceInboxProfile(ticket.inboxProfileKey);
             const statusOnlyActions = usesStatusOnlyActions(ticket);
             return <article key={ticket.id} className="p-4">
-              <div className="flex items-start justify-between gap-3"><div className="min-w-0"><h3 className="text-sm font-bold leading-5 text-slate-800">{ticket.title}</h3><p className="mt-1 font-mono text-[9px] text-slate-400">{ticket.id} · {ticket.category}</p></div><StatusBadge tone={ticket.status === "Completed" ? "green" : ticket.status === "In Progress" ? "blue" : ticket.status === "New" ? "green" : "amber"} attention={ticket.status === "New"}>{issueStatusLabel(ticket.status)}</StatusBadge></div>
+              <div className="flex items-start justify-between gap-3"><div className="min-w-0"><h3 className="text-sm font-bold leading-5 text-slate-800">{ticket.title}</h3><p className="mt-1 font-mono text-[9px] text-slate-400">{ticket.id} · {ticket.category}</p></div><StatusBadge tone={ticket.status === "Completed" ? "green" : ticket.status === "In Progress" ? "blue" : ticket.status === "New" ? "green" : "amber"} attention={ticket.status === "New"}>{ticketStatusLabel(ticket)}</StatusBadge></div>
               <div className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 rounded-xl bg-slate-50 p-3">
-                <div><p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Requester</p><p className="mt-1 text-[11px] font-medium text-slate-700">{ticket.requester}</p></div>
-                <div><p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Location</p><p className="mt-1 text-[11px] font-medium text-slate-700">{ticket.location}</p></div>
-                <div><p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Division</p><p className="mt-1 text-[11px] font-medium text-slate-700">{ticket.division}</p></div>
+                <div className="min-w-0"><p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Requester</p><p className="mt-1 break-words text-[11px] font-medium text-slate-700">{ticket.requester}</p></div>
+                <div className="min-w-0"><p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Location</p><p className="mt-1 break-words text-[11px] font-medium text-slate-700">{ticket.location}</p></div>
+                <div className="min-w-0"><p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Division</p><p className="mt-1 break-words text-[11px] font-medium text-slate-700">{ticket.division}</p></div>
                 {showServiceDivisionFilter ? <div><p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Service Target</p><p className="mt-1 text-[11px] font-medium text-slate-700">{ticket.serviceDivision}</p></div> : null}
-                <div><p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Request Date</p><p className="mt-1 text-[11px] font-medium text-slate-700">{ticket.reportedAt}</p></div>
+                <div className="min-w-0"><p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Request Date</p><p className="mt-1 break-words text-[11px] font-medium text-slate-700">{ticket.reportedAt}</p></div>
               </div>
               {ticketProfile.features.workPhoto || showCompletionTime ? <div className="mt-4 flex flex-wrap items-center gap-3">{ticketProfile.features.workPhoto ? <span className={`inline-flex items-center gap-1 text-[10px] font-semibold ${ticket.hasWorkPhoto ? "text-emerald-600" : "text-slate-400"}`}>{ticket.hasWorkPhoto ? <CheckCircle2 size={12} /> : <Camera size={12} />}{ticket.hasWorkPhoto ? "Photo available" : "No photo"}</span> : null}{showCompletionTime ? <span className={`${ticketProfile.features.workPhoto ? "ml-auto" : ""} text-[10px] font-semibold ${ticket.completedDays === null ? "text-slate-400" : "text-emerald-600"}`}>{completionLabel(ticket.completedDays)}</span> : null}</div> : null}
               {statusOnlyActions ? (
                 <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-4">
-                  {canManage ? <InlineStatusSelect recordId={ticket.id} value={statusDrafts[ticket.id] ?? ticket.status} options={statusOptionsFor(ticket)} saving={updatingStatusId === ticket.id} onChange={(nextStatus) => updateInlineStatus(ticket, nextStatus)} /> : null}
+                  {canManage ? <InlineStatusSelect recordId={ticket.id} value={updatingStatusId === ticket.id ? statusDrafts[ticket.id] ?? ticket.status : ticket.status} options={statusOptionsFor(ticket)} saving={updatingStatusId === ticket.id} onChange={(nextStatus) => updateInlineStatus(ticket, nextStatus)} /> : null}
                   {canManage && useSourceAwareActions && ticket.source === "division_request" && ticketProfile.features.workPhoto ? <button type="button" onClick={() => openForm("evidence", ticket)} className="grid size-9 place-items-center rounded-lg bg-cyan-600 text-white shadow-sm transition hover:bg-cyan-700" aria-label={`Update work photo ${ticket.id}`} title="Work Photo"><Camera size={14} /></button> : null}
-                  <button type="button" onClick={() => setDetailRecord(ticket)} className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-[#3157d5] px-3 text-[10px] font-semibold text-white" aria-label={`View details ${ticket.id}`}><Eye size={13} /> View</button>
+                  <button type="button" onClick={() => setDetailId(ticket.id)} className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-[#3157d5] px-3 text-[10px] font-semibold text-white" aria-label={`View details ${ticket.id}`}><Eye size={13} /> View</button>
                   {canManage && useSourceAwareActions && ticketProfile.features.approvalQr ? <button disabled={!canRequestApproval(ticket)} onClick={() => setApprovalRecord(ticket)} className="grid size-9 place-items-center rounded-lg bg-violet-600 text-white shadow-sm transition hover:bg-violet-700 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400" aria-label={`Request client signature ${ticket.id}`} title={approvalActionTitle(ticket)}><QrCode size={14} /></button> : null}
                 </div>
-              ) : <div className={`mt-4 gap-2 border-t border-slate-100 pt-4 ${canManage ? "grid grid-cols-2" : "flex"}`}><button onClick={() => setDetailRecord(ticket)} className="inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-lg bg-[#3157d5] px-2 text-[10px] font-semibold text-white" aria-label={`View details ${ticket.id}`}><Eye size={13} /> View</button>{canManage ? <>{ticketProfile.features.approvalQr ? <button disabled={!canRequestApproval(ticket)} onClick={() => setApprovalRecord(ticket)} className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-violet-600 px-2 text-[10px] font-semibold text-white disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400" aria-label={`Request client signature ${ticket.id}`} title={approvalActionTitle(ticket)}><QrCode size={13} /> QR Signature</button> : null}<button onClick={() => openForm("edit", ticket)} className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-amber-500 px-2 text-[10px] font-semibold text-white" aria-label={`Edit ${ticket.id}`}><Pencil size={13} /> Edit</button><button onClick={() => setPendingDelete(ticket)} className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-rose-600 px-2 text-[10px] font-semibold text-white" aria-label={`Delete ${ticket.id}`}><Trash2 size={13} /> Delete</button></> : null}</div>}
+              ) : <div className={`mt-4 gap-2 border-t border-slate-100 pt-4 ${canManage ? "grid grid-cols-2" : "flex"}`}><button onClick={() => setDetailId(ticket.id)} className="inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-lg bg-[#3157d5] px-2 text-[10px] font-semibold text-white" aria-label={`View details ${ticket.id}`}><Eye size={13} /> View</button>{canManage ? <>{ticketProfile.features.approvalQr ? <button disabled={!canRequestApproval(ticket)} onClick={() => setApprovalRecord(ticket)} className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-violet-600 px-2 text-[10px] font-semibold text-white disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400" aria-label={`Request client signature ${ticket.id}`} title={approvalActionTitle(ticket)}><QrCode size={13} /> QR Signature</button> : null}<button onClick={() => openForm("edit", ticket)} className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-amber-500 px-2 text-[10px] font-semibold text-white" aria-label={`Edit ${ticket.id}`}><Pencil size={13} /> Edit</button><button onClick={() => setPendingDelete(ticket)} className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-rose-600 px-2 text-[10px] font-semibold text-white" aria-label={`Delete ${ticket.id}`}><Trash2 size={13} /> Delete</button></> : null}</div>}
             </article>
           })}
         </div>
 
         <div className="hidden overflow-x-auto md:block">
           <table className={`w-full text-left ${showServiceDivisionFilter ? "min-w-[1280px]" : showCompletionTime ? "min-w-[1160px]" : "min-w-[1040px]"}`}>
-            <thead className="bg-slate-50/90 text-[9px] font-bold uppercase tracking-wider text-slate-400"><tr><th className="w-12 px-4 py-3.5 text-center">No.</th><th className="px-4 py-3.5">Issue</th><th className="px-4 py-3.5">Location</th><th className="px-4 py-3.5">Requester</th><th className="px-4 py-3.5">Division</th>{showServiceDivisionFilter ? <th className="px-4 py-3.5">Service Target</th> : null}<th className="px-4 py-3.5">Date</th>{showPhotoColumn ? <th className="px-4 py-3.5">Photo</th> : null}{showCompletionTime ? <th className="px-4 py-3.5">Completion Time</th> : null}<th className="px-4 py-3.5">Status</th><th className="w-44 px-5 py-3.5 text-center">{isBasicServiceViewer ? "Update Status" : "Action"}</th>{isBasicServiceViewer ? <th className="w-20 px-5 py-3.5 text-right">View</th> : null}</tr></thead>
-            <tbody className="divide-y divide-slate-100">
+            <thead className="bg-emerald-900/10 text-[10px] font-bold uppercase tracking-wider text-emerald-800">
+              <tr>
+                <th className="w-12 px-4 py-3.5 text-center">No.</th>
+                <th className="px-4 py-3.5">Issue</th>
+                <th className="px-4 py-3.5">Location</th>
+                <th className="px-4 py-3.5">Requester</th>
+                <th className="px-4 py-3.5">Division</th>
+                {showServiceDivisionFilter ? <th className="px-4 py-3.5">Service Target</th> : null}
+                <th className="px-4 py-3.5">Date</th>
+                {showPhotoColumn ? <th className="px-4 py-3.5">Photo</th> : null}
+                {showCompletionTime ? <th className="px-4 py-3.5">Completion Time</th> : null}
+                <th className="px-4 py-3.5">Status</th>
+                <th className="w-44 px-5 py-3.5 text-center">{isBasicServiceViewer ? "Update Status" : "Action"}</th>
+                {isBasicServiceViewer ? <th className="w-20 px-5 py-3.5 text-right">View</th> : null}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 bg-white">
               {filtered.map((ticket, index) => {
                 const ticketProfile = getServiceInboxProfile(ticket.inboxProfileKey);
                 const statusOnlyActions = usesStatusOnlyActions(ticket);
-                return <tr key={ticket.id} className="text-xs">
+                return <tr key={ticket.id} className="text-xs transition-colors hover:bg-emerald-50/40">
                   <td className="px-4 py-4 text-center text-[11px] font-semibold text-slate-400">{index + 1}</td>
                   <td className="px-4 py-4"><div><p className="font-semibold text-slate-800">{ticket.title}</p><p className="mt-1 font-mono text-[9px] text-slate-400">{ticket.id} · {ticket.category}</p></div></td>
                   <td className="px-4 py-4"><span className={`inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-[10px] font-bold ${ticket.location === "HO" ? "bg-indigo-50 text-indigo-700" : "bg-cyan-50 text-cyan-700"}`}><MapPin size={11} />{ticket.location}</span></td>
                   <td className="px-4 py-4 text-slate-600">{ticket.requester}</td><td className="px-4 py-4"><span className="rounded-md bg-slate-100 px-2 py-1 text-[10px] font-semibold text-slate-600">{ticket.division}</span></td>{showServiceDivisionFilter ? <td className="px-4 py-4"><span className="rounded-md bg-blue-50 px-2 py-1 text-[10px] font-semibold text-blue-700">{ticket.serviceDivision}</span></td> : null}<td className="px-4 py-4 text-[11px] text-slate-500">{ticket.reportedAt}</td>
-                  {showPhotoColumn ? <td className="px-4 py-4">{ticketProfile.features.workPhoto ? <span className={`inline-flex items-center gap-1.5 text-[10px] font-semibold ${ticket.hasWorkPhoto ? "text-emerald-600" : "text-slate-400"}`}>{ticket.hasWorkPhoto ? <CheckCircle2 size={13} /> : <Camera size={13} />}{ticket.hasWorkPhoto ? "Available" : "Missing"}</span> : <span className="text-[10px] text-slate-400">Not used</span>}</td> : null}{showCompletionTime ? <td className="px-4 py-4"><span className={`text-[11px] font-semibold ${ticket.completedDays === null ? "text-slate-400" : "text-emerald-600"}`}>{completionLabel(ticket.completedDays)}</span></td> : null}<td className="px-4 py-4"><StatusBadge tone={ticket.status === "Completed" ? "green" : ticket.status === "In Progress" ? "blue" : ticket.status === "New" ? "green" : "amber"} attention={ticket.status === "New"}>{issueStatusLabel(ticket.status)}</StatusBadge></td>
-                  {isBasicServiceViewer ? <><td className="px-5 py-4">{canManage ? <InlineStatusSelect recordId={ticket.id} value={statusDrafts[ticket.id] ?? ticket.status} options={statusOptionsFor(ticket)} saving={updatingStatusId === ticket.id} onChange={(nextStatus) => updateInlineStatus(ticket, nextStatus)} /> : null}</td><td className="px-5 py-4 text-right"><button type="button" onClick={() => setDetailRecord(ticket)} className="text-[11px] font-bold text-[#3157d5] underline-offset-4 transition hover:text-[#2445b5] hover:underline" aria-label={`View ${ticket.id}`}>View</button></td></> : useSourceAwareActions ? (
+                  {showPhotoColumn ? <td className="px-4 py-4">{ticketProfile.features.workPhoto ? <span className={`inline-flex items-center gap-1.5 text-[10px] font-semibold ${ticket.hasWorkPhoto ? "text-emerald-600" : "text-slate-400"}`}>{ticket.hasWorkPhoto ? <CheckCircle2 size={13} /> : <Camera size={13} />}{ticket.hasWorkPhoto ? "Available" : "Missing"}</span> : <span className="text-[10px] text-slate-400">Not used</span>}</td> : null}{showCompletionTime ? <td className="px-4 py-4"><span className={`text-[11px] font-semibold ${ticket.completedDays === null ? "text-slate-400" : "text-emerald-600"}`}>{completionLabel(ticket.completedDays)}</span></td> : null}<td className="px-4 py-4"><StatusBadge tone={ticket.status === "Completed" ? "green" : ticket.status === "In Progress" ? "blue" : ticket.status === "New" ? "green" : "amber"} attention={ticket.status === "New"}>{ticketStatusLabel(ticket)}</StatusBadge></td>
+                  {isBasicServiceViewer ? <><td className="px-5 py-4">{canManage ? <InlineStatusSelect recordId={ticket.id} value={updatingStatusId === ticket.id ? statusDrafts[ticket.id] ?? ticket.status : ticket.status} options={statusOptionsFor(ticket)} saving={updatingStatusId === ticket.id} onChange={(nextStatus) => updateInlineStatus(ticket, nextStatus)} /> : null}</td><td className="px-5 py-4 text-right"><button type="button" onClick={() => setDetailId(ticket.id)} className="text-[11px] font-bold text-[#3157d5] underline-offset-4 transition hover:text-[#2445b5] hover:underline" aria-label={`View ${ticket.id}`}>View</button></td></> : useSourceAwareActions ? (
                     <td className="px-5 py-4">
                       <div className="flex items-center justify-center gap-2">
                         {statusOnlyActions ? <>
-                          <InlineStatusSelect recordId={ticket.id} value={statusDrafts[ticket.id] ?? ticket.status} options={statusOptionsFor(ticket)} saving={updatingStatusId === ticket.id} onChange={(nextStatus) => updateInlineStatus(ticket, nextStatus)} />
+                          <InlineStatusSelect recordId={ticket.id} value={updatingStatusId === ticket.id ? statusDrafts[ticket.id] ?? ticket.status : ticket.status} options={statusOptionsFor(ticket)} saving={updatingStatusId === ticket.id} onChange={(nextStatus) => updateInlineStatus(ticket, nextStatus)} />
                           {ticketProfile.features.workPhoto ? <button type="button" onClick={() => openForm("evidence", ticket)} className="grid size-8 shrink-0 place-items-center rounded-lg bg-cyan-600 text-white shadow-sm transition hover:bg-cyan-700" aria-label={`Update work photo ${ticket.id}`} title="Work Photo"><Camera size={14} /></button> : null}
-                          <button onClick={() => setDetailRecord(ticket)} className="grid size-8 shrink-0 place-items-center rounded-lg bg-[#3157d5] text-white shadow-sm transition hover:bg-[#2445b5]" aria-label={`View details ${ticket.id}`} title="View"><Eye size={14} /></button>
+                          <button onClick={() => setDetailId(ticket.id)} className="grid size-8 shrink-0 place-items-center rounded-lg bg-[#3157d5] text-white shadow-sm transition hover:bg-[#2445b5]" aria-label={`View details ${ticket.id}`} title="View"><Eye size={14} /></button>
                           {ticketProfile.features.approvalQr ? <button disabled={!canRequestApproval(ticket)} onClick={() => setApprovalRecord(ticket)} className="grid size-8 shrink-0 place-items-center rounded-lg bg-violet-600 text-white shadow-sm transition hover:bg-violet-700 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400" aria-label={`Request client signature ${ticket.id}`} title={approvalActionTitle(ticket)}><QrCode size={14} /></button> : null}
                         </> : <>
-                          <button onClick={() => setDetailRecord(ticket)} className="grid size-8 shrink-0 place-items-center rounded-lg bg-[#3157d5] text-white shadow-sm transition hover:bg-[#2445b5]" aria-label={`View details ${ticket.id}`} title="View"><Eye size={14} /></button>
+                          <button onClick={() => setDetailId(ticket.id)} className="grid size-8 shrink-0 place-items-center rounded-lg bg-[#3157d5] text-white shadow-sm transition hover:bg-[#2445b5]" aria-label={`View details ${ticket.id}`} title="View"><Eye size={14} /></button>
                           {ticketProfile.features.approvalQr ? <button disabled={!canRequestApproval(ticket)} onClick={() => setApprovalRecord(ticket)} className="grid size-8 place-items-center rounded-lg bg-violet-600 text-white shadow-sm transition hover:bg-violet-700 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400" aria-label={`Request client signature ${ticket.id}`} title={approvalActionTitle(ticket)}><QrCode size={14} /></button> : null}
                           <button onClick={() => openForm("edit", ticket)} className="grid size-8 place-items-center rounded-lg bg-amber-500 text-white shadow-sm transition hover:bg-amber-600" aria-label={`Edit ${ticket.id}`} title="Edit"><Pencil size={14} /></button>
                           <button onClick={() => setPendingDelete(ticket)} className="grid size-8 place-items-center rounded-lg bg-rose-600 text-white shadow-sm transition hover:bg-rose-700" aria-label={`Delete ${ticket.id}`} title="Delete"><Trash2 size={14} /></button>
                         </>}
                       </div>
                     </td>
-                  ) : <td className="px-5 py-4"><div className="flex justify-center gap-2"><button onClick={() => setDetailRecord(ticket)} className="grid size-8 place-items-center rounded-lg bg-[#3157d5] text-white shadow-sm transition hover:bg-[#2445b5]" aria-label={`View details ${ticket.id}`} title="View details"><Eye size={14} /></button>{canManage ? <>{ticketProfile.features.approvalQr ? <button disabled={!canRequestApproval(ticket)} onClick={() => setApprovalRecord(ticket)} className="grid size-8 place-items-center rounded-lg bg-violet-600 text-white shadow-sm transition hover:bg-violet-700 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400" aria-label={`Request client signature ${ticket.id}`} title={approvalActionTitle(ticket)}><QrCode size={14} /></button> : null}<button onClick={() => openForm("edit", ticket)} className="grid size-8 place-items-center rounded-lg bg-amber-500 text-white shadow-sm transition hover:bg-amber-600" aria-label={`Edit ${ticket.id}`} title="Edit"><Pencil size={14} /></button><button onClick={() => setPendingDelete(ticket)} className="grid size-8 place-items-center rounded-lg bg-rose-600 text-white shadow-sm transition hover:bg-rose-700" aria-label={`Delete ${ticket.id}`} title="Delete"><Trash2 size={14} /></button></> : null}</div></td>}
+                  ) : <td className="px-5 py-4"><div className="flex justify-center gap-2"><button onClick={() => setDetailId(ticket.id)} className="grid size-8 place-items-center rounded-lg bg-[#3157d5] text-white shadow-sm transition hover:bg-[#2445b5]" aria-label={`View details ${ticket.id}`} title="View details"><Eye size={14} /></button>{canManage ? <>{ticketProfile.features.approvalQr ? <button disabled={!canRequestApproval(ticket)} onClick={() => setApprovalRecord(ticket)} className="grid size-8 place-items-center rounded-lg bg-violet-600 text-white shadow-sm transition hover:bg-violet-700 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400" aria-label={`Request client signature ${ticket.id}`} title={approvalActionTitle(ticket)}><QrCode size={14} /></button> : null}<button onClick={() => openForm("edit", ticket)} className="grid size-8 place-items-center rounded-lg bg-amber-500 text-white shadow-sm transition hover:bg-amber-600" aria-label={`Edit ${ticket.id}`} title="Edit"><Pencil size={14} /></button><button onClick={() => setPendingDelete(ticket)} className="grid size-8 place-items-center rounded-lg bg-rose-600 text-white shadow-sm transition hover:bg-rose-700" aria-label={`Delete ${ticket.id}`} title="Delete"><Trash2 size={14} /></button></> : null}</div></td>}
                 </tr>
               })}
             </tbody>
@@ -510,7 +527,7 @@ export function TicketList({ initialRecords, canManage, canCreateIssue, useSourc
         <div className="fixed inset-0 z-[70] overflow-y-auto bg-slate-950/55 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="issue-document-title">
           <div className="mx-auto my-4 w-full max-w-3xl rounded-sm bg-white shadow-2xl sm:my-8">
             <div className="flex justify-end border-b border-slate-200 px-5 py-3">
-              <button onClick={() => setDetailRecord(null)} className="rounded-md p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-800" aria-label="Close issue detail"><X size={18} /></button>
+              <button onClick={() => setDetailId(null)} className="rounded-md p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-800" aria-label="Close issue detail"><X size={18} /></button>
             </div>
             <article className="px-6 py-8 text-slate-800 sm:px-12 sm:py-10">
               <header className="border-b-2 border-slate-900 pb-5 text-center">
@@ -528,7 +545,7 @@ export function TicketList({ initialRecords, canManage, canCreateIssue, useSourc
                   <div><dt className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Requester</dt><dd className="mt-1 font-medium text-slate-800">{detailRecord.requester}</dd></div>
                   <div><dt className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Requester Division</dt><dd className="mt-1 font-medium text-slate-800">{detailRecord.division}</dd></div>
                   <div><dt className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Category</dt><dd className="mt-1 font-medium text-slate-800">{detailRecord.category}</dd></div>
-                  <div><dt className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Status</dt><dd className="mt-1 font-medium text-slate-800">{issueStatusLabel(detailRecord.status)}</dd></div>
+                  <div><dt className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Status</dt><dd className="mt-1 font-medium text-slate-800">{ticketStatusLabel(detailRecord)}</dd></div>
                   {showCompletionTime ? <div><dt className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Completion Time</dt><dd className="mt-1 font-medium text-slate-800">{completionLabel(detailRecord.completedDays)}</dd></div> : null}
                 </dl>
               </section>
@@ -537,6 +554,7 @@ export function TicketList({ initialRecords, canManage, canCreateIssue, useSourc
                 <h3 id="issue-detail-title" className="border-b border-slate-300 pb-2 text-xs font-bold uppercase tracking-wider text-slate-900">Issue Detail</h3>
                 <h4 className="mt-4 text-base font-bold leading-6 text-slate-950">{detailRecord.title}</h4>
                 <p className="mt-3 whitespace-pre-wrap text-xs leading-6 text-slate-600">{detailRecord.description}</p>
+                {detailRecord.workflowEnabled ? <div className="mt-4 rounded-xl bg-indigo-50 p-3 text-xs text-indigo-900"><p className="font-semibold">{requestWorkflowLabel(detailRecord.workflowStatus)}</p>{detailRecord.assignedTechnicianName ? <p className="mt-1">Assigned member: {detailRecord.assignedTechnicianName}</p> : null}{detailRecord.workflowNote ? <p className="mt-2 whitespace-pre-wrap">Latest internal note: {detailRecord.workflowNote}</p> : null}</div> : null}
               </section>
 
               {detailRecord.requestData && Object.keys(detailRecord.requestData).length > 0 ? (
@@ -595,7 +613,7 @@ export function TicketList({ initialRecords, canManage, canCreateIssue, useSourc
               </section> : null}
 
               <footer className="mt-12 border-t border-slate-300 pt-4 text-[10px] leading-5 text-slate-400">
-                This document is an internal service request record generated by OneService.
+                This document is an internal service request record generated by General Affairs Management System.
               </footer>
             </article>
           </div>

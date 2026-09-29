@@ -1,5 +1,38 @@
 export type IssuePriority = "Low" | "Medium" | "High" | "Critical";
 export type IssueSource = "manual" | "division_request";
+export type AccountRole =
+  | "administrator"
+  | "receptionist"
+  | "approver"
+  | "final_approver"
+  | "service_agent"
+  | "requester";
+export type RequestWorkflowStatus =
+  | "submitted"
+  | "waiting_approver"
+  | "waiting_final_approver"
+  | "ready_for_assignment"
+  | "assigned"
+  | "needs_revision"
+  | "resolved"
+  | "rejected";
+export type RequestWorkflowCommand =
+  | "send_for_approval"
+  | "direct_assign"
+  | "approve"
+  | "escalate"
+  | "return"
+  | "reject"
+  | "assign"
+  | "resolve";
+
+export interface ServiceAgentOption {
+  id: string;
+  name: string;
+  divisionId: string;
+  division: string;
+  isGaUnit: boolean;
+}
 export type IssueStatus =
   | "New"
   | "In Progress"
@@ -15,11 +48,14 @@ export interface TicketRecord {
   source: IssueSource;
   division: string;
   serviceDivision: string;
+  receivingDivisionId?: string | null;
   inboxProfileKey: string;
   requestFormKey: string;
   requestData: Record<string, string>;
   location: string;
   reportedAt: string;
+  reportedAtIso: string;
+  updatedAtIso: string;
   reportedDate: string;
   priority: IssuePriority;
   status: IssueStatus;
@@ -35,6 +71,12 @@ export interface TicketRecord {
     approvedAtIso: string;
     signatureUrl: string;
   } | null;
+  workflowStatus: RequestWorkflowStatus;
+  workflowEnabled: boolean;
+  workflowNote: string | null;
+  approvalRequired: boolean | null;
+  assignedTechnicianId: string | null;
+  assignedTechnicianName: string | null;
 }
 
 export type BackupStatus = "Success" | "Failed" | "Overdue" | "Pending";
@@ -51,8 +93,6 @@ export interface BackupRecord {
   submittedAtIso: string;
   status: BackupStatus;
 }
-
-export type AccountRole = "administrator" | "boss" | "technician" | "requester";
 
 export interface AccountRecord {
   id: string;

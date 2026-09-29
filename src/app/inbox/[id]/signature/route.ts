@@ -4,6 +4,7 @@ import { getCurrentUser } from "@/auth/session";
 import { canViewServiceIssue } from "@/auth/issue-access";
 import { db } from "@/db";
 import { troubleshootingApprovals, troubleshootingIssues } from "@/db/schema";
+import { recordAuthorizationDenied, recordSensitiveDataAccess } from "@/security/audit";
 
 export const runtime = "nodejs";
 
@@ -26,6 +27,12 @@ export async function GET(
       respondedAt: troubleshootingApprovals.respondedAt,
       requesterId: troubleshootingIssues.requesterId,
       requesterDivision: troubleshootingIssues.division,
+      source: troubleshootingIssues.source,
+      workflowEnabled: troubleshootingIssues.workflowEnabled,
+      workflowStatus: troubleshootingIssues.workflowStatus,
+      assignedTechnicianId: troubleshootingIssues.assignedTechnicianId,
+      approverId: troubleshootingIssues.approverId,
+      finalApproverId: troubleshootingIssues.finalApproverId,
       serviceDivisionId: troubleshootingIssues.serviceDivisionId,
     })
     .from(troubleshootingApprovals)
@@ -39,14 +46,14 @@ export async function GET(
     .orderBy(desc(troubleshootingApprovals.respondedAt))
     .limit(1);
 
-  if (
-    !signature?.data ||
-    signature.mimeType !== "image/png" ||
-    !signature.respondedAt ||
-    !canViewServiceIssue(currentUser, signature)
-  ) {
+  if (!signature?.data || signature.mimeType !== "image/png" || !signature.respondedAt) {
     return new Response("Not found", { status: 404 });
   }
+  if (!canViewServiceIssue(currentUser, signature)) {
+    await recordAuthorizationDenied(currentUser, "sensitive_data.signature.view", { issueId: id });
+    return new Response("Not found", { status: 404 });
+  }
+  await recordSensitiveDataAccess(currentUser, "troubleshooting_issue", id, "client_signature");
 
   return new Response(new Uint8Array(signature.data), {
     headers: {

@@ -25,7 +25,7 @@ export function StatusBadge({ tone, attention = false, children }: { tone: "gree
     red: "bg-rose-50 text-rose-700 ring-rose-600/20",
     gray: "bg-slate-100 text-slate-600 ring-slate-500/15",
   };
-  return <span className={`status-badge inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-[10px] font-bold ring-1 ring-inset ${tones[tone]} ${attention ? "shadow-[0_0_0_3px_rgba(16,185,129,0.16)]" : ""}`} title={attention ? "Permintaan baru menunggu ditindaklanjuti" : undefined}>{attention ? <span className="relative flex size-1.5"><span className="absolute inline-flex size-full animate-ping rounded-full bg-emerald-500 opacity-75" /><span className="relative inline-flex size-1.5 rounded-full bg-emerald-600" /></span> : null}{children}</span>;
+  return <span className={`status-badge inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-[10px] font-bold ring-1 ring-inset ${tones[tone]} ${attention ? "shadow-[0_0_0_3px_rgba(16,185,129,0.16)]" : ""}`} title={attention ? "New request awaiting action" : undefined}>{attention ? <span className="relative flex size-1.5"><span className="absolute inline-flex size-full animate-ping rounded-full bg-emerald-500 opacity-75" /><span className="relative inline-flex size-1.5 rounded-full bg-emerald-600" /></span> : null}{children}</span>;
 }
 
 export function MetricCard({ label, value, detail, icon: Icon, tone = "blue", compactOnMobile = false }: { label: string; value: string; detail: React.ReactNode; icon: LucideIcon; tone?: "blue" | "green" | "amber" | "red"; compactOnMobile?: boolean }) {
