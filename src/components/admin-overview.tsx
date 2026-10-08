@@ -67,10 +67,10 @@ const icons = {
 } as const;
 
 const tabs: Array<{ id: "all" | Group; label: string }> = [
-  { id: "all", label: "Semua" },
+  { id: "all", label: "All" },
   { id: "workflow", label: "Workflow" },
-  { id: "operations", label: "Operasi" },
-  { id: "security", label: "Keamanan · 24j" },
+  { id: "operations", label: "Operations" },
+  { id: "security", label: "Security · 24h" },
 ];
 
 const severityStyle: Record<Severity, { card: string; icon: string; value: string; dot: string }> = {
@@ -119,10 +119,10 @@ export function AdminOverview({
 
           <div className="flex flex-wrap items-center gap-2">
             <Link href="/inbox" className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 text-[11px] font-bold text-white transition hover:bg-white/20 active:scale-95">
-              <span className="size-1.5 rounded-full bg-indigo-300" />{activeIssues} aktif
+              <span className="size-1.5 rounded-full bg-indigo-300" />{activeIssues} active
             </Link>
             <Link href="/inbox" className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 text-[11px] font-bold text-white transition hover:bg-white/20 active:scale-95">
-              <span className="size-1.5 rounded-full bg-emerald-300" />{completionRate}% selesai
+              <span className="size-1.5 rounded-full bg-emerald-300" />{completionRate}% completed
             </Link>
             <button
               type="button"
@@ -137,14 +137,14 @@ export function AdminOverview({
                 {needsAction.length ? <span className="absolute inline-flex size-full animate-ping rounded-full bg-white opacity-70" /> : null}
                 <span className="relative inline-flex size-1.5 rounded-full bg-white" />
               </span>
-              {needsAction.length ? `${needsAction.length} perlu tindakan` : "Semua aman"}
+              {needsAction.length ? `${needsAction.length} need action` : "All clear"}
             </button>
             <span aria-hidden="true" className="mx-1 hidden h-5 w-px bg-white/15 lg:block" />
             <Link href="/inbox" className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-amber-400 px-3.5 text-xs font-bold text-slate-900 transition hover:bg-amber-300 active:scale-95">
               <Inbox size={14} />Inbox
             </Link>
             <Link href="/admin-operations" className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-white/10 px-3.5 text-xs font-bold text-white ring-1 ring-inset ring-white/20 transition hover:bg-white/20 active:scale-95">
-              <Activity size={14} />Operasional
+              <Activity size={14} />Operations
             </Link>
           </div>
         </div>
@@ -152,7 +152,7 @@ export function AdminOverview({
 
       <section id="admin-control" className="scroll-mt-24 rounded-2xl border border-slate-200/90 bg-white p-3">
         <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
-          <div role="tablist" aria-label="Kelompok kontrol" className="flex max-w-full gap-1 overflow-x-auto rounded-xl bg-slate-100 p-1">
+          <div role="tablist" aria-label="Control group" className="flex max-w-full gap-1 overflow-x-auto rounded-xl bg-slate-100 p-1">
             {tabs.map((tab) => {
               const active = group === tab.id;
               const count = countFor(tab.id);
@@ -181,7 +181,7 @@ export function AdminOverview({
             >
               <span className={`absolute left-0.5 top-0.5 size-4 rounded-full bg-white shadow transition-transform ${onlyActive ? "translate-x-4" : ""}`} />
             </button>
-            Hanya yang perlu tindakan
+            Only items needing action
           </label>
         </div>
 
@@ -216,10 +216,10 @@ export function AdminOverview({
           <div className="mt-3 flex items-center gap-3 rounded-xl bg-emerald-50/70 p-4">
             <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-emerald-100 text-emerald-600"><CircleCheck size={18} /></span>
             <div>
-              <p className="text-xs font-bold text-slate-800">Semua aman</p>
-              <p className="mt-0.5 text-[11px] text-slate-500">Tidak ada item yang butuh tindakan di kelompok ini.</p>
+              <p className="text-xs font-bold text-slate-800">All clear</p>
+              <p className="mt-0.5 text-[11px] text-slate-500">No items in this group need action.</p>
             </div>
-            {onlyActive ? <button type="button" onClick={() => setOnlyActive(false)} className="ml-auto rounded-lg bg-white px-3 py-1.5 text-[11px] font-bold text-slate-700 ring-1 ring-slate-200 transition hover:bg-slate-50 active:scale-95">Tampilkan semua</button> : null}
+            {onlyActive ? <button type="button" onClick={() => setOnlyActive(false)} className="ml-auto rounded-lg bg-white px-3 py-1.5 text-[11px] font-bold text-slate-700 ring-1 ring-slate-200 transition hover:bg-slate-50 active:scale-95">Show all</button> : null}
           </div>
         )}
       </section>
@@ -227,11 +227,11 @@ export function AdminOverview({
       <section className="mt-3 overflow-hidden rounded-2xl border border-slate-200/90 bg-white">
         <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-4 py-3">
           <div>
-            <h2 className="text-sm font-bold text-slate-800">Isu terbaru</h2>
-            <p className="text-[10px] text-slate-500">Ketuk baris untuk membuka Inbox</p>
+            <h2 className="text-sm font-bold text-slate-800">Latest issues</h2>
+            <p className="text-[10px] text-slate-500">Tap a row to open Inbox</p>
           </div>
           <Link href="/inbox" className="inline-flex items-center gap-1 rounded-lg bg-slate-900 px-2.5 py-1.5 text-[11px] font-semibold text-white transition hover:bg-slate-700 active:scale-95">
-            Semua <ArrowRight size={13} />
+            All <ArrowRight size={13} />
           </Link>
         </div>
         {tickets.length ? (
@@ -253,8 +253,8 @@ export function AdminOverview({
         ) : (
           <div className="flex flex-col items-center px-5 py-8 text-center">
             <span className="grid size-10 place-items-center rounded-2xl bg-slate-100 text-slate-400"><TicketCheck size={18} /></span>
-            <p className="mt-2.5 text-sm font-bold text-slate-700">Belum ada isu tercatat</p>
-            <p className="mt-1 text-xs text-slate-400">Data muncul di sini begitu ada permintaan atau laporan baru.</p>
+            <p className="mt-2.5 text-sm font-bold text-slate-700">No issues recorded yet</p>
+            <p className="mt-1 text-xs text-slate-400">Data appears here once new requests or reports come in.</p>
           </div>
         )}
       </section>

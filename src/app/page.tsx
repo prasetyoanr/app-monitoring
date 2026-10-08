@@ -73,25 +73,25 @@ export default async function DashboardPage() {
 
   const quickActions = isRequester
     ? [
-        { href: "/requests", label: "Buat permintaan", icon: Plus, primary: true },
-        { href: "/surveys", label: "Isi survei", icon: FileText, primary: false },
+        { href: "/requests", label: "Create request", icon: Plus, primary: true },
+        { href: "/surveys", label: "Take survey", icon: FileText, primary: false },
       ]
     : isAdmin
       ? [
-          { href: "/inbox", label: "Buka Inbox", icon: Inbox, primary: true },
-          { href: "/admin-operations", label: "Operasional", icon: Activity, primary: false },
+          { href: "/inbox", label: "Open Inbox", icon: Inbox, primary: true },
+          { href: "/admin-operations", label: "Operations", icon: Activity, primary: false },
         ]
       : [
-          { href: "/inbox", label: "Buka Inbox", icon: Inbox, primary: true },
-          { href: "/reports", label: "Pusat laporan", icon: FileText, primary: false },
+          { href: "/inbox", label: "Open Inbox", icon: Inbox, primary: true },
+          { href: "/reports", label: "Report center", icon: FileText, primary: false },
         ];
 
   const attentionItems = [
     activeIssues > 0
       ? {
           href: inboxHref,
-          label: `${activeIssues} isu aktif`,
-          sub: `${completionRate}% selesai dari ${issueTotal} total`,
+          label: `${activeIssues} active issues`,
+          sub: `${completionRate}% completed of ${issueTotal} total`,
           icon: TicketCheck,
           tile: brandTile,
           hover: brandHover,
@@ -100,8 +100,8 @@ export default async function DashboardPage() {
     canAccessBackups && backupIssues > 0
       ? {
           href: "/backups",
-          label: `${backupIssues} backup bermasalah`,
-          sub: `Gagal ${failedBackups} · Overdue ${overdueBackups}`,
+          label: `${backupIssues} backups with issues`,
+          sub: `Failed ${failedBackups} · Overdue ${overdueBackups}`,
           icon: CircleCheck,
           tile: "bg-rose-50 text-rose-600",
           hover: "hover:border-rose-200 hover:bg-rose-50/50",
@@ -110,8 +110,8 @@ export default async function DashboardPage() {
     adminControl && adminControl.stalled > 0
       ? {
           href: "/admin-operations?view=stalled",
-          label: `${adminControl.stalled} pekerjaan macet`,
-          sub: "Tak ada update > 3 hari",
+          label: `${adminControl.stalled} stalled requests`,
+          sub: "No update for over 3 days",
           icon: Clock3,
           tile: "bg-amber-50 text-amber-600",
           hover: "hover:border-amber-200 hover:bg-amber-50/50",
@@ -120,8 +120,8 @@ export default async function DashboardPage() {
     adminControl && adminControl.unassigned > 0
       ? {
           href: "/inbox?workflow=ready_for_assignment",
-          label: `${adminControl.unassigned} menunggu assignment`,
-          sub: "Siap diteruskan ke teknisi",
+          label: `${adminControl.unassigned} awaiting assignment`,
+          sub: "Ready to be assigned to staff",
           icon: UserRoundCheck,
           tile: brandTile,
           hover: brandHover,
@@ -130,8 +130,8 @@ export default async function DashboardPage() {
     adminControl && adminControl.lockedAccounts > 0
       ? {
           href: "/accounts?status=locked",
-          label: `${adminControl.lockedAccounts} akun terkunci`,
-          sub: "Perlu dibuka atau ditinjau",
+          label: `${adminControl.lockedAccounts} locked accounts`,
+          sub: "Needs unlocking or review",
           icon: ShieldAlert,
           tile: "bg-rose-50 text-rose-600",
           hover: "hover:border-rose-200 hover:bg-rose-50/50",
@@ -140,8 +140,8 @@ export default async function DashboardPage() {
     adminControl && adminControl.failedLogins > 0
       ? {
           href: "/audit-logs?event=failed_login&period=24h",
-          label: `${adminControl.failedLogins} login gagal (24 jam)`,
-          sub: "Periksa aktivitas mencurigakan",
+          label: `${adminControl.failedLogins} failed logins (24h)`,
+          sub: "Check for suspicious activity",
           icon: Activity,
           tile: "bg-rose-50 text-rose-600",
           hover: "hover:border-rose-200 hover:bg-rose-50/50",
@@ -153,15 +153,15 @@ export default async function DashboardPage() {
   if (isAdmin && adminControl) {
     // Failed sign-ins only count as an alert from 5 attempts, like the notification bell.
     const tiles: AdminTile[] = [
-      { id: "intake", group: "workflow", label: "Admin", hint: "Intake dan revisi", value: adminControl.gaAdmin, href: "/inbox?workflow=intake", severity: "info" },
-      { id: "first", group: "workflow", label: "First Approval", hint: "Menunggu persetujuan", value: adminControl.gaSupervisor, href: "/inbox?workflow=waiting_approver", severity: "info" },
-      { id: "final", group: "workflow", label: "Final Approval", hint: "Menunggu persetujuan akhir", value: adminControl.seniorApprover, href: "/inbox?workflow=waiting_final_approver", severity: "info" },
-      { id: "assign", group: "workflow", label: "Menunggu assignment", hint: "Siap ditugaskan ke staf", value: adminControl.unassigned, href: "/inbox?workflow=ready_for_assignment", severity: "warning" },
-      { id: "stalled", group: "operations", label: "Pekerjaan macet", hint: "Tanpa update lebih dari 3 hari", value: adminControl.stalled, href: "/admin-operations?view=stalled", severity: "warning" },
-      { id: "locked", group: "operations", label: "Akun terkunci", hint: "Perlu dibuka atau ditinjau", value: adminControl.lockedAccounts, href: "/accounts?status=locked", severity: "critical" },
-      { id: "failed", group: "security", label: "Login gagal", hint: "24 jam terakhir", value: adminControl.failedLogins, href: "/audit-logs?event=failed_login&period=24h", severity: adminControl.failedLogins >= 5 ? "critical" : "info" },
-      { id: "denied", group: "security", label: "Akses ditolak", hint: "24 jam terakhir", value: adminControl.deniedAttempts, href: "/audit-logs?event=authorization_denied&period=24h", severity: "warning" },
-      { id: "sensitive", group: "security", label: "Akses data sensitif", hint: "24 jam terakhir", value: adminControl.sensitiveAccess, href: "/audit-logs?event=sensitive_access&period=24h", severity: "info" },
+      { id: "intake", group: "workflow", label: "Admin", hint: "Intake and revisions", value: adminControl.gaAdmin, href: "/inbox?workflow=intake", severity: "info" },
+      { id: "first", group: "workflow", label: "First Approval", hint: "Awaiting approval", value: adminControl.gaSupervisor, href: "/inbox?workflow=waiting_approver", severity: "info" },
+      { id: "final", group: "workflow", label: "Final Approval", hint: "Awaiting final approval", value: adminControl.seniorApprover, href: "/inbox?workflow=waiting_final_approver", severity: "info" },
+      { id: "assign", group: "workflow", label: "Awaiting assignment", hint: "Ready to assign to staff", value: adminControl.unassigned, href: "/inbox?workflow=ready_for_assignment", severity: "warning" },
+      { id: "stalled", group: "operations", label: "Stalled work", hint: "No update for over 3 days", value: adminControl.stalled, href: "/admin-operations?view=stalled", severity: "warning" },
+      { id: "locked", group: "operations", label: "Locked accounts", hint: "Needs unlocking or review", value: adminControl.lockedAccounts, href: "/accounts?status=locked", severity: "critical" },
+      { id: "failed", group: "security", label: "Failed logins", hint: "Last 24 hours", value: adminControl.failedLogins, href: "/audit-logs?event=failed_login&period=24h", severity: adminControl.failedLogins >= 5 ? "critical" : "info" },
+      { id: "denied", group: "security", label: "Access denied", hint: "Last 24 hours", value: adminControl.deniedAttempts, href: "/audit-logs?event=authorization_denied&period=24h", severity: "warning" },
+      { id: "sensitive", group: "security", label: "Sensitive data access", hint: "Last 24 hours", value: adminControl.sensitiveAccess, href: "/audit-logs?event=sensitive_access&period=24h", severity: "info" },
     ];
     return (
       <AdminOverview
@@ -179,7 +179,7 @@ export default async function DashboardPage() {
           location: ticket.location,
           statusLabel: ticketStatusLabel(ticket),
           statusTone: ticket.status === "Completed" ? "green" : ticket.status === "In Progress" ? "blue" : "amber",
-          completion: ticket.completedDays === null ? "Belum selesai" : ticket.completedDays === 0 ? "Hari yang sama" : `${ticket.completedDays} hari`,
+          completion: ticket.completedDays === null ? "Not completed" : ticket.completedDays === 0 ? "Same day" : `${ticket.completedDays} days`,
         }))}
       />
     );
@@ -205,8 +205,8 @@ export default async function DashboardPage() {
             <h1 className="mt-2.5 truncate text-2xl font-black tracking-[-0.03em] sm:text-[32px]">Welcome back, {currentUser.name.split(" ")[0]}</h1>
             <p className={`mt-1.5 text-[13px] leading-6 ${bodyOnSolid}`}>Here&apos;s what needs your eyes today — active work, completions, and priorities.</p>
             <div className="mt-4 flex flex-wrap items-center gap-2">
-              <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 text-[11px] font-bold text-white"><span className={`size-1.5 rounded-full ${isGaTheme ? "bg-emerald-300" : "bg-indigo-300"}`} />{activeIssues} aktif</span>
-              <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 text-[11px] font-bold text-white"><span className="size-1.5 rounded-full bg-emerald-300" />{completionRate}% selesai</span>
+              <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 text-[11px] font-bold text-white"><span className={`size-1.5 rounded-full ${isGaTheme ? "bg-emerald-300" : "bg-indigo-300"}`} />{activeIssues} active</span>
+              <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 text-[11px] font-bold text-white"><span className="size-1.5 rounded-full bg-emerald-300" />{completionRate}% completed</span>
               {canAccessBackups ? <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 text-[11px] font-bold text-white"><span className="size-1.5 rounded-full bg-amber-300" />Backup {backupRate}%</span> : null}
             </div>
           </div>
@@ -235,16 +235,16 @@ export default async function DashboardPage() {
         </Link>
         {canAccessBackups ? (
           <Link href="/backups" className={`block rounded-2xl transition duration-150 hover:-translate-y-1 hover:shadow-[0_16px_36px_rgba(15,23,42,0.14)] focus-visible:outline focus-visible:outline-2 ${brandFocus}`}>
-            <MetricCard compactOnMobile label="User Backups" value={`${backupTotal ? ((backupSuccess / backupTotal) * 100).toFixed(1) : "0.0"}%`} icon={CircleCheck} tone="red" detail={<span className="block">Gagal {failedBackups} · Overdue {overdueBackups}<span className="mt-2 block h-1.5 overflow-hidden rounded-full bg-slate-100"><span className="block h-full rounded-full bg-emerald-600" style={{ width: `${backupRate}%` }} /></span></span>} />
+            <MetricCard compactOnMobile label="User Backups" value={`${backupTotal ? ((backupSuccess / backupTotal) * 100).toFixed(1) : "0.0"}%`} icon={CircleCheck} tone="red" detail={<span className="block">Failed {failedBackups} · Overdue {overdueBackups}<span className="mt-2 block h-1.5 overflow-hidden rounded-full bg-slate-100"><span className="block h-full rounded-full bg-emerald-600" style={{ width: `${backupRate}%` }} /></span></span>} />
           </Link>
         ) : null}
       </div>
 
       <Card className="mt-5 overflow-hidden">
         <SectionTitle
-          title="Perlu perhatian"
-          subtitle="Prioritas tindak lanjut — ketuk untuk membuka"
-          action={attentionItems.length ? <span className={`shrink-0 rounded-full ${solid} px-2.5 py-1 text-[10px] font-bold text-white tabular-nums`}>{attentionItems.length} prioritas</span> : null}
+          title="Needs attention"
+          subtitle="Follow-up priorities — tap to open"
+          action={attentionItems.length ? <span className={`shrink-0 rounded-full ${solid} px-2.5 py-1 text-[10px] font-bold text-white tabular-nums`}>{attentionItems.length} priorities</span> : null}
         />
         {attentionItems.length ? (
           <div className="grid gap-2 p-3 sm:grid-cols-2 sm:p-4">
@@ -262,14 +262,14 @@ export default async function DashboardPage() {
         ) : (
           <div className="flex items-center gap-3 p-4 sm:px-5">
             <span className="grid size-10 shrink-0 place-items-center rounded-2xl bg-emerald-50 text-emerald-600"><CircleCheck size={19} /></span>
-            <div><p className="text-xs font-bold text-slate-800">Semua aman</p><p className="mt-0.5 text-[11px] text-slate-500">Tidak ada antrean atau anomali yang butuh tindakan saat ini.</p></div>
+            <div><p className="text-xs font-bold text-slate-800">All clear</p><p className="mt-0.5 text-[11px] text-slate-500">No queues or anomalies need action right now.</p></div>
           </div>
         )}
       </Card>
 
       {adminControl ? (
         <Card className="mt-5 overflow-hidden">
-          <SectionTitle title="Admin Control Center" subtitle="System priorities — ketuk judul grup untuk melipat" />
+          <SectionTitle title="Admin Control Center" subtitle="System priorities — tap a group title to collapse" />
           <div className="grid gap-3 p-3 sm:p-4 lg:grid-cols-3">
             {[
               {
@@ -343,7 +343,7 @@ export default async function DashboardPage() {
 
       <div className="mt-5">
         <Card className="table-card overflow-hidden">
-          <SectionTitle title="Latest Issues" subtitle="Recent service request activity — ketuk baris untuk detail" action={<Link href={inboxHref} className={`inline-flex shrink-0 items-center gap-1 rounded-lg ${solid} px-2.5 py-1.5 text-[11px] font-semibold text-white transition ${solidHover}`}>{isRequester ? "My Requests" : "All records"} <ArrowRight size={13} /></Link>} />
+          <SectionTitle title="Latest Issues" subtitle="Recent service request activity — tap a row for details" action={<Link href={inboxHref} className={`inline-flex shrink-0 items-center gap-1 rounded-lg ${solid} px-2.5 py-1.5 text-[11px] font-semibold text-white transition ${solidHover}`}>{isRequester ? "My Requests" : "All records"} <ArrowRight size={13} /></Link>} />
           {tickets.length ? (
             <>
               <div className="divide-y divide-slate-100 md:hidden">
@@ -372,9 +372,9 @@ export default async function DashboardPage() {
           ) : (
             <div className="flex flex-col items-center px-5 py-10 text-center">
               <span className="grid size-11 place-items-center rounded-2xl bg-slate-100 text-slate-400"><TicketCheck size={20} /></span>
-              <p className="mt-3 text-sm font-bold text-slate-700">Belum ada isu tercatat</p>
-              <p className="mt-1 max-w-sm text-xs text-slate-400">Data akan muncul di sini begitu ada permintaan atau laporan baru yang masuk.</p>
-              <Link href={isRequester ? "/requests" : "/inbox"} className={`mt-4 inline-flex h-10 items-center gap-1.5 rounded-xl px-4 text-xs font-semibold text-white transition ${brandCta}`}>{isRequester ? <Plus size={14} /> : <Inbox size={14} />}{isRequester ? "Buat permintaan pertama" : "Buka Inbox"}</Link>
+              <p className="mt-3 text-sm font-bold text-slate-700">No issues recorded yet</p>
+              <p className="mt-1 max-w-sm text-xs text-slate-400">Data will appear here once new requests or reports come in.</p>
+              <Link href={isRequester ? "/requests" : "/inbox"} className={`mt-4 inline-flex h-10 items-center gap-1.5 rounded-xl px-4 text-xs font-semibold text-white transition ${brandCta}`}>{isRequester ? <Plus size={14} /> : <Inbox size={14} />}{isRequester ? "Create your first request" : "Open Inbox"}</Link>
             </div>
           )}
         </Card>
