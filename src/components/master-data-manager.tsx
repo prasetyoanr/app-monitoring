@@ -14,6 +14,7 @@ import { Card } from "@/components/ui";
 import type { MasterDataRecords, MasterDivisionRecord, MasterItemRecord } from "@/data/master-data";
 import { serviceRequestTemplates } from "@/features/service-requests/template-registry";
 import { serviceInboxProfiles } from "@/features/service-inbox/profile-registry";
+import { isGaDivisionSlug } from "@/lib/request-destination";
 
 interface DeleteTarget extends MasterItemRecord {
   type: MasterDataType;
@@ -112,7 +113,7 @@ export function MasterDataManager({ initialData }: { initialData: MasterDataReco
                         <input type="checkbox" checked={division.isGaUnit} disabled={savingSettings} onChange={(event) => void saveDivisionRequestSettings(division, division.isServiceTarget, division.requestFormKey, division.inboxProfileKey, event.target.checked)} className="size-3.5 rounded border-slate-300 text-[#3157d5]" />
                         Can receive GA assignments
                       </label>
-                      {division.slug === "ga" ? <label className="inline-flex items-center gap-1.5 text-[10px] font-semibold text-slate-600">
+                      {isGaDivisionSlug(division.slug) ? <label className="inline-flex items-center gap-1.5 text-[10px] font-semibold text-slate-600">
                         <input
                           type="checkbox"
                           checked={division.isServiceTarget}
@@ -127,7 +128,7 @@ export function MasterDataManager({ initialData }: { initialData: MasterDataReco
                         />
                         Accept requests to GA
                       </label> : null}
-                      {division.slug === "ga" && division.isServiceTarget ? (
+                      {isGaDivisionSlug(division.slug) && division.isServiceTarget ? (
                         <select
                           value={division.requestFormKey ?? ""}
                           disabled={savingSettings}

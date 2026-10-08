@@ -30,10 +30,12 @@ import { getServiceInboxProfile } from "@/features/service-inbox/profile-registr
 import {
   getBasicStatusTransitionRequirement,
   getITRequestStatusTransitionRequirement,
+  getITStatusAfterWorkPhoto,
 } from "@/features/service-inbox/status-transitions";
 import { issueStatusLabel } from "@/lib/issue-status";
 import { generateRecordId } from "@/lib/record-id";
 import { issueChangeQuery } from "@/lib/issue-event-query";
+import { recordWorkflowNotifications } from "@/lib/workflow-notification-writer";
 import { recordAuthorizationDenied } from "@/security/audit";
 
 const priorities: IssuePriority[] = ["Low", "Medium", "High", "Critical"];
@@ -124,6 +126,7 @@ export async function saveIssueAction(
         priority: troubleshootingIssues.priority,
         completedDays: troubleshootingIssues.completedDays,
         workPhotoData: troubleshootingIssues.workPhotoData,
+        requesterId: troubleshootingIssues.requesterId,
         source: troubleshootingIssues.source,
         serviceDivisionId: troubleshootingIssues.serviceDivisionId,
         inboxProfileKey: masterDivisions.inboxProfileKey,
@@ -179,6 +182,13 @@ export async function saveIssueAction(
       Boolean(workPhotoData) ||
       (photoIntent === "keep" && Boolean(existing?.workPhotoData));
     if (
+      inboxProfile.features.approvalQr &&
+      requestedStatus === "Waiting for Client Approval" &&
+      existing?.status !== "Waiting for Client Approval"
+    ) {
+      throw new Error("Waiting Approval is set automatically when the work photo is available.");
+    }
+    if (
       requestedStatus === "Waiting for Client Approval" &&
       (!inboxProfile.features.approvalQr || !hasFinalWorkPhoto)
     ) {
@@ -186,6 +196,9 @@ export async function saveIssueAction(
     }
     const reportedAt = new Date(`${reportedDate}T00:00:00+07:00`);
     if (Number.isNaN(reportedAt.getTime())) throw new Error("Invalid request date.");
+    const finalStatus = inboxProfile.features.approvalQr
+      ? getITStatusAfterWorkPhoto(requestedStatus, hasFinalWorkPhoto)
+      : requestedStatus;
 
     const photoValues = workPhotoData
       ? {
@@ -209,9 +222,9 @@ export async function saveIssueAction(
       description,
       reportedAt,
       priority,
-      status: requestedStatus,
+      status: finalStatus,
       completedDays:
-        requestedStatus === "Completed" && inboxProfile.features.directCompletion
+        finalStatus === "Completed" && inboxProfile.features.directCompletion
           ? Math.max(
               0,
               Math.floor((Date.now() - reportedAt.getTime()) / 86_400_000),
@@ -223,13 +236,9 @@ export async function saveIssueAction(
       ...photoValues,
     };
 
-    if (existing) {
-      await db
-        .update(troubleshootingIssues)
-        .set(values)
-        .where(eq(troubleshootingIssues.id, id));
-    } else {
-      const [itServiceDivision] = await db
+    let itServiceDivision: { id: string; name: string } | undefined;
+    if (!existing) {
+      [itServiceDivision] = await db
         .select({ id: masterDivisions.id, name: masterDivisions.name })
         .from(masterDivisions)
         .where(
@@ -242,29 +251,59 @@ export async function saveIssueAction(
       if (!itServiceDivision) {
         throw new Error("The IT Team destination division has not been enabled in Master Data.");
       }
-      await db.insert(troubleshootingIssues).values({
-        id,
-        ...values,
-        source: "manual",
-        serviceDivision: itServiceDivision.name,
-        serviceDivisionId: itServiceDivision.id,
-        requestFormKey: "it-support",
-        workflowStatus: "assigned",
-        workflowEnabled: false,
-        approvalRequired: false,
-        assignedTechnicianId: currentUser.id,
-      });
     }
 
-    await db.insert(auditLogs).values({
-      actorType: "technician",
-      actorId: currentUser.id,
-      action: existing ? "issue.updated" : "issue.created",
-      entityType: "troubleshooting_issue",
-      entityId: id,
+    await db.transaction(async (tx) => {
+      if (existing) {
+        await tx
+          .update(troubleshootingIssues)
+          .set(values)
+          .where(eq(troubleshootingIssues.id, id));
+        if (finalStatus !== existing.status) {
+          if (existing.requesterId) {
+            await tx.insert(requestStatusNotifications).values({
+              recipientId: existing.requesterId,
+              issueId: id,
+              status: finalStatus,
+            });
+          }
+          await tx.insert(requestStatusHistory).values({
+            issueId: id,
+            changedById: currentUser.id,
+            previousStatus: existing.status,
+            status: finalStatus,
+            reason:
+              finalStatus === "Waiting for Client Approval"
+                ? "Status changed automatically because the work photo is available."
+                : null,
+          });
+        }
+      } else if (itServiceDivision) {
+        await tx.insert(troubleshootingIssues).values({
+          id,
+          ...values,
+          source: "manual",
+          serviceDivision: itServiceDivision.name,
+          serviceDivisionId: itServiceDivision.id,
+          requestFormKey: "it-support",
+          workflowStatus: "assigned",
+          workflowEnabled: false,
+          approvalRequired: false,
+          assignedTechnicianId: currentUser.id,
+        });
+      }
+      await tx.insert(auditLogs).values({
+        actorType: "technician",
+        actorId: currentUser.id,
+        action: existing ? "issue.updated" : "issue.created",
+        entityType: "troubleshooting_issue",
+        entityId: id,
+      });
+      await tx.execute(issueChangeQuery(id));
     });
     revalidatePath("/");
     revalidatePath("/inbox");
+    revalidatePath("/requests");
     revalidatePath("/reports");
     return { ok: true, data: { id } };
   } catch (error) {
@@ -373,8 +412,11 @@ export async function updateIssueStatusAction(
       throw new Error("Add a work photo before requesting client approval.");
     }
 
+    const finalStatus = isITRequestWorkflow
+      ? getITStatusAfterWorkPhoto(requestedStatus, Boolean(issue.workPhotoData))
+      : requestedStatus;
     const completedDays =
-      requestedStatus === "Completed"
+      finalStatus === "Completed"
         ? issue.status === "Completed"
           ? issue.completedDays
           : Math.max(
@@ -387,7 +429,7 @@ export async function updateIssueStatusAction(
       await tx
         .update(troubleshootingIssues)
         .set({
-          status: requestedStatus,
+          status: finalStatus,
           completedDays,
           updatedAt: new Date(),
         })
@@ -397,7 +439,7 @@ export async function updateIssueStatusAction(
         await tx.insert(requestStatusNotifications).values({
           recipientId: issue.requesterId,
           issueId: id,
-          status: requestedStatus,
+          status: finalStatus,
           requesterNote: requesterNote || null,
         });
       }
@@ -406,8 +448,12 @@ export async function updateIssueStatusAction(
         issueId: id,
         changedById: currentUser.id,
         previousStatus: issue.status,
-        status: requestedStatus,
-        reason: reason || null,
+        status: finalStatus,
+        reason:
+          reason ||
+          (finalStatus !== requestedStatus
+            ? "Status changed automatically because the work photo is available."
+            : null),
         requesterNote: requesterNote || null,
       });
 
@@ -419,7 +465,8 @@ export async function updateIssueStatusAction(
         entityId: id,
         metadata: {
           previousStatus: issue.status,
-          status: requestedStatus,
+          status: finalStatus,
+          automaticStatus: finalStatus !== requestedStatus,
           reason: reason || null,
           requesterNote: requesterNote || null,
           requesterNotified: Boolean(issue.requesterId),
@@ -591,6 +638,14 @@ export async function createRequesterTicketAction(
         previousStatus: null,
         status: "submitted",
       });
+      await recordWorkflowNotifications(tx, id, {
+        event: "submitted",
+        actorId: currentUser.id,
+        previousStatus: null,
+        requesterId: currentUser.id,
+        approverId: null,
+        assigneeId: null,
+      });
       await tx.insert(auditLogs).values({
         actorType: currentUser.role === "requester" ? "requester" : "technician",
         actorId: currentUser.id,
@@ -646,6 +701,8 @@ export async function updateIssueWorkPhotoAction(
         workflowStatus: troubleshootingIssues.workflowStatus,
         workflowEnabled: troubleshootingIssues.workflowEnabled,
         assignedTechnicianId: troubleshootingIssues.assignedTechnicianId,
+        requesterId: troubleshootingIssues.requesterId,
+        workPhotoData: troubleshootingIssues.workPhotoData,
       })
       .from(troubleshootingIssues)
       .innerJoin(
@@ -695,23 +752,49 @@ export async function updateIssueWorkPhotoAction(
             workPhotoFileName: null,
           }
         : {};
+    const hasFinalWorkPhoto =
+      Boolean(workPhotoData) ||
+      (photoIntent === "keep" && Boolean(issue.workPhotoData));
+    const finalStatus = getITStatusAfterWorkPhoto(
+      issue.status,
+      hasFinalWorkPhoto,
+    );
+    const statusChanged = finalStatus !== issue.status;
 
     await db.transaction(async (tx) => {
       await tx
         .update(troubleshootingIssues)
-        .set({ ...photoValues, updatedAt: new Date() })
+        .set({ ...photoValues, status: finalStatus, updatedAt: new Date() })
         .where(eq(troubleshootingIssues.id, id));
+      if (statusChanged) {
+        if (issue.requesterId) {
+          await tx.insert(requestStatusNotifications).values({
+            recipientId: issue.requesterId,
+            issueId: id,
+            status: finalStatus,
+          });
+        }
+        await tx.insert(requestStatusHistory).values({
+          issueId: id,
+          changedById: currentUser.id,
+          previousStatus: issue.status,
+          status: finalStatus,
+          reason: "Status changed automatically because the work photo is available.",
+        });
+      }
       await tx.insert(auditLogs).values({
         actorType: "technician",
         actorId: currentUser.id,
         action: "issue.work_photo_updated",
         entityType: "troubleshooting_issue",
         entityId: id,
-        metadata: { photoIntent },
+        metadata: { photoIntent, automaticStatus: statusChanged ? finalStatus : null },
       });
+      await tx.execute(issueChangeQuery(id));
     });
     revalidatePath("/");
     revalidatePath("/inbox");
+    revalidatePath("/requests");
     revalidatePath("/reports");
     return { ok: true, data: { id } };
   } catch (error) {
@@ -753,17 +836,21 @@ export async function deleteIssueAction(id: string): Promise<ActionResult> {
       await recordAuthorizationDenied(currentUser, "issue.delete", { reason: "external_request_restricted", issueId: id });
       throw new Error("Requests from another division cannot be deleted.");
     }
-    const [deleted] = await db
-      .delete(troubleshootingIssues)
-      .where(eq(troubleshootingIssues.id, id))
-      .returning({ id: troubleshootingIssues.id });
-    if (!deleted) throw new Error("Issue was not found.");
-    await db.insert(auditLogs).values({
-      actorType: "technician",
-      actorId: currentUser.id,
-      action: "issue.deleted",
-      entityType: "troubleshooting_issue",
-      entityId: id,
+    await db.transaction(async (tx) => {
+      // Must run before the delete: the signal is built from the row's audience.
+      await tx.execute(issueChangeQuery(id));
+      const [deleted] = await tx
+        .delete(troubleshootingIssues)
+        .where(eq(troubleshootingIssues.id, id))
+        .returning({ id: troubleshootingIssues.id });
+      if (!deleted) throw new Error("Issue was not found.");
+      await tx.insert(auditLogs).values({
+        actorType: "technician",
+        actorId: currentUser.id,
+        action: "issue.deleted",
+        entityType: "troubleshooting_issue",
+        entityId: id,
+      });
     });
     revalidatePath("/");
     revalidatePath("/inbox");

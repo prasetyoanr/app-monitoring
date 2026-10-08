@@ -21,6 +21,7 @@ export interface AuthenticatedUser {
   role: AccountRole;
   divisionId: string | null;
   divisionName: string | null;
+  divisionSlug?: string | null;
   isGaUnit?: boolean;
 }
 
@@ -28,12 +29,16 @@ function tokenHash(token: string) {
   return createHash("sha256").update(token).digest("hex");
 }
 
+export function isITDivisionName(divisionName: string | null | undefined): boolean {
+  if (!divisionName) return false;
+  const div = divisionName.trim().toLowerCase();
+  return div === "it team" || div === "it" || div.includes("information technology") || div.startsWith("it");
+}
+
 export function isITTeamUser(user: AuthenticatedUser | null | undefined): boolean {
   if (!user) return false;
   if (user.role === "administrator") return true;
-  if (!user.divisionName) return false;
-  const div = user.divisionName.trim().toLowerCase();
-  return div === "it team" || div === "it" || div.includes("information technology") || div.startsWith("it");
+  return isITDivisionName(user.divisionName);
 }
 
 export function isITRoleUser(user: AuthenticatedUser | null | undefined): boolean {
@@ -45,7 +50,14 @@ export function isITRoleUser(user: AuthenticatedUser | null | undefined): boolea
   );
 }
 
-export async function createSession(technicianId: string) {
+// Session tokens are 32 random bytes in base64url; only their hash is stored.
+export function isSessionToken(value: string | null | undefined): value is string {
+  return Boolean(value && /^[A-Za-z0-9_-]{43}$/.test(value));
+}
+
+// Creates the session row and returns the raw token. The web login puts it in a cookie,
+// the API login hands it to the client as a bearer token.
+export async function issueSessionToken(technicianId: string) {
   const token = randomBytes(32).toString("base64url");
   const expiresAt = new Date(Date.now() + SESSION_DURATION_MS);
 
@@ -54,6 +66,11 @@ export async function createSession(technicianId: string) {
     technicianId,
     expiresAt,
   });
+  return { token, expiresAt };
+}
+
+export async function createSession(technicianId: string) {
+  const { token, expiresAt } = await issueSessionToken(technicianId);
 
   const cookieStore = await cookies();
   cookieStore.set(SESSION_COOKIE_NAME, token, {
@@ -65,13 +82,12 @@ export async function createSession(technicianId: string) {
   });
 }
 
-export const getCurrentUser = cache(
-  async (): Promise<AuthenticatedUser | null> => {
-    const cookieStore = await cookies();
-    const token = cookieStore.get(SESSION_COOKIE_NAME)?.value;
-    if (!token || !/^[A-Za-z0-9_-]{43}$/.test(token)) return null;
+export async function findUserBySessionToken(
+  token: string | null | undefined,
+): Promise<AuthenticatedUser | null> {
+  if (!isSessionToken(token)) return null;
 
-    const [row] = await db
+  const [row] = await db
       .select({
         id: technicians.id,
         name: technicians.name,
@@ -79,6 +95,7 @@ export const getCurrentUser = cache(
         role: technicians.role,
         divisionId: technicians.divisionId,
         divisionName: masterDivisions.name,
+        divisionSlug: masterDivisions.slug,
         isGaUnit: masterDivisions.isGaUnit,
       })
       .from(authSessions)
@@ -107,8 +124,15 @@ export const getCurrentUser = cache(
       role: row.role,
       divisionId: row.divisionId,
       divisionName: row.divisionName,
+      divisionSlug: row.divisionSlug,
       isGaUnit: row.isGaUnit ?? false,
     };
+}
+
+export const getCurrentUser = cache(
+  async (): Promise<AuthenticatedUser | null> => {
+    const cookieStore = await cookies();
+    return findUserBySessionToken(cookieStore.get(SESSION_COOKIE_NAME)?.value);
   },
 );
 
@@ -154,13 +178,15 @@ export async function requireServiceAgent(capability?: string) {
   return user;
 }
 
+export async function deleteSessionByToken(token: string | null | undefined) {
+  if (!isSessionToken(token)) return;
+  await db
+    .delete(authSessions)
+    .where(eq(authSessions.tokenHash, tokenHash(token)));
+}
+
 export async function deleteCurrentSession() {
   const cookieStore = await cookies();
-  const token = cookieStore.get(SESSION_COOKIE_NAME)?.value;
-  if (token && /^[A-Za-z0-9_-]{43}$/.test(token)) {
-    await db
-      .delete(authSessions)
-      .where(eq(authSessions.tokenHash, tokenHash(token)));
-  }
+  await deleteSessionByToken(cookieStore.get(SESSION_COOKIE_NAME)?.value);
   cookieStore.delete(SESSION_COOKIE_NAME);
 }

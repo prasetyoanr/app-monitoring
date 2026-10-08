@@ -56,7 +56,9 @@ function canRequestApproval(ticket: TicketRecord) {
 
 function approvalActionTitle(ticket: TicketRecord) {
   if (ticket.status !== "Waiting for Client Approval") {
-    return "Set status to Waiting Approval";
+    return ticket.hasWorkPhoto
+      ? "Waiting Approval is set automatically"
+      : "Add a work photo first";
   }
   return ticket.hasWorkPhoto ? "QR Signature" : "Add a work photo first";
 }
@@ -91,7 +93,7 @@ function InlineStatusSelect({ recordId, value, options, saving, onChange }: { re
   );
 }
 
-export function TicketList({ initialRecords, canManage, canCreateIssue, useSourceAwareActions, showCompletionTime, showServiceDivisionFilter, viewerProfileKey, divisionOptions, serviceDivisionOptions, locationOptions, categoryOptions }: { initialRecords: TicketRecord[]; canManage: boolean; canCreateIssue: boolean; useSourceAwareActions: boolean; showCompletionTime: boolean; showServiceDivisionFilter: boolean; viewerProfileKey: string; divisionOptions: string[]; serviceDivisionOptions: string[]; locationOptions: string[]; categoryOptions: string[] }) {
+export function TicketList({ initialRecords, canManage, canCreateIssue, useSourceAwareActions, showSourceFilter = useSourceAwareActions, showCompletionTime, showServiceDivisionFilter, viewerProfileKey, divisionOptions, serviceDivisionOptions, locationOptions, categoryOptions }: { initialRecords: TicketRecord[]; canManage: boolean; canCreateIssue: boolean; useSourceAwareActions: boolean; showSourceFilter?: boolean; showCompletionTime: boolean; showServiceDivisionFilter: boolean; viewerProfileKey: string; divisionOptions: string[]; serviceDivisionOptions: string[]; locationOptions: string[]; categoryOptions: string[] }) {
   const router = useRouter();
   const defaultLocation = locationOptions.includes("HO")
     ? "HO"
@@ -159,9 +161,9 @@ export function TicketList({ initialRecords, canManage, canCreateIssue, useSourc
       (!filterStartDate || ticket.reportedDate >= filterStartDate) &&
       (!filterEndDate || ticket.reportedDate <= filterEndDate);
     const matchSource =
-      !useSourceAwareActions || sourceFilter === "all" || ticket.source === sourceFilter;
+      !showSourceFilter || sourceFilter === "all" || ticket.source === sourceFilter;
     return matchQuery && matchDate && matchSource && (status === "All Statuses" || ticket.status === status) && (location === "All Locations" || ticket.location === location) && (serviceDivision === "All Service Divisions" || ticket.serviceDivision === serviceDivision);
-  }), [ticketRecords, deferredQuery, status, location, serviceDivision, sourceFilter, useSourceAwareActions, filterStartDate, filterEndDate]);
+  }), [ticketRecords, deferredQuery, status, location, serviceDivision, sourceFilter, showSourceFilter, filterStartDate, filterEndDate]);
 
   function openForm(nextMode: Exclude<FormMode, null>, record: TicketRecord | null = null) {
     setSelected(record);
@@ -183,6 +185,13 @@ export function TicketList({ initialRecords, canManage, canCreateIssue, useSourc
     return ticket.inboxProfileKey === "it-service" && ticket.source === "division_request"
       ? getITRequestStatusOptions(ticket.status)
       : getBasicStatusOptions(ticket.status);
+  }
+
+  function editableFormStatuses() {
+    const statuses = [...activeFormProfile.editableStatuses];
+    return activeFormProfile.features.approvalQr
+      ? statuses.filter((option) => option !== "Waiting for Client Approval")
+      : statuses;
   }
 
   function statusRequirementFor(ticket: TicketRecord, nextStatus: IssueStatus) {
@@ -407,7 +416,7 @@ export function TicketList({ initialRecords, canManage, canCreateIssue, useSourc
         {canCreateIssue ? <button onClick={() => openForm("create")} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-[#3157d5] px-4 text-xs font-semibold text-white shadow-lg shadow-blue-600/15 hover:bg-[#2445b5]"><Plus size={16} /> Add Issue</button> : null}
       </div>
 
-      {useSourceAwareActions ? (
+      {showSourceFilter ? (
         <div className="mb-4 inline-flex max-w-full overflow-x-auto rounded-xl border border-slate-200 bg-white p-1 shadow-sm" aria-label="Filter source issue">
           {([
             ["all", "All"],
@@ -554,7 +563,7 @@ export function TicketList({ initialRecords, canManage, canCreateIssue, useSourc
                 <h3 id="issue-detail-title" className="border-b border-slate-300 pb-2 text-xs font-bold uppercase tracking-wider text-slate-900">Issue Detail</h3>
                 <h4 className="mt-4 text-base font-bold leading-6 text-slate-950">{detailRecord.title}</h4>
                 <p className="mt-3 whitespace-pre-wrap text-xs leading-6 text-slate-600">{detailRecord.description}</p>
-                {detailRecord.workflowEnabled ? <div className="mt-4 rounded-xl bg-indigo-50 p-3 text-xs text-indigo-900"><p className="font-semibold">{requestWorkflowLabel(detailRecord.workflowStatus)}</p>{detailRecord.assignedTechnicianName ? <p className="mt-1">Assigned member: {detailRecord.assignedTechnicianName}</p> : null}{detailRecord.workflowNote ? <p className="mt-2 whitespace-pre-wrap">Latest internal note: {detailRecord.workflowNote}</p> : null}</div> : null}
+                {detailRecord.workflowEnabled ? <div className="mt-4 rounded-xl bg-indigo-50 p-3 text-xs text-indigo-900"><p className="font-semibold">{requestWorkflowLabel(detailRecord.workflowStatus)}</p>{detailRecord.assignedTechnicianName ? <p className="mt-1">Assigned staff: {detailRecord.assignedTechnicianName}</p> : null}{detailRecord.workflowNote ? <p className="mt-2 whitespace-pre-wrap">Latest internal note: {detailRecord.workflowNote}</p> : null}</div> : null}
               </section>
 
               {detailRecord.requestData && Object.keys(detailRecord.requestData).length > 0 ? (
@@ -626,7 +635,7 @@ export function TicketList({ initialRecords, canManage, canCreateIssue, useSourc
             <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4"><div><h2 id="ticket-title" className="text-sm font-bold text-slate-900">{mode === "create" ? "Add New Issue" : mode === "evidence" ? "Work Photo" : isBasicServiceViewer ? "Update Handling" : "Edit Issue Record"}</h2><p className="mt-1 text-[11px] text-slate-500">{mode === "create" ? "Recorded on behalf of the IT team for activity reporting." : mode === "evidence" ? "Add or update the work photo without changing the request details." : isBasicServiceViewer ? "Only the handling status can be updated." : `Managed by ${selected?.serviceDivision ?? "the destination division"}.`}</p></div><button onClick={() => setMode(null)} className="rounded-lg p-2 text-slate-400 hover:bg-slate-100" aria-label="Close form"><X size={18} /></button></div>
             <form key={`${mode}-${selected?.id ?? "new"}`} className="space-y-4 p-5" onSubmit={handleSubmit}>
               {mode === "evidence" ? <>
-                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3"><p className="font-mono text-[9px] text-slate-400">{selected?.id}</p><p className="mt-1 text-xs font-semibold text-slate-800">{selected?.title}</p><p className="mt-1 text-[10px] text-slate-500">This photo serves as work evidence and is required before requesting a signature via QR.</p></div>
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3"><p className="font-mono text-[9px] text-slate-400">{selected?.id}</p><p className="mt-1 text-xs font-semibold text-slate-800">{selected?.title}</p><p className="mt-1 text-[10px] text-slate-500">Saving a work photo while this request is In Progress automatically changes its status to Waiting Approval.</p></div>
                 <section className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4" aria-labelledby="evidence-photo-field-title">
                   <div className="flex items-start justify-between gap-3"><div><h3 id="evidence-photo-field-title" className="text-[11px] font-semibold text-slate-700">Work Photo</h3><p className="mt-1 text-[10px] leading-4 text-slate-500">The photo is automatically converted to JPEG and compressed below 2 MB.</p></div>{photoPreview ? <button type="button" onClick={removeWorkPhoto} disabled={compressingPhoto || selected?.status === "Waiting for Client Approval"} className="shrink-0 rounded-lg bg-rose-50 px-2.5 py-1.5 text-[10px] font-semibold text-rose-600 disabled:cursor-not-allowed disabled:opacity-40">Remove</button> : null}</div>
                   {photoPreview ? <div className="mt-3 overflow-hidden rounded-xl border border-slate-200 bg-white p-2"><Image src={photoPreview} width={720} height={540} unoptimized alt="Selected work photo preview" className="h-48 w-full rounded-lg object-contain sm:h-56" /><div className="mt-2 flex items-center justify-between gap-2 px-1"><span className="inline-flex items-center gap-1.5 text-[10px] font-semibold text-emerald-600"><CheckCircle2 size={13} /> Ready to save</span>{photoFile ? <span className="text-[10px] text-slate-400">{formatPhotoSize(photoFile.size)}</span> : <span className="text-[10px] text-slate-400">Stored photo</span>}</div></div> : null}
@@ -642,7 +651,7 @@ export function TicketList({ initialRecords, canManage, canCreateIssue, useSourc
               <div className="grid gap-4 sm:grid-cols-2"><label className="block text-[11px] font-semibold text-slate-600">Location<select name="location" required defaultValue={selected?.location ?? defaultLocation} className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 px-3 text-xs outline-none">{optionsWithCurrent(locationOptions, selected?.location).map((option) => <option key={option} value={option}>{option}</option>)}</select></label><div className="block text-[11px] font-semibold text-slate-600"><span id="request-date-label">Request Date</span><div className="relative mt-1.5"><button type="button" onClick={() => openDatePicker(dateInputRef.current)} aria-labelledby="request-date-label" className="flex h-10 w-full items-center rounded-xl border border-slate-200 bg-white px-3 text-left text-xs font-normal text-slate-700 outline-none"><span className="flex-1">{formatCompactDate(requestDate)}</span><CalendarDays size={15} className="text-slate-400" /></button><input ref={dateInputRef} type="date" value={requestDate} onChange={(event) => setRequestDate(event.target.value)} className="absolute bottom-0 left-0 h-px w-px opacity-0" tabIndex={-1} aria-hidden="true" /></div></div></div>
               <div className="grid gap-4 sm:grid-cols-2"><label className="block text-[11px] font-semibold text-slate-600">Requester Name<input name="requester" required defaultValue={selected?.requester} className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 px-3 text-xs outline-none" /></label><label className="block text-[11px] font-semibold text-slate-600">Division<select name="division" required defaultValue={selected?.division ?? divisionOptions[0]} className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-xs outline-none">{optionsWithCurrent(divisionOptions, selected?.division).map((option) => <option key={option} value={option}>{option}</option>)}</select></label></div>
               <div><label className="block text-[11px] font-semibold text-slate-600">Category<select name="category" required defaultValue={selected?.category ?? defaultCategory} className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-xs outline-none">{optionsWithCurrent(categoryOptions, selected?.category).map((option) => <option key={option} value={option}>{option}</option>)}</select></label></div>
-              <div className={`grid gap-4 ${showCompletionTime ? "sm:grid-cols-2" : ""}`}><label className="block text-[11px] font-semibold text-slate-600">Status<select name="status" defaultValue={selected?.status ?? "New"} className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 px-3 text-xs outline-none">{optionsWithCurrent([...activeFormProfile.editableStatuses], selected?.status).map((option) => <option key={option} value={option}>{issueStatusLabel(option as IssueStatus)}</option>)}</select></label>{showCompletionTime ? <div><p className="text-[11px] font-semibold text-slate-600">Completion Time</p><p className="mt-1.5 rounded-xl bg-slate-50 px-3 py-2.5 text-[10px] leading-5 text-slate-500">{activeFormProfile.features.directCompletion ? "Calculated automatically when the request is completed." : "Calculated automatically after client approval."}</p></div> : null}</div>
+              <div className={`grid gap-4 ${showCompletionTime ? "sm:grid-cols-2" : ""}`}><label className="block text-[11px] font-semibold text-slate-600">Status<select name="status" defaultValue={selected?.status ?? "New"} className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 px-3 text-xs outline-none">{optionsWithCurrent(editableFormStatuses(), selected?.status).map((option) => <option key={option} value={option}>{issueStatusLabel(option as IssueStatus)}</option>)}</select></label>{showCompletionTime ? <div><p className="text-[11px] font-semibold text-slate-600">Completion Time</p><p className="mt-1.5 rounded-xl bg-slate-50 px-3 py-2.5 text-[10px] leading-5 text-slate-500">{activeFormProfile.features.directCompletion ? "Calculated automatically when the request is completed." : "Calculated automatically after client approval."}</p></div> : null}</div>
               <label className="block text-[11px] font-semibold text-slate-600">Issue Description<textarea name="description" required rows={4} defaultValue={selected?.description} className="mt-1.5 w-full resize-none rounded-xl border border-slate-200 p-3 text-xs outline-none" /></label>
               {activeFormProfile.features.workPhoto ? <section className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4" aria-labelledby="work-photo-field-title">
                 <div className="flex items-start justify-between gap-3">
@@ -666,7 +675,7 @@ export function TicketList({ initialRecords, canManage, canCreateIssue, useSourc
                 </div>
                 <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" onChange={(event) => void selectWorkPhoto(event)} className="sr-only" />
                 <input ref={galleryInputRef} type="file" accept="image/*" onChange={(event) => void selectWorkPhoto(event)} className="sr-only" />
-                <p className="mt-2 text-[9px] leading-4 text-slate-400">A work photo is required before changing the status to Waiting Approval.</p>
+                <p className="mt-2 text-[9px] leading-4 text-slate-400">When the request is In Progress, saving a work photo automatically changes the status to Waiting Approval.</p>
               </section> : null}
               </>}
               {formError ? <p className="rounded-xl bg-rose-50 p-3 text-[11px] font-semibold text-rose-700">{formError}</p> : null}

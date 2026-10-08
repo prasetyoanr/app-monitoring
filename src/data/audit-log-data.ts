@@ -1,12 +1,13 @@
 import "server-only";
 
-import { and, count, desc, eq, gte, ilike, like, lt, or, sql, type SQL } from "drizzle-orm";
+import { and, count, countDistinct, desc, eq, gt, gte, ilike, like, lt, or, sql, type SQL } from "drizzle-orm";
 
 import { requireAdministrator } from "@/auth/session";
 import { db } from "@/db";
-import { auditLogs, technicians } from "@/db/schema";
+import { auditLogs, authSessions, technicians } from "@/db/schema";
 
 export const AUDIT_LOG_PAGE_SIZE = 50;
+export const AUDIT_LOG_EXPORT_LIMIT = 10_000;
 
 export const auditModuleOptions = [
   { value: "", label: "All modules" },
@@ -17,6 +18,7 @@ export const auditModuleOptions = [
   { value: "master_data", label: "Master data" },
   { value: "activities", label: "GA activities" },
   { value: "reports", label: "Report exports" },
+  { value: "audit_log", label: "Log administration" },
   { value: "surveys", label: "Surveys" },
   { value: "backups", label: "Backup users" },
 ] as const;
@@ -66,8 +68,13 @@ function moduleCondition(module: AuditModule): SQL | undefined {
   if (module === "security") return or(like(auditLogs.action, "authorization.%"), like(auditLogs.action, "sensitive_data.%"));
   if (module === "accounts") return like(auditLogs.action, "account.%");
   if (module === "master_data") return like(auditLogs.action, "master_%");
-  if (module === "activities") return like(auditLogs.action, "ga.activity.%");
+  if (module === "activities") return or(
+    like(auditLogs.action, "ga.activity.%"),
+    like(auditLogs.action, "ga.work_plan.%"),
+    like(auditLogs.action, "ga.spreadsheet.%"),
+  );
   if (module === "reports") return like(auditLogs.action, "report.%");
+  if (module === "audit_log") return like(auditLogs.action, "audit_log.%");
   if (module === "surveys") return like(auditLogs.action, "survey.%");
   if (module === "backups") return like(auditLogs.action, "backup_%");
   if (module === "requests") {
@@ -81,9 +88,7 @@ function moduleCondition(module: AuditModule): SQL | undefined {
   return undefined;
 }
 
-export async function getAuditLogRecords(filters: AuditLogFilters) {
-  await requireAdministrator();
-
+function auditLogConditions(filters: AuditLogFilters) {
   const conditions: SQL[] = [];
   const query = filters.query.trim().slice(0, 120);
   if (query) {
@@ -112,10 +117,31 @@ export async function getAuditLogRecords(filters: AuditLogFilters) {
     const nextDay = new Date(new Date(`${filters.toDate}T00:00:00+07:00`).getTime() + 86_400_000);
     conditions.push(lt(auditLogs.createdAt, nextDay));
   }
+  return conditions.length ? and(...conditions) : undefined;
+}
 
-  const where = conditions.length ? and(...conditions) : undefined;
+const actorJoin = sql`${auditLogs.actorId} = ${technicians.id}::text`;
+
+function toAuditLogRecord(row: {
+  id: string;
+  actorType: "technician" | "requester" | "client" | "system";
+  actorId: string | null;
+  actorName: string | null;
+  actorUsername: string | null;
+  action: string;
+  entityType: string;
+  entityId: string;
+  metadata: Record<string, unknown> | null;
+  createdAt: Date;
+}): AuditLogRecord {
+  return { ...row, createdAt: row.createdAt.toISOString() };
+}
+
+export async function getAuditLogRecords(filters: AuditLogFilters) {
+  await requireAdministrator();
+
+  const where = auditLogConditions(filters);
   const requestedPage = Number.isSafeInteger(filters.page) && filters.page > 0 ? filters.page : 1;
-  const actorJoin = sql`${auditLogs.actorId} = ${technicians.id}::text`;
   const [{ total }] = await db
     .select({ total: count() })
     .from(auditLogs)
@@ -144,12 +170,59 @@ export async function getAuditLogRecords(filters: AuditLogFilters) {
     .offset((page - 1) * AUDIT_LOG_PAGE_SIZE);
 
   return {
-    records: rows.map((row): AuditLogRecord => ({
-      ...row,
-      createdAt: row.createdAt.toISOString(),
-    })),
+    records: rows.map(toAuditLogRecord),
     page,
     total,
     totalPages,
+  };
+}
+
+export async function getActiveSessionSummary() {
+  await requireAdministrator();
+
+  const [summary] = await db
+    .select({
+      sessionCount: count(),
+      userCount: countDistinct(authSessions.technicianId),
+    })
+    .from(authSessions)
+    .innerJoin(technicians, eq(authSessions.technicianId, technicians.id))
+    .where(and(
+      gt(authSessions.expiresAt, new Date()),
+      eq(technicians.isActive, true),
+    ));
+
+  return {
+    sessionCount: Number(summary?.sessionCount ?? 0),
+    userCount: Number(summary?.userCount ?? 0),
+  };
+}
+
+export async function getAuditLogExportRecords(filters: AuditLogFilters) {
+  const currentUser = await requireAdministrator("audit_log.export");
+  const rows = await db
+    .select({
+      id: auditLogs.id,
+      actorType: auditLogs.actorType,
+      actorId: auditLogs.actorId,
+      actorName: technicians.name,
+      actorUsername: technicians.username,
+      action: auditLogs.action,
+      entityType: auditLogs.entityType,
+      entityId: auditLogs.entityId,
+      metadata: auditLogs.metadata,
+      createdAt: auditLogs.createdAt,
+    })
+    .from(auditLogs)
+    .leftJoin(technicians, actorJoin)
+    .where(auditLogConditions(filters))
+    .orderBy(desc(auditLogs.createdAt), desc(auditLogs.id))
+    .limit(AUDIT_LOG_EXPORT_LIMIT + 1);
+
+  const truncated = rows.length > AUDIT_LOG_EXPORT_LIMIT;
+  return {
+    records: rows.slice(0, AUDIT_LOG_EXPORT_LIMIT).map(toAuditLogRecord),
+    truncated,
+    exportedBy: currentUser.id,
   };
 }

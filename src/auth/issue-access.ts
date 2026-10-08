@@ -1,6 +1,6 @@
 import "server-only";
 
-import type { AuthenticatedUser } from "@/auth/session";
+import { isITDivisionName, type AuthenticatedUser } from "@/auth/session";
 import type { IssueSource, RequestWorkflowStatus } from "@/data/types";
 
 export function canManageServiceIssue(
@@ -21,6 +21,7 @@ export function canViewServiceIssue(
     requesterDivision: string;
     requesterId: string | null;
     serviceDivisionId: string;
+    serviceDivisionName?: string | null;
     source: IssueSource;
     workflowEnabled: boolean;
     workflowStatus: RequestWorkflowStatus;
@@ -39,6 +40,14 @@ export function canViewServiceIssue(
     return true;
   }
   if (user.role === "receptionist") return issue.source === "division_request";
+  // First / Final Approval may view the IT team's Troubleshooting records (read-only).
+  if (
+    (user.role === "approver" || user.role === "final_approver") &&
+    issue.source === "manual" &&
+    isITDivisionName(issue.serviceDivisionName)
+  ) {
+    return true;
+  }
   if (user.role === "final_approver") {
     return issue.workflowEnabled && (issue.workflowStatus === "waiting_final_approver" || issue.finalApproverId === user.id);
   }

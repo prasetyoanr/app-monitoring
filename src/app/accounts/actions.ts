@@ -8,7 +8,7 @@ import { requireAdministrator } from "@/auth/session";
 import { db } from "@/db";
 import { auditLogs, authSessions, masterDivisions, technicians } from "@/db/schema";
 import type { AccountRole, ActionResult } from "@/data/types";
-import { accountRoleRequiresDivision } from "@/lib/account-role";
+import { accountRoleAllowsDivision, accountRoleRequiresDivision } from "@/lib/account-role";
 import { recordAuthorizationDenied } from "@/security/audit";
 
 const accountRoles: AccountRole[] = [
@@ -40,9 +40,14 @@ function optionalUuid(value: string) {
 }
 
 async function validatedDivisionId(role: AccountRole, rawValue: string) {
-  if (!accountRoleRequiresDivision(role)) return null;
+  // The administrator is never tied to a division.
+  if (!accountRoleAllowsDivision(role)) return null;
   const divisionId = optionalUuid(rawValue);
-  if (!divisionId) throw new Error("Requesters and GA Members must have a division or unit.");
+  if (!divisionId) {
+    // Empty means global, which only Admin and approval roles may use.
+    if (accountRoleRequiresDivision(role)) throw new Error("Requesters and Staff must have a division or unit.");
+    return null;
+  }
   const [division] = await db
     .select({ id: masterDivisions.id })
     .from(masterDivisions)
@@ -62,7 +67,7 @@ export async function createAccountAction(
     const password = formValue(formData, "password", 128);
     const role = formValue(formData, "role", 20) as AccountRole;
 
-    if (!/^[a-z0-9._-]{3,80}$/.test(username)) {
+    if (!/^[a-z0-9._-]{2,80}$/.test(username)) {
       throw new Error("Username may only contain lowercase letters, numbers, dots, underscores, or dashes.");
     }
     if (!accountRoles.includes(role)) throw new Error("Account role is invalid.");
@@ -109,7 +114,6 @@ export async function updateAccountAction(
   const currentUser = await requireAdministrator("account.update");
   try {
     if (!validAccountId(id)) throw new Error("Account ID is invalid.");
-    const name = formValue(formData, "name", 120);
     const role = formValue(formData, "role", 20) as AccountRole;
     if (!accountRoles.includes(role)) throw new Error("Account role is invalid.");
     if (id === currentUser.id && role !== "administrator") {
@@ -130,7 +134,7 @@ export async function updateAccountAction(
     await db.transaction(async (tx) => {
       const [updated] = await tx
         .update(technicians)
-        .set({ name, role, divisionId, isActive, updatedAt: new Date() })
+        .set({ role, divisionId, isActive, updatedAt: new Date() })
         .where(eq(technicians.id, id))
         .returning({ id: technicians.id });
       if (!updated) throw new Error("Account was not found.");

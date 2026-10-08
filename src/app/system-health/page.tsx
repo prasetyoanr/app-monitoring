@@ -38,7 +38,7 @@ export default async function SystemHealthPage() {
   const OverallIcon = overall.icon;
 
   return (
-    <>
+    <div className="admin-standard-type">
       <PageHeader
         eyebrow="Administrator Only"
         title="System Health"
@@ -47,7 +47,7 @@ export default async function SystemHealthPage() {
       />
 
       <Card className="mb-4 flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
-        <div className="flex items-center gap-3"><span className={`grid size-11 place-items-center rounded-2xl ring-1 ring-inset ${overall.badge}`}><OverallIcon size={19} /></span><div><p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Overall Status</p><p className="mt-1 text-lg font-black text-slate-900">{overall.label}</p></div></div>
+        <div className="flex items-center gap-3"><span className={`grid size-11 place-items-center rounded-2xl ring-1 ring-inset ${overall.badge}`}><OverallIcon size={19} /></span><div><p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Overall Status</p><p className="mt-1 text-lg font-bold text-slate-900">{overall.label}</p></div></div>
         <p className="text-[10px] font-medium text-slate-500">Last checked {dateTime.format(new Date(report.checkedAt)).replace(",", "")} WIB</p>
       </Card>
 
@@ -60,7 +60,7 @@ export default async function SystemHealthPage() {
             <Card key={check.id} className="p-4 sm:p-5">
               <div className="flex items-start justify-between gap-3"><span className="grid size-10 place-items-center rounded-xl bg-indigo-50 text-indigo-600"><CheckIcon size={17} /></span><span className={`inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-[9px] font-bold ring-1 ring-inset ${state.badge}`}><StateIcon size={11} /> {state.label}</span></div>
               <p className="mt-4 text-[10px] font-bold uppercase tracking-wider text-slate-400">{check.label}</p>
-              <p className="mt-1 text-xl font-black tracking-tight text-slate-900">{check.value}</p>
+              <p className="mt-1 text-xl font-bold tracking-tight text-slate-900">{check.value}</p>
               <p className="mt-2 text-[10px] leading-4 text-slate-500">{check.detail}</p>
               {check.responseTimeMs ? <p className="mt-3 border-t border-slate-100 pt-3 text-[9px] font-semibold text-slate-400">Response time: {check.responseTimeMs} ms</p> : null}
             </Card>
@@ -69,6 +69,6 @@ export default async function SystemHealthPage() {
       </div>
 
       <p className="mt-4 text-[10px] leading-5 text-slate-400">Checks use limited read-only queries. Database credentials, server paths, and environment values are never displayed.</p>
-    </>
+    </div>
   );
 }

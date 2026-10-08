@@ -1,8 +1,10 @@
 "use client";
 
-import { CalendarRange, ChevronLeft, ChevronRight, ClipboardCheck, Download, FileSpreadsheet, FolderSync, Wrench } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { CalendarRange, ClipboardCheck, Download, FileSpreadsheet, FolderSync, Wrench } from "lucide-react";
+import { useMemo, useState } from "react";
 import { recordReportExportAction } from "@/app/reports/actions";
+import { MonthPicker } from "@/components/month-picker";
+import { ReportPeriodProvider, type SharedReportPeriod } from "@/components/report-period-context";
 import { Card } from "@/components/ui";
 import type { BackupRecord, TicketRecord } from "@/data/types";
 import type { SurveyAnswerValue, SurveyKpiCategory, SurveyReportRecord } from "@/data/survey-types";
@@ -28,19 +30,6 @@ import {
 
 type FilterMode = "range" | "month";
 type ExportType = "troubleshooting" | "backup" | "survey";
-const monthOptions = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-
-const monthFormatter = new Intl.DateTimeFormat("en-US", {
-  month: "long",
-  year: "numeric",
-  timeZone: "UTC",
-});
-
-function formatMonthLabel(value: string) {
-  const [year, month] = value.split("-").map(Number);
-  if (!year || !month || month < 1 || month > 12) return "Select month";
-  return monthFormatter.format(new Date(Date.UTC(year, month - 1, 1)));
-}
 
 function dateMatches(date: string, mode: FilterMode, startDate: string, endDate: string, month: string) {
   if (mode === "month") return date.slice(0, 7) === month;
@@ -51,7 +40,7 @@ function surveyAnswerText(value: SurveyAnswerValue) {
   return Array.isArray(value) ? value.join(" | ") : String(value);
 }
 
-export function ReportsCenter({ ticketRecords, backupRecords, surveyRecords, canAccessBackupReport, canAccessSurveyReport }: { ticketRecords: TicketRecord[]; backupRecords: BackupRecord[]; surveyRecords: SurveyReportRecord[]; canAccessBackupReport: boolean; canAccessSurveyReport: boolean }) {
+export function ReportsCenter({ ticketRecords, backupRecords, surveyRecords, canAccessBackupReport, canAccessSurveyReport, hideInboxReport = false, children }: { hideInboxReport?: boolean; children?: React.ReactNode; ticketRecords: TicketRecord[]; backupRecords: BackupRecord[]; surveyRecords: SurveyReportRecord[]; canAccessBackupReport: boolean; canAccessSurveyReport: boolean }) {
   const initialMonth = currentJakartaMonth();
   const initialRange = monthInputRange(initialMonth);
   const [mode, setMode] = useState<FilterMode>("month");
@@ -59,36 +48,18 @@ export function ReportsCenter({ ticketRecords, backupRecords, surveyRecords, can
   const [endDate, setEndDate] = useState(initialRange.end);
   const [month, setMonth] = useState(initialMonth);
   const [monthPickerOpen, setMonthPickerOpen] = useState(false);
-  const [pickerYear, setPickerYear] = useState(() => Number(initialMonth.slice(0, 4)));
   const [exporting, setExporting] = useState<ExportType | null>(null);
   const [exportError, setExportError] = useState("");
-  const monthPickerRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    if (!monthPickerOpen) return;
-    function closeOnOutsideClick(event: PointerEvent) {
-      if (!monthPickerRef.current?.contains(event.target as Node)) setMonthPickerOpen(false);
-    }
-    function closeOnEscape(event: KeyboardEvent) {
-      if (event.key === "Escape") setMonthPickerOpen(false);
-    }
-    document.addEventListener("pointerdown", closeOnOutsideClick);
-    document.addEventListener("keydown", closeOnEscape);
-    return () => {
-      document.removeEventListener("pointerdown", closeOnOutsideClick);
-      document.removeEventListener("keydown", closeOnEscape);
-    };
-  }, [monthPickerOpen]);
-
-  function toggleMonthPicker() {
-    setPickerYear(Number(month.slice(0, 4)) || Number(initialMonth.slice(0, 4)));
-    setMonthPickerOpen((open) => !open);
-  }
-
-  function selectMonth(monthIndex: number) {
-    setMonth(`${pickerYear}-${String(monthIndex + 1).padStart(2, "0")}`);
-    setMonthPickerOpen(false);
-  }
+  // Sections rendered as children (the administrator's all-data exports) reuse this period.
+  const sharedPeriod = useMemo<SharedReportPeriod>(
+    () => (mode === "month" ? { mode: "month", month } : { mode: "range", startDate, endDate }),
+    [mode, month, startDate, endDate],
+  );
+  // Where a child section may place its download button, inside the Report Period card.
+  const [actionsSlot, setActionsSlot] = useState<HTMLElement | null>(null);
+  const contextValue = useMemo(() => ({ period: sharedPeriod, actionsSlot }), [sharedPeriod, actionsSlot]);
+  const showReportCards = !hideInboxReport || canAccessBackupReport || canAccessSurveyReport;
 
   const filteredTickets = useMemo(
     () => ticketRecords.filter((ticket) => dateMatches(ticket.reportedDate, mode, startDate, endDate, month)),
@@ -156,8 +127,8 @@ export function ReportsCenter({ ticketRecords, backupRecords, surveyRecords, can
 
     await runExport("troubleshooting", filteredTickets.length, () =>
       downloadExcelReport({
-        filename: `troubleshooting-report-${filterLabel}.xlsx`,
-        sheetName: "Troubleshooting",
+        filename: `inbox-report-${filterLabel}.xlsx`,
+        sheetName: "Inbox",
         columns: troubleshootingExcelColumns,
         rows: filteredTickets.map((ticket, index) => ({
           number: index + 1,
@@ -273,6 +244,7 @@ export function ReportsCenter({ ticketRecords, backupRecords, surveyRecords, can
   }
 
   return (
+    <ReportPeriodProvider value={contextValue}>
     <div className="space-y-5">
       <Card className={`relative overflow-visible p-4 sm:p-5 ${monthPickerOpen ? "z-[60]" : ""}`}>
         <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
@@ -290,25 +262,7 @@ export function ReportsCenter({ ticketRecords, backupRecords, surveyRecords, can
             </label>
 
             {mode === "month" ? (
-              <div ref={monthPickerRef} className="relative w-full text-[11px] font-semibold text-slate-600 sm:w-auto"><span id="report-month-label">Month</span>
-                <button type="button" onClick={toggleMonthPicker} aria-labelledby="report-month-label" aria-haspopup="dialog" aria-expanded={monthPickerOpen} className="mt-1.5 flex h-10 w-full min-w-48 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-left text-xs font-medium text-slate-600 outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-100"><CalendarRange size={15} className="text-slate-400" /><span className="flex-1">{formatMonthLabel(month)}</span></button>
-                {monthPickerOpen ? (
-                  <div role="dialog" aria-label="Choose report month" className="absolute left-0 top-full z-50 mt-2 w-72 rounded-2xl border border-slate-200 bg-white p-3 shadow-2xl sm:left-auto sm:right-0">
-                    <div className="flex items-center justify-between">
-                      <button type="button" onClick={() => setPickerYear((year) => year - 1)} aria-label="Previous year" className="grid size-9 place-items-center rounded-lg bg-slate-100 text-slate-600"><ChevronLeft size={16} /></button>
-                      <span className="text-sm font-bold text-slate-800">{pickerYear}</span>
-                      <button type="button" onClick={() => setPickerYear((year) => year + 1)} aria-label="Next year" className="grid size-9 place-items-center rounded-lg bg-slate-100 text-slate-600"><ChevronRight size={16} /></button>
-                    </div>
-                    <div className="mt-3 grid grid-cols-3 gap-2">
-                      {monthOptions.map((monthName, monthIndex) => {
-                        const value = `${pickerYear}-${String(monthIndex + 1).padStart(2, "0")}`;
-                        const selected = month === value;
-                        return <button key={monthName} type="button" onClick={() => selectMonth(monthIndex)} aria-pressed={selected} className={`h-10 rounded-xl text-xs font-semibold ${selected ? "bg-[#3157d5] text-white shadow-md shadow-blue-600/20" : "bg-slate-50 text-slate-600"}`}>{monthName}</button>;
-                      })}
-                    </div>
-                  </div>
-                ) : null}
-              </div>
+              <MonthPicker value={month} onChange={setMonth} onOpenChange={setMonthPickerOpen} />
             ) : (
               <>
                 <label className="w-full text-[11px] font-semibold text-slate-600 sm:w-auto">Start Date
@@ -319,27 +273,28 @@ export function ReportsCenter({ ticketRecords, backupRecords, surveyRecords, can
                 </label>
               </>
             )}
+            {children ? <div ref={setActionsSlot} className="w-full sm:w-auto" /> : null}
           </div>
         </div>
         {invalidRange ? <p className="mt-3 text-left text-[11px] font-semibold text-rose-600 sm:text-right">The end date must be on or after the start date.</p> : null}
         {exportError ? <p className="mt-3 text-left text-[11px] font-semibold text-rose-600 sm:text-right">{exportError}</p> : null}
       </Card>
 
-      <div className="grid gap-5 lg:grid-cols-2">
-        <Card className="overflow-hidden">
+      {showReportCards ? <div className="grid gap-5 lg:grid-cols-2">
+        {hideInboxReport ? null : <Card className="overflow-hidden">
           <div className="border-b border-slate-100 p-5">
             <div className="flex items-start justify-between gap-4">
               <span className="grid size-11 place-items-center rounded-xl bg-blue-50 text-blue-600"><Wrench size={20} /></span>
               <span className="rounded-lg bg-slate-100 px-2.5 py-1 text-[10px] font-bold text-slate-600">{invalidRange ? 0 : filteredTickets.length} records</span>
             </div>
-            <h2 className="mt-4 text-base font-bold text-slate-900">Troubleshooting Report</h2>
-            <p className="mt-1.5 text-[11px] leading-5 text-slate-500">Issue handling activities from the Head Office and Factory.</p>
+            <h2 className="mt-4 text-base font-bold text-slate-900">Inbox Report</h2>
+            <p className="mt-1.5 text-[11px] leading-5 text-slate-500">Troubleshooting and inbox requests handled by IT, from the Head Office and Factory.</p>
           </div>
           <div className="flex items-center justify-between gap-4 p-5">
             <div className="flex items-center gap-2 text-[11px] text-slate-500"><FileSpreadsheet size={15} /> Formatted XLSX</div>
             <button disabled={invalidRange || filteredTickets.length === 0 || exporting !== null} onClick={() => void exportTroubleshooting()} className="inline-flex h-10 items-center gap-2 rounded-xl bg-[#3157d5] px-4 text-xs font-semibold text-white hover:bg-[#2445b5] disabled:cursor-not-allowed disabled:bg-slate-300"><Download size={15} /> {exporting === "troubleshooting" ? "Preparing..." : "Export"}</button>
           </div>
-        </Card>
+        </Card>}
 
         {canAccessBackupReport ? <Card className="overflow-hidden">
           <div className="border-b border-slate-100 p-5">
@@ -370,7 +325,9 @@ export function ReportsCenter({ ticketRecords, backupRecords, surveyRecords, can
             <button disabled={invalidRange || filteredSurveys.length === 0 || exporting !== null} onClick={() => void exportSurveys()} className="inline-flex h-10 items-center gap-2 rounded-xl bg-[#3157d5] px-4 text-xs font-semibold text-white hover:bg-[#2445b5] disabled:cursor-not-allowed disabled:bg-slate-300"><Download size={15} /> {exporting === "survey" ? "Preparing..." : "Export"}</button>
           </div>
         </Card> : null}
-      </div>
+      </div> : null}
+      {children}
     </div>
+    </ReportPeriodProvider>
   );
 }

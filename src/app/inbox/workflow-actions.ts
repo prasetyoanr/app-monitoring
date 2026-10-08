@@ -20,6 +20,7 @@ import type {
 } from "@/data/types";
 import { workflowNoteError, workflowTransition } from "@/lib/request-workflow";
 import { issueChangeQuery } from "@/lib/issue-event-query";
+import { recordWorkflowNotifications } from "@/lib/workflow-notification-writer";
 import { canAssignRequestToUnit } from "@/lib/ga-assignment";
 import { recordAuthorizationDenied } from "@/security/audit";
 
@@ -116,7 +117,7 @@ export async function updateRequestWorkflowAction(
         )
         .limit(1);
       if (!assignee || !canAssignRequestToUnit(issue.receivingDivisionId, issue.serviceDivisionId, { id: assignee.divisionId, isGaUnit: assignee.isGaUnit })) {
-        throw new Error("Select an active member of an enabled GA unit. Historical requests must retain their destination unit.");
+        throw new Error("Select active staff from an enabled GA unit. Historical requests must retain their destination unit.");
       }
       validatedAssigneeId = assignee.id;
       executionUnit = { id: assignee.divisionId, name: assignee.division };
@@ -171,6 +172,14 @@ export async function updateRequestWorkflowAction(
         status: transition.status,
         note: note || null,
       });
+      await recordWorkflowNotifications(tx, issueId, {
+        event: transition.action,
+        actorId: currentUser.id,
+        previousStatus: issue.workflowStatus,
+        requesterId: issue.requesterId,
+        approverId: issue.approverId,
+        assigneeId: validatedAssigneeId,
+      }, input.command === "return" || input.command === "reject" ? note : null);
       if (input.command === "resolve") {
         await tx.insert(requestStatusHistory).values({ issueId, changedById: currentUser.id, previousStatus: issue.status, status: "Completed", reason: note, requesterNote: note });
         if (issue.requesterId) await tx.insert(requestStatusNotifications).values({ issueId, recipientId: issue.requesterId, status: "Completed", requesterNote: note });

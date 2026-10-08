@@ -1,0 +1,4 @@
+CREATE TYPE "ga_work_plan_target_mode" AS ENUM('date', 'until_completed');--> statement-breakpoint
+ALTER TABLE "ga_work_plan_items" ADD COLUMN "target_mode" "ga_work_plan_target_mode" DEFAULT 'date'::"ga_work_plan_target_mode" NOT NULL;--> statement-breakpoint
+ALTER TABLE "ga_work_plan_items" ALTER COLUMN "target_date" DROP NOT NULL;--> statement-breakpoint
+ALTER TABLE "ga_work_plan_items" DROP CONSTRAINT "ga_work_plan_items_target_week_check", ADD CONSTRAINT "ga_work_plan_items_target_week_check" CHECK (("target_mode" = 'date' and "target_date" >= "week_start" and "target_date" < "week_start" + 7) or ("target_mode" = 'until_completed' and "target_date" is null));

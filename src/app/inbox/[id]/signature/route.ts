@@ -3,7 +3,7 @@ import { and, desc, eq } from "drizzle-orm";
 import { getCurrentUser } from "@/auth/session";
 import { canViewServiceIssue } from "@/auth/issue-access";
 import { db } from "@/db";
-import { troubleshootingApprovals, troubleshootingIssues } from "@/db/schema";
+import { masterDivisions, troubleshootingApprovals, troubleshootingIssues } from "@/db/schema";
 import { recordAuthorizationDenied, recordSensitiveDataAccess } from "@/security/audit";
 
 export const runtime = "nodejs";
@@ -34,9 +34,11 @@ export async function GET(
       approverId: troubleshootingIssues.approverId,
       finalApproverId: troubleshootingIssues.finalApproverId,
       serviceDivisionId: troubleshootingIssues.serviceDivisionId,
+      serviceDivisionName: masterDivisions.name,
     })
     .from(troubleshootingApprovals)
     .innerJoin(troubleshootingIssues, eq(troubleshootingApprovals.issueId, troubleshootingIssues.id))
+    .innerJoin(masterDivisions, eq(troubleshootingIssues.serviceDivisionId, masterDivisions.id))
     .where(
       and(
         eq(troubleshootingApprovals.issueId, id),

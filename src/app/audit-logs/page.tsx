@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Activity, ChevronLeft, ChevronRight, Filter, Search, ShieldCheck } from "lucide-react";
+import { Activity, ChevronDown, ChevronLeft, ChevronRight, Download, Filter, MonitorCheck, Search, ShieldCheck, X } from "lucide-react";
 
 import { Card, PageHeader } from "@/components/ui";
 import {
   auditModuleOptions,
+  AUDIT_LOG_EXPORT_LIMIT,
+  getActiveSessionSummary,
   getAuditLogRecords,
   type AuditActorType,
   type AuditEvent,
@@ -66,6 +68,19 @@ function pageHref(filters: AuditLogFilters, page: number) {
   return query ? `/audit-logs?${query}` : "/audit-logs";
 }
 
+function exportHref(filters: AuditLogFilters) {
+  const params = new URLSearchParams();
+  if (filters.query) params.set("q", filters.query);
+  if (filters.module) params.set("module", filters.module);
+  if (filters.event) params.set("event", filters.event);
+  if (filters.actorType) params.set("actor", filters.actorType);
+  if (filters.period) params.set("period", filters.period);
+  if (filters.fromDate) params.set("from", filters.fromDate);
+  if (filters.toDate) params.set("to", filters.toDate);
+  const query = params.toString();
+  return query ? `/audit-logs/export?${query}` : "/audit-logs/export";
+}
+
 export default async function AuditLogsPage({
   searchParams,
 }: {
@@ -86,56 +101,104 @@ export default async function AuditLogsPage({
     toDate: single(params.to),
     page: Number.parseInt(single(params.page) || "1", 10),
   };
-  const result = await getAuditLogRecords(filters);
+  const [result, activeSessions] = await Promise.all([
+    getAuditLogRecords(filters),
+    getActiveSessionSummary(),
+  ]);
   const hasFilters = Boolean(filters.query || filters.module || filters.event || filters.actorType || filters.period || filters.fromDate || filters.toDate);
+  const activeFilterCount = [filters.module, filters.event, filters.actorType, filters.period, filters.fromDate, filters.toDate].filter(Boolean).length;
+  const eventLabels: Record<string, string> = { failed_login: "Failed login", authorization_denied: "Unauthorized attempt", sensitive_access: "Sensitive access" };
+  const actorLabels: Record<string, string> = { technician: "Staff", requester: "Requester", client: "Client", system: "System" };
+  const activeChips = [
+    filters.module ? { label: auditModuleOptions.find((option) => option.value === filters.module)?.label ?? filters.module, href: pageHref({ ...filters, module: "" }, 1) } : null,
+    filters.event ? { label: eventLabels[filters.event] ?? filters.event, href: pageHref({ ...filters, event: "" }, 1) } : null,
+    filters.actorType ? { label: actorLabels[filters.actorType] ?? filters.actorType, href: pageHref({ ...filters, actorType: "" }, 1) } : null,
+    filters.period ? { label: "Last 24 hours", href: pageHref({ ...filters, period: "" }, 1) } : null,
+    filters.fromDate ? { label: `From ${filters.fromDate}`, href: pageHref({ ...filters, fromDate: "" }, 1) } : null,
+    filters.toDate ? { label: `To ${filters.toDate}`, href: pageHref({ ...filters, toDate: "" }, 1) } : null,
+  ].filter((chip): chip is { label: string; href: string } => chip !== null);
 
   return (
-    <>
+    <div className="admin-standard-type">
       <PageHeader
         eyebrow="Administrator Only"
         title="Log"
         description="Review security-sensitive activity, workflow decisions, account changes, and administrative actions across the application."
+        action={<form action={exportHref(filters)} method="post"><button type="submit" className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 text-xs font-semibold text-white shadow-sm transition hover:bg-indigo-700 md:w-auto" title={`Export up to ${AUDIT_LOG_EXPORT_LIMIT.toLocaleString("en-US")} matching records`}><Download size={15} /> Export Log</button></form>}
       />
 
       <Card className="mb-5 p-4 sm:p-5">
-        <form method="get" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4 xl:items-end">
-          <label className="block min-w-0 text-[10px] font-bold uppercase tracking-wide text-slate-500">
-            Search
-            <span className="relative mt-1.5 block">
-              <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input name="q" defaultValue={filters.query} maxLength={120} placeholder="Actor, action, or record ID" className="h-10 w-full rounded-xl border border-slate-200 bg-white pl-9 pr-3 text-xs font-normal normal-case tracking-normal text-slate-700 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100" />
-            </span>
-          </label>
-          <label className="block text-[10px] font-bold uppercase tracking-wide text-slate-500">Module
-            <select name="module" defaultValue={filters.module} className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-xs font-normal normal-case tracking-normal text-slate-700 outline-none">
-              {auditModuleOptions.map((option) => <option key={option.value || "all"} value={option.value}>{option.label}</option>)}
-            </select>
-          </label>
-          <label className="block text-[10px] font-bold uppercase tracking-wide text-slate-500">Event
-            <select name="event" defaultValue={filters.event} className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-xs font-normal normal-case tracking-normal text-slate-700 outline-none">
-              <option value="">All events</option><option value="failed_login">Failed login</option><option value="authorization_denied">Unauthorized attempt</option><option value="sensitive_access">Sensitive data access</option>
-            </select>
-          </label>
-          <label className="block text-[10px] font-bold uppercase tracking-wide text-slate-500">Actor
-            <select name="actor" defaultValue={filters.actorType} className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-xs font-normal normal-case tracking-normal text-slate-700 outline-none">
-              <option value="">All actors</option><option value="technician">Staff</option><option value="requester">Requester</option><option value="client">Client</option><option value="system">System</option>
-            </select>
-          </label>
-          <label className="block text-[10px] font-bold uppercase tracking-wide text-slate-500">Period
-            <select name="period" defaultValue={filters.period} className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-xs font-normal normal-case tracking-normal text-slate-700 outline-none">
-              <option value="">All time</option><option value="24h">Last 24 hours</option>
-            </select>
-          </label>
-          <label className="block text-[10px] font-bold uppercase tracking-wide text-slate-500">From
-            <input name="from" type="date" defaultValue={filters.fromDate} max={filters.toDate || undefined} className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-xs font-normal normal-case tracking-normal text-slate-700 outline-none" />
-          </label>
-          <label className="block text-[10px] font-bold uppercase tracking-wide text-slate-500">To
-            <input name="to" type="date" defaultValue={filters.toDate} min={filters.fromDate || undefined} className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-xs font-normal normal-case tracking-normal text-slate-700 outline-none" />
-          </label>
-          <div className="flex gap-2">
-            <button type="submit" className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 text-xs font-semibold text-white hover:bg-indigo-700"><Filter size={14} /> Apply</button>
-            {hasFilters ? <Link href="/audit-logs" className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-200 px-3 text-xs font-semibold text-slate-600 hover:bg-slate-50">Reset</Link> : null}
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex min-w-0 items-center gap-3">
+            <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-emerald-50 text-emerald-600"><MonitorCheck size={18} /></span>
+            <div className="min-w-0"><h2 className="text-sm font-bold text-slate-900">Active sessions</h2><p className="mt-0.5 text-[10px] leading-4 text-slate-500">{activeSessions.userCount} active {activeSessions.userCount === 1 ? "user" : "users"} · expired and inactive-account sessions are excluded</p></div>
           </div>
+          <strong className="shrink-0 text-2xl font-bold tracking-tight text-slate-900">{activeSessions.sessionCount}</strong>
+        </div>
+      </Card>
+
+      <Card className="mb-5 p-4 sm:p-5">
+        <form method="get" className="grid gap-3">
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <span className="relative block min-w-0 flex-1">
+              <Search size={15} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input name="q" defaultValue={filters.query} maxLength={120} placeholder="Search actor, action, or record ID…" className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50/60 pl-10 pr-3 text-[13px] text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-indigo-400 focus:bg-white focus:ring-2 focus:ring-indigo-100" />
+            </span>
+            <div className="flex gap-2">
+              <button type="submit" className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-indigo-600 px-5 text-xs font-semibold text-white transition hover:bg-indigo-700 sm:flex-none"><Filter size={14} /> Apply</button>
+              {hasFilters ? <Link href="/audit-logs" className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-200 px-4 text-xs font-semibold text-slate-600 transition hover:bg-slate-50">Reset</Link> : null}
+            </div>
+          </div>
+
+          <details open={hasFilters ? true : undefined} className="group rounded-xl border border-slate-100 bg-slate-50/50">
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3.5 py-3 [&::-webkit-details-marker]:hidden">
+              <span className="inline-flex min-w-0 items-center gap-2 text-xs font-semibold text-slate-600">
+                <Filter size={13} className="shrink-0 text-slate-400" />
+                <span className="truncate">More filters</span>
+                {activeFilterCount ? <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-indigo-600 px-1.5 text-[10px] font-bold text-white">{activeFilterCount}</span> : <span className="hidden text-[11px] font-normal text-slate-400 sm:inline">Module, event, actor, date</span>}
+              </span>
+              <ChevronDown size={15} className="shrink-0 text-slate-400 transition-transform group-open:rotate-180" />
+            </summary>
+            <div className="grid gap-3 border-t border-slate-100 px-3.5 py-3.5 sm:grid-cols-2 lg:grid-cols-3">
+              <label className="block text-[10px] font-bold uppercase tracking-wide text-slate-500">Module
+                <select name="module" defaultValue={filters.module} className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-xs font-normal normal-case tracking-normal text-slate-700 outline-none focus:border-indigo-400">
+                  {auditModuleOptions.map((option) => <option key={option.value || "all"} value={option.value}>{option.label}</option>)}
+                </select>
+              </label>
+              <label className="block text-[10px] font-bold uppercase tracking-wide text-slate-500">Event
+                <select name="event" defaultValue={filters.event} className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-xs font-normal normal-case tracking-normal text-slate-700 outline-none focus:border-indigo-400">
+                  <option value="">All events</option><option value="failed_login">Failed login</option><option value="authorization_denied">Unauthorized attempt</option><option value="sensitive_access">Sensitive data access</option>
+                </select>
+              </label>
+              <label className="block text-[10px] font-bold uppercase tracking-wide text-slate-500">Actor
+                <select name="actor" defaultValue={filters.actorType} className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-xs font-normal normal-case tracking-normal text-slate-700 outline-none focus:border-indigo-400">
+                  <option value="">All actors</option><option value="technician">Staff</option><option value="requester">Requester</option><option value="client">Client</option><option value="system">System</option>
+                </select>
+              </label>
+              <label className="block text-[10px] font-bold uppercase tracking-wide text-slate-500">Period
+                <select name="period" defaultValue={filters.period} className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-xs font-normal normal-case tracking-normal text-slate-700 outline-none focus:border-indigo-400">
+                  <option value="">All time</option><option value="24h">Last 24 hours</option>
+                </select>
+              </label>
+              <label className="block text-[10px] font-bold uppercase tracking-wide text-slate-500">From
+                <input name="from" type="date" defaultValue={filters.fromDate} max={filters.toDate || undefined} className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-xs font-normal normal-case tracking-normal text-slate-700 outline-none focus:border-indigo-400" />
+              </label>
+              <label className="block text-[10px] font-bold uppercase tracking-wide text-slate-500">To
+                <input name="to" type="date" defaultValue={filters.toDate} min={filters.fromDate || undefined} className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-xs font-normal normal-case tracking-normal text-slate-700 outline-none focus:border-indigo-400" />
+              </label>
+            </div>
+          </details>
+
+          {activeChips.length ? (
+            <div className="flex flex-wrap items-center gap-1.5">
+              {activeChips.map((chip) => (
+                <Link key={chip.label} href={chip.href} title={`Remove ${chip.label}`} className="inline-flex h-7 items-center gap-1.5 rounded-full bg-indigo-50 py-1 pl-3 pr-2 text-[11px] font-semibold text-indigo-700 transition hover:bg-indigo-100">
+                  <span className="max-w-44 truncate">{chip.label}</span><X size={12} />
+                </Link>
+              ))}
+              <Link href="/audit-logs" className="inline-flex h-7 items-center rounded-full px-2.5 text-[11px] font-semibold text-slate-400 transition hover:text-slate-600">Clear all</Link>
+            </div>
+          ) : null}
         </form>
       </Card>
 
@@ -162,6 +225,6 @@ export default async function AuditLogsPage({
 
         {result.totalPages > 1 ? <div className="flex items-center justify-between border-t border-slate-100 px-4 py-3 sm:px-5"><Link aria-disabled={result.page <= 1} tabIndex={result.page <= 1 ? -1 : undefined} href={pageHref(filters, Math.max(1, result.page - 1))} className={`inline-flex h-9 items-center gap-1 rounded-lg border px-3 text-[11px] font-semibold ${result.page <= 1 ? "pointer-events-none border-slate-100 text-slate-300" : "border-slate-200 text-slate-600 hover:bg-slate-50"}`}><ChevronLeft size={14} /> Previous</Link><span className="text-[10px] text-slate-500">{(result.page - 1) * 50 + 1}–{Math.min(result.page * 50, result.total)} of {result.total}</span><Link aria-disabled={result.page >= result.totalPages} tabIndex={result.page >= result.totalPages ? -1 : undefined} href={pageHref(filters, Math.min(result.totalPages, result.page + 1))} className={`inline-flex h-9 items-center gap-1 rounded-lg border px-3 text-[11px] font-semibold ${result.page >= result.totalPages ? "pointer-events-none border-slate-100 text-slate-300" : "border-slate-200 text-slate-600 hover:bg-slate-50"}`}>Next <ChevronRight size={14} /></Link></div> : null}
       </Card>
-    </>
+    </div>
   );
 }

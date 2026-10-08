@@ -3,6 +3,7 @@ import {
   bytea,
   boolean,
   check,
+  date,
   index,
   integer,
   jsonb,
@@ -122,6 +123,18 @@ export const surveySentimentLabelEnum = pgEnum("survey_sentiment_label", [
   "not_applicable",
 ]);
 
+export const gaWorkPlanStatusEnum = pgEnum("ga_work_plan_status", [
+  "planned",
+  "in_progress",
+  "completed",
+  "cancelled",
+]);
+
+export const gaWorkPlanTargetModeEnum = pgEnum("ga_work_plan_target_mode", [
+  "date",
+  "until_completed",
+]);
+
 export const masterDivisions = pgTable(
   "master_divisions",
   {
@@ -195,6 +208,11 @@ export const technicians = pgTable(
       onDelete: "set null",
     }),
     isActive: boolean("is_active").notNull().default(true),
+    spreadsheetEnabled: boolean("spreadsheet_enabled").notNull().default(false),
+    spreadsheetTitle: varchar("spreadsheet_title", { length: 160 }),
+    spreadsheetUrl: text("spreadsheet_url"),
+    spreadsheetDescription: varchar("spreadsheet_description", { length: 500 }),
+    spreadsheetUpdatedAt: timestamp("spreadsheet_updated_at", { withTimezone: true }),
     failedLoginAttempts: integer("failed_login_attempts").notNull().default(0),
     lockedUntil: timestamp("locked_until", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true })
@@ -240,6 +258,45 @@ export const authSessions = pgTable(
     check(
       "auth_sessions_expiry_check",
       sql`${table.expiresAt} > ${table.createdAt}`,
+    ),
+  ],
+);
+
+export const gaWorkPlanItems = pgTable(
+  "ga_work_plan_items",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    memberId: uuid("member_id")
+      .notNull()
+      .references(() => technicians.id, { onDelete: "restrict" }),
+    divisionId: uuid("division_id")
+      .notNull()
+      .references(() => masterDivisions.id, { onDelete: "restrict" }),
+    weekStart: date("week_start", { mode: "string" }).notNull(),
+    targetMode: gaWorkPlanTargetModeEnum("target_mode").notNull().default("date"),
+    targetDate: date("target_date", { mode: "string" }),
+    title: varchar("title", { length: 200 }).notNull(),
+    description: text("description").notNull().default(""),
+    status: gaWorkPlanStatusEnum("status").notNull().default("planned"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("ga_work_plan_items_member_week_idx").on(
+      table.memberId,
+      table.weekStart,
+    ),
+    index("ga_work_plan_items_division_week_idx").on(
+      table.divisionId,
+      table.weekStart,
+    ),
+    check(
+      "ga_work_plan_items_target_week_check",
+      sql`(${table.targetMode} = 'date' and ${table.targetDate} >= ${table.weekStart} and ${table.targetDate} < ${table.weekStart} + 7) or (${table.targetMode} = 'until_completed' and ${table.targetDate} is null)`,
     ),
   ],
 );
@@ -393,6 +450,35 @@ export const requestStatusNotifications = pgTable(
       table.readAt,
     ),
     index("request_status_notifications_issue_idx").on(table.issueId),
+  ],
+);
+
+// Event notifications for workflow participants (reviewers, approvers, assignees).
+// Requester status changes keep using request_status_notifications.
+export const workflowNotifications = pgTable(
+  "workflow_notifications",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    recipientId: uuid("recipient_id")
+      .notNull()
+      .references(() => technicians.id, { onDelete: "cascade" }),
+    issueId: varchar("issue_id", { length: 32 })
+      .notNull()
+      .references(() => troubleshootingIssues.id, { onDelete: "cascade" }),
+    kind: varchar("kind", { length: 40 }).notNull(),
+    note: text("note"),
+    readAt: timestamp("read_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("workflow_notifications_recipient_unread_idx").on(
+      table.recipientId,
+      table.readAt,
+      table.createdAt,
+    ),
+    index("workflow_notifications_issue_idx").on(table.issueId),
   ],
 );
 

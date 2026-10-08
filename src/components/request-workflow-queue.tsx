@@ -92,7 +92,7 @@ export function RequestWorkflowQueue({
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-indigo-100 bg-indigo-50/60 px-4 py-3.5 sm:px-5">
             <div className="flex items-center gap-3">
               <span className="grid size-9 place-items-center rounded-xl bg-indigo-600 text-white"><ShieldCheck size={17} /></span>
-              <div><p className="text-xs font-bold text-slate-800">Request Workflow Queue</p><p className="mt-0.5 text-[10px] text-slate-500">GA approvals and member assignments. The Senior Approver makes the decision, then assignment authority returns to the GA Supervisor.</p></div>
+              <div><p className="text-xs font-bold text-slate-800">Request Workflow Queue</p><p className="mt-0.5 text-[10px] text-slate-500">GA approvals and staff assignments. Final Approval makes the decision, then assignment authority returns to First Approval.</p></div>
             </div>
             <span className="rounded-full bg-indigo-600 px-2.5 py-1 text-[10px] font-bold text-white">{queue.length} waiting</span>
           </div>
@@ -210,7 +210,7 @@ export function RequestWorkflowQueue({
                           <ArrowRight size={13} className="shrink-0 text-indigo-500" aria-hidden="true" />
                           <strong className="max-w-28 truncate text-indigo-700" title={ticket.serviceDivision}>{ticket.receivingDivisionId && ticket.serviceDivision !== "GA" ? `GA → ${ticket.serviceDivision}` : ticket.serviceDivision}</strong>
                           {ticket.assignedTechnicianName ? (
-                            <span className="truncate border-l border-slate-300 pl-2 font-medium text-slate-600" title={`Assigned member: ${ticket.assignedTechnicianName}`}>
+                            <span className="truncate border-l border-slate-300 pl-2 font-medium text-slate-600" title={`Assigned staff: ${ticket.assignedTechnicianName}`}>
                               {ticket.assignedTechnicianName}
                             </span>
                           ) : null}
@@ -274,7 +274,7 @@ export function RequestWorkflowQueue({
                     className={`inline-flex h-10 w-fit items-center justify-center justify-self-end gap-2 rounded-xl border px-4 text-[10px] font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 lg:col-start-4 ${ticket.workflowStatus === "ready_for_assignment" ? "border-emerald-600 bg-emerald-600 text-white shadow-sm hover:bg-emerald-700 focus-visible:ring-emerald-400" : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50 focus-visible:ring-indigo-400"}`}
                   >
                     <Route size={14} />
-                    {ticket.workflowStatus === "waiting_approver" ? "Approve / Reject" : ticket.workflowStatus === "waiting_final_approver" ? "Senior Decision" : ticket.workflowStatus === "ready_for_assignment" ? "Assign Member" : "Take Action"}
+                    {ticket.workflowStatus === "waiting_approver" ? "Approve / Reject" : ticket.workflowStatus === "waiting_final_approver" ? "Final Approval" : ticket.workflowStatus === "ready_for_assignment" ? "Assign Staff" : "Take Action"}
                   </button>
                 ) : (
                   <p className="self-center text-[10px] font-semibold text-slate-400">Waiting for the next approver.</p>

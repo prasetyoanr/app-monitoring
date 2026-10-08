@@ -51,6 +51,38 @@ function formatFieldKey(key: string): string {
     .trim();
 }
 
+const portalThemes = {
+  ga: {
+    hero: "bg-gradient-to-br from-[#123e35] via-[#165446] to-[#216f5d] shadow-emerald-950/10",
+    eyebrow: "text-emerald-200",
+    body: "text-emerald-50/85",
+    meta: "text-emerald-100",
+    dot: "bg-emerald-300",
+    cta: "bg-white text-emerald-900 hover:bg-emerald-50",
+    notice: "text-emerald-50",
+    focus: "focus:border-emerald-500 focus:ring-emerald-100",
+    outline: "focus-visible:outline-emerald-600",
+    filterOn: "border-emerald-200 bg-emerald-50 text-emerald-800",
+    countOn: "text-emerald-800",
+    link: "text-emerald-700 hover:bg-emerald-50",
+  },
+  // IT: follows the IT navbar (indigo-950) with the yellow accent.
+  it: {
+    hero: "bg-indigo-950 shadow-indigo-950/20",
+    eyebrow: "text-amber-300",
+    body: "text-indigo-100/85",
+    meta: "text-indigo-200",
+    dot: "bg-amber-400",
+    cta: "bg-amber-400 text-indigo-950 hover:bg-amber-300",
+    notice: "text-indigo-100",
+    focus: "focus:border-indigo-500 focus:ring-indigo-100",
+    outline: "focus-visible:outline-indigo-600",
+    filterOn: "border-indigo-200 bg-indigo-50 text-indigo-900",
+    countOn: "text-indigo-900",
+    link: "text-indigo-700 hover:bg-indigo-50",
+  },
+} as const;
+
 function getDivisionIcon(name: string) {
   const normalizedName = name.toLowerCase();
   if (normalizedName.includes("purchase") || normalizedName.includes("procurement") || normalizedName.includes("pengadaan")) return ShoppingCart;
@@ -66,12 +98,15 @@ export function RequestPortal({
   division,
   requestHref,
   unavailableReason,
+  theme = "ga",
 }: {
   initialRecords: TicketRecord[];
   division: string | null;
   requestHref: string | null;
   unavailableReason: string | null;
+  theme?: keyof typeof portalThemes;
 }) {
+  const t = portalThemes[theme];
   const [filter, setFilter] = useState<(typeof historyFilters)[number]["key"]>("all");
   const [search, setSearch] = useState("");
   const [selectedDetailId, setSelectedDetailId] = useState<string | null>(null);
@@ -94,14 +129,14 @@ export function RequestPortal({
 
   return (
     <>
-      <section aria-label="GA service" className="relative mb-5 overflow-hidden rounded-2xl bg-gradient-to-br from-[#123e35] via-[#165446] to-[#216f5d] p-5 text-white shadow-lg shadow-emerald-950/10 sm:p-6">
+      <section aria-label="GA service" className={`relative mb-5 overflow-hidden rounded-2xl ${t.hero} p-5 text-white shadow-lg sm:p-6`}>
         <div aria-hidden="true" className="pointer-events-none absolute -right-10 -top-20 size-64 rounded-full border-[40px] border-white/5" />
         <div className="relative flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex min-w-0 items-start gap-3 sm:gap-4">
             <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-white/10 ring-1 ring-white/15"><Building2 size={24} /></span>
-            <div className="min-w-0"><p className="text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-200">Service Destination</p><h2 className="mt-1 text-lg font-bold tracking-tight sm:text-xl">General Affairs</h2><p className="mt-1.5 max-w-lg text-xs leading-5 text-emerald-50/85">All new requests are received and reviewed by the GA Admin before being forwarded to the appropriate unit.</p><p className="mt-3 flex items-center gap-2 text-[11px] text-emerald-100"><span className="size-1.5 shrink-0 rounded-full bg-emerald-300" /><span className="break-words">Requester division: <strong className="font-semibold text-white">{division ?? "Not assigned"}</strong></span></p></div>
+            <div className="min-w-0"><p className={`text-[10px] font-bold uppercase tracking-[0.18em] ${t.eyebrow}`}>Service Destination</p><h2 className="mt-1 text-lg font-bold tracking-tight sm:text-xl">General Affairs</h2><p className={`mt-1.5 max-w-lg text-xs leading-5 ${t.body}`}>All new requests are received and reviewed by the Admin before being forwarded to the appropriate unit.</p><p className={`mt-3 flex items-center gap-2 text-[11px] ${t.meta}`}><span className={`size-1.5 shrink-0 rounded-full ${t.dot}`} /><span className="break-words">Requester division: <strong className="font-semibold text-white">{division ?? "Not assigned"}</strong></span></p></div>
           </div>
-          {requestHref ? <Link href={requestHref} className="group inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-white px-4 py-3 text-xs font-bold text-emerald-900 shadow-sm transition hover:bg-emerald-50 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white"><Plus size={16} /> Create GA Request <ArrowRight size={15} className="transition-transform group-hover:translate-x-1 motion-reduce:transform-none" /></Link> : <div className="max-w-sm rounded-xl border border-white/15 bg-black/10 p-3 text-xs leading-5 text-emerald-50"><p className="mb-1 flex items-center gap-2 font-semibold text-white"><Info size={15} /> Request unavailable</p>{unavailableReason ?? "GA is not currently accepting requests."}</div>}
+          {requestHref ? <Link href={requestHref} className={`group inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl px-4 py-3 text-xs font-bold shadow-sm transition ${t.cta} focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white`}><Plus size={16} /> Create GA Request <ArrowRight size={15} className="transition-transform group-hover:translate-x-1 motion-reduce:transform-none" /></Link> : <div className={`max-w-sm rounded-xl border border-white/15 bg-black/10 p-3 text-xs leading-5 ${t.notice}`}><p className="mb-1 flex items-center gap-2 font-semibold text-white"><Info size={15} /> Request unavailable</p>{unavailableReason ?? "GA is not currently accepting requests."}</div>}
         </div>
       </section>
 
@@ -109,10 +144,10 @@ export function RequestPortal({
         <div className="space-y-4 border-b border-slate-100 p-4 sm:p-5">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div><h2 className="text-sm font-bold text-slate-900">Request history</h2><p className="mt-1 text-[11px] text-slate-500">Track current requests and revisit previous submissions.</p></div>
-            <label className="relative block w-full sm:w-72"><span className="sr-only">Search requests</span><Search size={15} className="pointer-events-none absolute left-3 top-3.5 text-slate-400" /><input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search ID, title or location..." className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50/70 pl-9 pr-3 text-xs outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-100" /></label>
+            <label className="relative block w-full sm:w-72"><span className="sr-only">Search requests</span><Search size={15} className="pointer-events-none absolute left-3 top-3.5 text-slate-400" /><input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search ID, title or location..." className={`h-11 w-full rounded-xl border border-slate-200 bg-slate-50/70 pl-9 pr-3 text-xs outline-none transition focus:bg-white focus:ring-2 ${t.focus}`} /></label>
           </div>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4" role="group" aria-label="Filter requests by status">
-            {historyFilters.map(({ key, label, icon: Icon }) => <button key={key} type="button" aria-pressed={filter === key} onClick={() => setFilter(key)} className={`flex min-h-11 items-center gap-2 rounded-xl border px-3 py-2 text-left text-[11px] font-semibold transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 ${filter === key ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-slate-100 bg-white text-slate-500 hover:border-slate-200 hover:bg-slate-50"}`}><Icon size={15} className="shrink-0" /><span className="flex-1">{label}</span><span className={`rounded-md px-2 py-0.5 tabular-nums ${filter === key ? "bg-white text-emerald-800" : "bg-slate-100 text-slate-600"}`}>{counts[key]}</span></button>)}
+            {historyFilters.map(({ key, label, icon: Icon }) => <button key={key} type="button" aria-pressed={filter === key} onClick={() => setFilter(key)} className={`flex min-h-11 items-center gap-2 rounded-xl border px-3 py-2 text-left text-[11px] font-semibold transition focus-visible:outline-2 focus-visible:outline-offset-2 ${t.outline} ${filter === key ? t.filterOn : "border-slate-100 bg-white text-slate-500 hover:border-slate-200 hover:bg-slate-50"}`}><Icon size={15} className="shrink-0" /><span className="flex-1">{label}</span><span className={`rounded-md px-2 py-0.5 tabular-nums ${filter === key ? `bg-white ${t.countOn}` : "bg-slate-100 text-slate-600"}`}>{counts[key]}</span></button>)}
           </div>
         </div>
 
@@ -122,7 +157,7 @@ export function RequestPortal({
             <TicketCheck className="text-indigo-300" size={32} />
             <p className="text-sm font-semibold text-slate-700">{initialRecords.length === 0 ? "No requests yet" : "No matching requests"}</p>
             <p className="max-w-sm text-xs leading-5 text-slate-500">{initialRecords.length === 0 ? requestHref ? "Create your first GA request. You can follow its progress here." : "Your division’s request history will appear here." : "Try another keyword or choose a different status."}</p>
-            {query || filter !== "all" ? <button type="button" onClick={() => { setSearch(""); setFilter("all"); }} className="mt-1 min-h-11 rounded-lg px-3 text-xs font-semibold text-emerald-700 hover:bg-emerald-50 focus-visible:outline-2 focus-visible:outline-emerald-600">Clear filters</button> : null}
+            {query || filter !== "all" ? <button type="button" onClick={() => { setSearch(""); setFilter("all"); }} className={`mt-1 min-h-11 rounded-lg px-3 text-xs font-semibold ${t.link} focus-visible:outline-2 ${t.outline}`}>Clear filters</button> : null}
           </div>
         ) : (
           <div className="divide-y divide-slate-100">
@@ -139,7 +174,7 @@ export function RequestPortal({
                   <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 text-[10px] text-slate-500 sm:gap-x-4 sm:text-[11px]">
                     <span className="inline-flex items-center gap-1.5"><MapPin size={12} className="text-slate-400" /> {record.location}</span>
                     <span className="inline-flex items-center gap-1.5"><CalendarDays size={12} className="text-slate-400" /> {record.reportedAt}</span>
-                    <button type="button" onClick={() => setSelectedDetailId(record.id)} className="ml-auto inline-flex min-h-10 items-center gap-1 rounded-lg px-2 text-[11px] font-semibold text-emerald-700 transition hover:bg-emerald-50 focus-visible:outline-2 focus-visible:outline-emerald-600" aria-label={`View details for ${record.id}`}>Details <ArrowRight size={13} /></button>
+                    <button type="button" onClick={() => setSelectedDetailId(record.id)} className={`ml-auto inline-flex min-h-10 items-center gap-1 rounded-lg px-2 text-[11px] font-semibold transition ${t.link} focus-visible:outline-2 ${t.outline}`} aria-label={`View details for ${record.id}`}>Details <ArrowRight size={13} /></button>
                   </div>
                 </article>
               );

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { requestDestinationError } from "./request-destination";
+import { isGaDivisionSlug, requestDestinationError } from "./request-destination";
 
 const ga = { id: "ga-id", slug: "ga", isServiceTarget: true };
 
@@ -27,4 +27,12 @@ test("missing origin, missing GA and inactive GA fail closed", () => {
 test("renaming GA does not change its destination identity", () => {
   const renamed = { ...ga, name: "General Affairs" };
   assert.equal(requestDestinationError("finance-id", renamed), null);
+});
+
+test("GA is recognised under the slug used by the production database", () => {
+  assert.equal(isGaDivisionSlug("ga"), true);
+  assert.equal(isGaDivisionSlug("general-affair"), true);
+  assert.equal(isGaDivisionSlug("it-team"), false);
+  assert.equal(isGaDivisionSlug(null), false);
+  assert.equal(requestDestinationError("finance-id", { ...ga, slug: "general-affair" }), null);
 });

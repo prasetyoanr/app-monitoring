@@ -11,6 +11,7 @@ import {
   backupUsers,
   masterDivisions,
   requestStatusNotifications,
+  workflowNotifications,
   requestWorkflowHistory,
   technicians,
   troubleshootingApprovals,
@@ -25,6 +26,8 @@ import { getServiceInboxProfile } from "@/features/service-inbox/profile-registr
 import { jakartaDateInput } from "@/lib/jakarta-date";
 import { accountRoleRequiresDivision } from "@/lib/account-role";
 import { serviceInboxScope } from "@/data/issue-scope";
+import { workflowNotificationHref, workflowNotificationText, type WorkflowNotificationKind } from "@/lib/workflow-notifications";
+import { getAdminAlerts } from "@/data/admin-alerts";
 
 const jakartaDateTime = new Intl.DateTimeFormat("en-GB", {
   timeZone: "Asia/Jakarta",
@@ -142,7 +145,7 @@ export function filterStalledTicketRecords(records: TicketRecord[]) {
   );
 }
 
-export async function getTicketRecords(): Promise<TicketRecord[]> {
+export async function getTicketRecords(options: { teamIt?: boolean } = {}): Promise<TicketRecord[]> {
   const currentUser = await requireAuthenticatedUser();
   const baseQuery = db
     .select({
@@ -178,7 +181,7 @@ export async function getTicketRecords(): Promise<TicketRecord[]> {
     .leftJoin(assignedTechnicians, eq(troubleshootingIssues.assignedTechnicianId, assignedTechnicians.id))
     .innerJoin(masterDivisions, eq(troubleshootingIssues.serviceDivisionId, masterDivisions.id));
 
-  const issueQuery = baseQuery.where(serviceInboxScope(currentUser));
+  const issueQuery = baseQuery.where(serviceInboxScope(currentUser, options));
 
   const [rows, approvedRows] = await Promise.all([
     issueQuery.orderBy(desc(troubleshootingIssues.reportedAt), desc(troubleshootingIssues.id)),
@@ -438,6 +441,9 @@ export async function getNavigationCounts() {
     inboxNotificationRows,
     [unreadRequestNotifications],
     requestNotificationRows,
+    [unreadWorkflowNotifications],
+    workflowNotificationRows,
+    adminAlerts,
   ] = await Promise.all([
     (currentUser.role === "requester"
       ? db.select({ value: count() }).from(troubleshootingIssues).where(eq(troubleshootingIssues.requesterId, currentUser.id))
@@ -506,7 +512,34 @@ export async function getNavigationCounts() {
       )
       .orderBy(desc(requestStatusNotifications.createdAt))
       .limit(10),
+    db
+      .select({ value: count() })
+      .from(workflowNotifications)
+      .where(and(eq(workflowNotifications.recipientId, currentUser.id), isNull(workflowNotifications.readAt))),
+    db
+      .select({
+        id: workflowNotifications.id,
+        issueId: workflowNotifications.issueId,
+        kind: workflowNotifications.kind,
+        note: workflowNotifications.note,
+        createdAt: workflowNotifications.createdAt,
+        title: troubleshootingIssues.title,
+      })
+      .from(workflowNotifications)
+      .innerJoin(troubleshootingIssues, eq(workflowNotifications.issueId, troubleshootingIssues.id))
+      .where(and(eq(workflowNotifications.recipientId, currentUser.id), isNull(workflowNotifications.readAt)))
+      .orderBy(desc(workflowNotifications.createdAt))
+      .limit(10),
+    currentUser.role === "administrator" ? getAdminAlerts() : Promise.resolve([]),
   ]);
+  const workflowNotificationItems = workflowNotificationRows.map((row) => ({
+    id: row.id,
+    title: `${row.issueId} · ${row.title}`,
+    description: workflowNotificationText(row.kind as WorkflowNotificationKind, row.note),
+    reportedAt: jakartaDateTime.format(row.createdAt).replace(",", ""),
+    href: workflowNotificationHref(row.kind as WorkflowNotificationKind),
+    status: "New" as const,
+  }));
   const inboxNotifications = inboxNotificationRows.map((row) => ({
     id: row.id,
     title: row.title,
@@ -533,8 +566,11 @@ export async function getNavigationCounts() {
     newRequests: newRequests.value,
     inProgressRequests: inProgressRequests.value,
     unreadRequestNotifications: unreadRequestNotifications.value,
+    unreadWorkflowNotifications: unreadWorkflowNotifications.value,
     inboxNotifications,
     requestNotifications,
+    workflowNotifications: workflowNotificationItems,
+    adminAlerts,
   };
 }
 

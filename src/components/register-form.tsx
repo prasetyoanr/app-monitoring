@@ -17,7 +17,7 @@ export function RegisterForm({ divisions }: { divisions: { id: string; name: str
         <span className="text-xs font-semibold text-slate-300">Username</span>
         <span className="relative mt-2 block">
           <UserRound size={17} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" />
-          <input name="username" required minLength={3} maxLength={80} autoComplete="username" autoCapitalize="none" spellCheck={false} className="h-12 w-full rounded-xl border border-emerald-900/50 bg-[#16251e]/80 pl-11 pr-4 text-sm text-slate-100 outline-none transition placeholder:text-slate-500 focus:border-emerald-500 focus:bg-[#16251e] focus:ring-4 focus:ring-emerald-500/20" placeholder="Username" />
+          <input name="username" required minLength={2} maxLength={80} autoComplete="username" autoCapitalize="none" spellCheck={false} className="h-12 w-full rounded-xl border border-emerald-900/50 bg-[#16251e]/80 pl-11 pr-4 text-sm text-slate-100 outline-none transition placeholder:text-slate-500 focus:border-emerald-500 focus:bg-[#16251e] focus:ring-4 focus:ring-emerald-500/20" placeholder="Username" />
         </span>
       </label>
       <label className="block">

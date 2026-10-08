@@ -31,7 +31,7 @@ export async function getAccountRecords(): Promise<AccountRecord[]> {
     .from(technicians)
     .leftJoin(masterDivisions, eq(technicians.divisionId, masterDivisions.id))
     .where(isNotNull(technicians.username))
-    .orderBy(asc(technicians.name));
+    .orderBy(asc(technicians.username));
 
   const now = new Date();
   return rows.map((row) => ({

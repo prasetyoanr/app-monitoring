@@ -8,7 +8,7 @@ const commands: RequestWorkflowCommand[] = ["send_for_approval", "direct_assign"
 
 test("all request views distinguish approval progress from operational status", () => {
   const ticket = { status: "New" as const, workflowEnabled: true, workflowStatus: "waiting_approver" as const };
-  assert.equal(ticketStatusLabel(ticket), "Awaiting GA Supervisor approval");
+  assert.equal(ticketStatusLabel(ticket), "Awaiting First Approval");
   assert.equal(ticketStatusLabel({ ...ticket, workflowStatus: "ready_for_assignment" }), "Approved · Awaiting assignment");
   assert.equal(ticketStatusLabel({ ...ticket, workflowStatus: "assigned" }), "New");
   assert.equal(ticketStatusLabel({ ...ticket, workflowEnabled: false }), "New");

@@ -28,7 +28,7 @@ export default async function AccountsPage({
       <PageHeader
         eyebrow="Administrator Only"
         title="User Management"
-        description="Manage requesters, GA Admins, GA Supervisors, Senior Approvers, GA Members, and System Administrators."
+        description="Manage users with Requester, Admin, First Approval, Final Approval, Staff, and System Administrator roles."
       />
       {lockedOnly ? (
         <Card className="mb-4 flex flex-col gap-3 border-amber-100 bg-amber-50/60 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">

@@ -20,7 +20,12 @@
     "db:create-admin": "tsx src/db/create-admin.ts",
     "db:encrypt-backup-credentials": "tsx src/db/encrypt-backup-credentials.ts",
     "db:studio": "drizzle-kit studio",
-    "db:check": "drizzle-kit check"
+    "db:check": "drizzle-kit check",
+    "db:backup": "node scripts/db-backup.mjs",
+    "db:restore": "node scripts/db-restore.mjs",
+    "db:restore-test": "node scripts/db-restore-test.mjs",
+    "db:rehearse-upgrade": "node scripts/db-rehearse-upgrade.mjs",
+    "test:scripts": "node --test scripts/lib/backup-retention.test.mjs"
   },
   "dependencies": {
     "@google/genai": "^2.12.0",

@@ -1,6 +1,13 @@
 "use client";
 
-import { Eye, EyeOff, LoaderCircle, LockKeyhole, UserRound } from "lucide-react";
+import {
+  Eye,
+  EyeOff,
+  LoaderCircle,
+  LockKeyhole,
+  TriangleAlert,
+  UserRound,
+} from "lucide-react";
 import { useActionState, useState } from "react";
 
 import { loginAction, type LoginState } from "@/app/login/actions";
@@ -13,6 +20,7 @@ export function LoginForm({ nextPath }: { nextPath: string }) {
     initialState,
   );
   const [showPassword, setShowPassword] = useState(false);
+  const [capsLock, setCapsLock] = useState(false);
 
   return (
     <form action={formAction} className="mt-8 space-y-5">
@@ -28,7 +36,7 @@ export function LoginForm({ nextPath }: { nextPath: string }) {
             name="username"
             type="text"
             required
-            minLength={3}
+            minLength={2}
             maxLength={80}
             autoComplete="username"
             autoCapitalize="none"
@@ -52,6 +60,8 @@ export function LoginForm({ nextPath }: { nextPath: string }) {
             required
             maxLength={128}
             autoComplete="current-password"
+            onKeyUp={(event) => setCapsLock(event.getModifierState("CapsLock"))}
+            onBlur={() => setCapsLock(false)}
             className="h-12 w-full rounded-xl border border-emerald-900/50 bg-[#16251e]/80 pl-11 pr-12 text-sm text-slate-100 outline-none transition placeholder:text-slate-500 focus:border-emerald-500 focus:bg-[#16251e] focus:ring-4 focus:ring-emerald-500/20"
             placeholder="Enter password"
           />
@@ -64,6 +74,11 @@ export function LoginForm({ nextPath }: { nextPath: string }) {
             {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
           </button>
         </span>
+        {capsLock ? (
+          <span className="mt-2 flex items-center gap-1.5 text-[11px] font-medium text-amber-300">
+            <TriangleAlert size={13} aria-hidden="true" /> Caps Lock is on
+          </span>
+        ) : null}
       </label>
 
       {state.error ? (

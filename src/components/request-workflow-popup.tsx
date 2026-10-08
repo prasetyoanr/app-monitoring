@@ -18,13 +18,13 @@ function commandOptions(role: AccountRole, ticket: TicketRecord): CommandOption[
   if (ticket.source !== "division_request" || !ticket.workflowEnabled) return [];
   const labels: Record<RequestWorkflowCommand, string> = {
     resolve: "Resolve Without Assignment",
-    send_for_approval: "Request GA Supervisor Approval",
+    send_for_approval: "Request First Approval",
     direct_assign: "Assign Directly",
-    approve: ticket.workflowStatus === "waiting_final_approver" ? "Approve as Senior Approver" : "Approve",
-    escalate: "Request Senior Approval",
-    return: ticket.workflowStatus === "waiting_final_approver" ? "Return to GA Supervisor" : "Return for Review",
+    approve: ticket.workflowStatus === "waiting_final_approver" ? "Complete Final Approval" : "Approve",
+    escalate: "Request Final Approval",
+    return: ticket.workflowStatus === "waiting_final_approver" ? "Return to First Approval" : "Return for Review",
     reject: "Reject",
-    assign: "Assign Member",
+    assign: "Assign Staff",
   };
   return workflowCommands(role, ticket.workflowStatus, ticket.approvalRequired).filter((value) => value !== "resolve" || Boolean(ticket.receivingDivisionId)).map((value) => ({ value, label: labels[value] }));
 }
@@ -74,7 +74,7 @@ export function RequestWorkflowPopup({
       return;
     }
     if (needsAssignee && !assignee) {
-      setError("Select an assigned member.");
+      setError("Select assigned staff.");
       return;
     }
     setError("");
@@ -126,7 +126,7 @@ export function RequestWorkflowPopup({
               <CheckCircle2 className="mt-0.5 shrink-0" size={17} aria-hidden="true" />
               <div>
                 <p className="text-[11px] font-bold">Approval saved successfully.</p>
-                <p className="mt-0.5 text-[10px] leading-4">Continue by selecting the service unit and assigned member.</p>
+                <p className="mt-0.5 text-[10px] leading-4">Continue by selecting the service unit and assigned staff.</p>
               </div>
             </div>
           ) : null}
@@ -163,7 +163,7 @@ export function RequestWorkflowPopup({
                 </select>
               </label>
               <label className="block">
-                <span className={fieldLabelClass}>Assigned Member</span>
+                <span className={fieldLabelClass}>Assigned Staff</span>
                 <select
                   disabled={isPending}
                   value={assignee}
@@ -174,7 +174,7 @@ export function RequestWorkflowPopup({
                   {agents.map((agent) => <option key={agent.id} value={agent.id}>{agent.name}</option>)}
                 </select>
               </label>
-              {eligibleAgents.length === 0 ? <p className="text-[10px] text-amber-700">No active members are available.</p> : null}
+              {eligibleAgents.length === 0 ? <p className="text-[10px] text-amber-700">No active staff are available.</p> : null}
             </>
           ) : (
             <label className="block">
@@ -196,7 +196,7 @@ export function RequestWorkflowPopup({
           <button type="button" onClick={onClose} disabled={isPending} className="inline-flex h-11 w-full items-center justify-center rounded-xl border border-slate-200 px-4 text-xs font-semibold text-slate-600 hover:bg-slate-50 sm:h-10 sm:w-auto">{isAssignmentFollowUp ? "Assign Later" : "Cancel"}</button>
           <button type="button" disabled={isPending || !command || (needsAssignee && !assignee)} onClick={handleApply} className={`inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-indigo-600 px-5 ${controlTextClass} font-bold text-white transition hover:bg-indigo-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:bg-slate-300 sm:h-10 sm:w-auto`}>
             {isPending ? <LoaderCircle className="animate-spin" size={14} /> : command === "approve" ? <CheckCircle2 size={14} /> : <Route size={14} />}
-            {isPending ? "Saving..." : isAssignmentFollowUp ? "Assign Member" : "Apply"}
+            {isPending ? "Saving..." : isAssignmentFollowUp ? "Assign Staff" : "Apply"}
           </button>
         </div>
       </div>

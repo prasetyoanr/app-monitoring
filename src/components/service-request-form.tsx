@@ -30,15 +30,32 @@ type TargetDivision = {
   inboxProfileKey: string;
 };
 
+const formThemes = {
+  ga: {
+    icon: "bg-emerald-100 text-emerald-800",
+    outline: "focus-visible:outline-emerald-600",
+    submit: "bg-emerald-800 text-white shadow-emerald-900/10 hover:bg-emerald-900",
+  },
+  // IT: indigo-950 navbar color with the yellow accent on the primary action.
+  it: {
+    icon: "bg-indigo-100 text-indigo-900",
+    outline: "focus-visible:outline-indigo-600",
+    submit: "bg-amber-400 text-indigo-950 shadow-amber-900/10 hover:bg-amber-300",
+  },
+} as const;
+
 export function ServiceRequestForm({
   targetDivision,
   categories,
   locations,
+  theme = "ga",
 }: {
   targetDivision: TargetDivision;
   categories: string[];
   locations: string[];
+  theme?: keyof typeof formThemes;
 }) {
+  const t = formThemes[theme];
   const router = useRouter();
   const template =
     getServiceRequestTemplate(targetDivision.requestFormKey) ??
@@ -202,7 +219,7 @@ export function ServiceRequestForm({
 
   return (
     <Card className="overflow-hidden">
-      <div className="flex items-center gap-3 border-b border-slate-100 bg-slate-50/60 px-4 py-4 sm:px-6"><span className="grid size-9 place-items-center rounded-xl bg-emerald-100 text-emerald-800"><ClipboardList size={18} /></span><div><h2 className="text-sm font-bold text-slate-900">Request details</h2><p className="mt-0.5 text-[11px] text-slate-500">Fields marked <span className="text-rose-500">*</span> are required.</p></div></div>
+      <div className="flex items-center gap-3 border-b border-slate-100 bg-slate-50/60 px-4 py-4 sm:px-6"><span className={`grid size-9 place-items-center rounded-xl ${t.icon}`}><ClipboardList size={18} /></span><div><h2 className="text-sm font-bold text-slate-900">Request details</h2><p className="mt-0.5 text-[11px] text-slate-500">Fields marked <span className="text-rose-500">*</span> are required.</p></div></div>
       <form onSubmit={submit} aria-busy={saving} className="w-full space-y-5 p-4 sm:p-6">
         <fieldset disabled={saving} className="min-w-0 disabled:opacity-70">
         <legend className="sr-only">GA request information</legend>
@@ -235,8 +252,8 @@ export function ServiceRequestForm({
         <div className="flex flex-col gap-3 border-t border-slate-100 pt-5 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-[11px] text-slate-500">Track updates in your request history after submission.</p>
           <div className="flex items-center gap-2">
-            {!saving ? <Link href="/requests" className="inline-flex min-h-11 items-center justify-center rounded-xl px-4 text-xs font-semibold text-slate-500 transition hover:bg-slate-100 focus-visible:outline-2 focus-visible:outline-emerald-600">Cancel</Link> : null}
-            <button type="submit" disabled={saving || compressingPhoto} className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-emerald-800 px-5 py-3 text-xs font-semibold text-white shadow-md shadow-emerald-900/10 transition hover:bg-emerald-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 disabled:cursor-not-allowed disabled:opacity-60">{saving ? <LoaderCircle size={15} className="animate-spin motion-reduce:animate-none" /> : <Send size={15} />} {saving ? "Submitting request..." : compressingPhoto ? "Processing photo..." : "Submit to GA"}</button>
+            {!saving ? <Link href="/requests" className={`inline-flex min-h-11 items-center justify-center rounded-xl px-4 text-xs font-semibold text-slate-500 transition hover:bg-slate-100 focus-visible:outline-2 ${t.outline}`}>Cancel</Link> : null}
+            <button type="submit" disabled={saving || compressingPhoto} className={`inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl px-5 py-3 text-xs font-semibold shadow-md transition ${t.submit} focus-visible:outline-2 focus-visible:outline-offset-2 ${t.outline} disabled:cursor-not-allowed disabled:opacity-60`}>{saving ? <LoaderCircle size={15} className="animate-spin motion-reduce:animate-none" /> : <Send size={15} />} {saving ? "Submitting request..." : compressingPhoto ? "Processing photo..." : "Submit to GA"}</button>
           </div>
         </div>
       </form>

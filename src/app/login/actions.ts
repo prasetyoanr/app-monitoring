@@ -58,7 +58,7 @@ export async function loginAction(
   const password = String(formData.get("password") ?? "");
   const nextPath = safeRedirectPath(formData.get("next"));
 
-  if (!/^[a-z0-9._-]{3,80}$/.test(username) || password.length > 128) {
+  if (!/^[a-z0-9._-]{2,80}$/.test(username) || password.length > 128) {
     await recordFailedLogin({ username, reason: "invalid_format" });
     return { error: "The username or password format is invalid." };
   }

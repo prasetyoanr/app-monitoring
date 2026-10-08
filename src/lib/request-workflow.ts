@@ -12,7 +12,7 @@ export function workflowNoteError(command: RequestWorkflowCommand, note: string)
   if (command === "resolve" && length < 5) return "Describe the administrative resolution in at least 5 characters.";
   if (length > 1_000) return "The note must not exceed 1000 characters.";
   if (command === "direct_assign" && length < 5) {
-    return "Direct assignment requires a reason of at least 5 characters explaining why supervisor approval is not needed.";
+    return "Direct assignment requires a reason of at least 5 characters explaining why First Approval is not needed.";
   }
   if ((command === "return" || command === "reject") && length < 5) {
     return "Return and rejection actions require a note of at least 5 characters.";
@@ -57,11 +57,11 @@ export function workflowTransition(
 export function requestWorkflowLabel(status: RequestWorkflowStatus) {
   const labels: Record<RequestWorkflowStatus, string> = {
     resolved: "Resolved administratively",
-    submitted: "Submitted to GA Admin",
-    waiting_approver: "Awaiting GA Supervisor approval",
-    waiting_final_approver: "Awaiting Senior Approver decision",
+    submitted: "Submitted to Admin",
+    waiting_approver: "Awaiting First Approval",
+    waiting_final_approver: "Awaiting Final Approval",
     ready_for_assignment: "Approved · Awaiting assignment",
-    assigned: "Assigned to a member",
+    assigned: "Assigned to staff",
     needs_revision: "Needs revision",
     rejected: "Rejected",
   };

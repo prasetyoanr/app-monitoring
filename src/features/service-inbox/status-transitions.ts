@@ -16,10 +16,19 @@ const allowedTransitions: Partial<Record<IssueStatus, readonly IssueStatus[]>> =
 
 const itRequestTransitions: Partial<Record<IssueStatus, readonly IssueStatus[]>> = {
   New: ["In Progress"],
-  "In Progress": ["New", "Waiting for Client Approval"],
+  "In Progress": ["New"],
   Completed: ["Reopened"],
   Reopened: ["In Progress"],
 };
+
+export function getITStatusAfterWorkPhoto(
+  status: IssueStatus,
+  hasWorkPhoto: boolean,
+): IssueStatus {
+  return status === "In Progress" && hasWorkPhoto
+    ? "Waiting for Client Approval"
+    : status;
+}
 
 export function getBasicStatusOptions(currentStatus: IssueStatus): IssueStatus[] {
   return [currentStatus, ...(allowedTransitions[currentStatus] ?? [])];
@@ -57,6 +66,5 @@ export function getITRequestStatusTransitionRequirement(
   ) {
     return "reason";
   }
-  if (nextStatus === "Waiting for Client Approval") return "confirm";
   return "direct";
 }

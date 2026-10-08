@@ -28,24 +28,35 @@ export function StatusBadge({ tone, attention = false, children }: { tone: "gree
   return <span className={`status-badge inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-[10px] font-bold ring-1 ring-inset ${tones[tone]} ${attention ? "shadow-[0_0_0_3px_rgba(16,185,129,0.16)]" : ""}`} title={attention ? "New request awaiting action" : undefined}>{attention ? <span className="relative flex size-1.5"><span className="absolute inline-flex size-full animate-ping rounded-full bg-emerald-500 opacity-75" /><span className="relative inline-flex size-1.5 rounded-full bg-emerald-600" /></span> : null}{children}</span>;
 }
 
-export function MetricCard({ label, value, detail, icon: Icon, tone = "blue", compactOnMobile = false }: { label: string; value: string; detail: React.ReactNode; icon: LucideIcon; tone?: "blue" | "green" | "amber" | "red"; compactOnMobile?: boolean }) {
-  const tones = {
-    blue: "bg-indigo-600 text-white",
-    green: "bg-emerald-500 text-white",
-    amber: "bg-amber-500 text-white",
-    red: "bg-rose-500 text-white",
+export function MetricCard({ label, value, detail, icon: Icon, tone = "blue", compactOnMobile = false }: { label: string; value: string; detail: React.ReactNode; icon: LucideIcon; tone?: "blue" | "green" | "amber" | "red" | "teal"; compactOnMobile?: boolean }) {
+  const tiles = {
+    blue: "bg-indigo-50 text-indigo-600",
+    teal: "bg-teal-50 text-teal-700",
+    green: "bg-emerald-50 text-emerald-600",
+    amber: "bg-amber-50 text-amber-600",
+    red: "bg-rose-50 text-rose-600",
+  };
+  const strips = {
+    blue: "bg-indigo-500",
+    teal: "bg-teal-600",
+    green: "bg-emerald-500",
+    amber: "bg-amber-400",
+    red: "bg-rose-500",
   };
   return (
-    <Card className={`metric-card metric-${tone} ${compactOnMobile ? "min-w-0 p-2.5 sm:p-5" : "p-4 sm:p-5"}`}>
-      <div className={compactOnMobile ? "flex flex-col sm:flex-row sm:items-start sm:justify-between" : "flex items-start justify-between"}>
-        <div className={compactOnMobile ? "order-2 min-w-0 sm:order-1" : ""}>
-          <p className={compactOnMobile ? "min-h-6 text-[8px] font-bold uppercase leading-3 tracking-[0.04em] text-slate-500 sm:min-h-0 sm:text-[11px] sm:tracking-[0.08em]" : "text-[11px] font-bold uppercase tracking-[0.08em] text-slate-500"}>{label}</p>
-          <p className={compactOnMobile ? "mt-1 truncate text-xl font-black tracking-[-0.05em] text-slate-900 sm:mt-2 sm:text-[28px]" : "mt-2 text-[28px] font-black tracking-[-0.05em] text-slate-900"}>{value}</p>
+    <section className={`overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.05)] ${compactOnMobile ? "min-w-0" : ""}`}>
+      <span aria-hidden="true" className={`block h-1 ${strips[tone]}`} />
+      <div className={compactOnMobile ? "p-3 sm:p-5" : "p-4 sm:p-5"}>
+        <div className={compactOnMobile ? "flex flex-col sm:flex-row sm:items-start sm:justify-between" : "flex items-start justify-between"}>
+          <div className={compactOnMobile ? "order-2 min-w-0 sm:order-1" : "min-w-0"}>
+            <p className={compactOnMobile ? "min-h-6 truncate text-[8px] font-bold uppercase leading-3 tracking-[0.12em] text-slate-500 sm:min-h-0 sm:text-[11px]" : "truncate text-[11px] font-bold uppercase tracking-[0.12em] text-slate-500"}>{label}</p>
+            <p className={compactOnMobile ? "mt-1 truncate text-xl font-black tracking-[-0.03em] text-slate-900 tabular-nums sm:mt-2 sm:text-[28px]" : "mt-2 truncate text-[28px] font-black tracking-[-0.03em] text-slate-900 tabular-nums"}>{value}</p>
+          </div>
+          <span className={`grid shrink-0 place-items-center ${compactOnMobile ? "order-1 mb-2 size-7 rounded-lg sm:order-2 sm:mb-0 sm:size-11 sm:rounded-xl" : "size-11 rounded-xl"} ${tiles[tone]}`}><Icon className={compactOnMobile ? "size-3.5 sm:size-5" : "size-5"} strokeWidth={2.2} /></span>
         </div>
-        <span className={`metric-icon grid place-items-center ${compactOnMobile ? "order-1 mb-2 size-7 rounded-lg sm:order-2 sm:mb-0 sm:size-11 sm:rounded-2xl" : "size-11 rounded-2xl"} ${tones[tone]}`}><Icon className={compactOnMobile ? "size-3.5 sm:size-5" : "size-5"} strokeWidth={2.3} /></span>
+        <div className={compactOnMobile ? "hidden text-slate-500 sm:mt-3 sm:block sm:text-[11px] sm:font-medium" : "mt-3 text-[11px] font-medium text-slate-500"}>{detail}</div>
       </div>
-      <div className={compactOnMobile ? "hidden sm:mt-3 sm:block sm:text-[11px] sm:font-medium sm:text-slate-500" : "mt-3 text-[11px] font-medium text-slate-500"}>{detail}</div>
-    </Card>
+    </section>
   );
 }
 
