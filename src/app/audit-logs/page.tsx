@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Activity, ChevronDown, ChevronLeft, ChevronRight, Download, Filter, MonitorCheck, Search, ShieldCheck, X } from "lucide-react";
 
 import { Card, PageHeader } from "@/components/ui";
+import { auditActionLegend, auditActionStyle } from "@/lib/audit-action-style";
 import {
   auditModuleOptions,
   AUDIT_LOG_EXPORT_LIMIT,
@@ -34,6 +35,16 @@ function single(value: string | string[] | undefined) {
 
 function humanize(value: string) {
   return value.replaceAll(".", " ").replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function ActionBadge({ action }: { action: string }) {
+  const style = auditActionStyle(action);
+  return (
+    <span className={`inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-[10px] font-bold ring-1 ring-inset ${style.badge}`}>
+      <span aria-hidden="true" className={`size-1.5 shrink-0 rounded-full ${style.dot}`} />
+      {humanize(action)}
+    </span>
+  );
 }
 
 function actorLabel(record: Awaited<ReturnType<typeof getAuditLogRecords>>["records"][number]) {
@@ -208,17 +219,26 @@ export default async function AuditLogsPage({
           <span className="rounded-lg bg-slate-100 px-2.5 py-1 text-[10px] font-bold text-slate-600">Page {result.page} of {result.totalPages}</span>
         </div>
 
+        <div className="flex flex-wrap items-center gap-x-3.5 gap-y-1.5 border-b border-slate-100 bg-slate-50/50 px-4 py-2.5 sm:px-5" aria-label="Action colour legend">
+          <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Action colours</span>
+          {auditActionLegend.map((item) => (
+            <span key={item.tone} className="inline-flex items-center gap-1.5 text-[10px] font-medium text-slate-500">
+              <span aria-hidden="true" className={`size-2 rounded-full ${item.dot}`} />{item.label}
+            </span>
+          ))}
+        </div>
+
         {result.records.length ? <>
           <div className="divide-y divide-slate-100 md:hidden">
             {result.records.map((record) => {
               const details = metadataEntries(record.metadata);
-              return <article key={record.id} className="p-4"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="text-xs font-bold text-slate-900">{humanize(record.action)}</p><p className="mt-1 truncate text-[10px] text-slate-500">{actorLabel(record)}</p></div><span className="shrink-0 rounded-lg bg-indigo-50 px-2 py-1 text-[9px] font-bold text-indigo-700">{humanize(record.actorType)}</span></div><p className="mt-3 font-mono text-[9px] text-slate-500">{record.entityType} · {record.entityId}</p>{details.length ? <dl className="mt-3 grid gap-1 rounded-xl bg-slate-50 p-3">{details.map((detail) => <div key={detail.key} className="grid grid-cols-[7rem_1fr] gap-2 text-[10px]"><dt className="font-semibold text-slate-500">{detail.key}</dt><dd className="break-words text-slate-700">{detail.value}</dd></div>)}</dl> : null}<time dateTime={record.createdAt} className="mt-3 flex items-center gap-1.5 text-[9px] font-medium text-slate-400"><Activity size={11} /> {dateTime.format(new Date(record.createdAt)).replace(",", "")} WIB</time></article>;
+              return <article key={record.id} className="p-4"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><ActionBadge action={record.action} /><p className="mt-1 truncate text-[10px] text-slate-500">{actorLabel(record)}</p></div><span className="shrink-0 rounded-lg bg-indigo-50 px-2 py-1 text-[9px] font-bold text-indigo-700">{humanize(record.actorType)}</span></div><p className="mt-3 font-mono text-[9px] text-slate-500">{record.entityType} · {record.entityId}</p>{details.length ? <dl className="mt-3 grid gap-1 rounded-xl bg-slate-50 p-3">{details.map((detail) => <div key={detail.key} className="grid grid-cols-[7rem_1fr] gap-2 text-[10px]"><dt className="font-semibold text-slate-500">{detail.key}</dt><dd className="break-words text-slate-700">{detail.value}</dd></div>)}</dl> : null}<time dateTime={record.createdAt} className="mt-3 flex items-center gap-1.5 text-[9px] font-medium text-slate-400"><Activity size={11} /> {dateTime.format(new Date(record.createdAt)).replace(",", "")} WIB</time></article>;
             })}
           </div>
           <div className="hidden overflow-x-auto md:block">
             <table className="w-full min-w-[900px] text-left">
               <thead className="bg-slate-50 text-[9px] font-bold uppercase tracking-wider text-slate-400"><tr><th className="px-5 py-3">Time</th><th className="px-4 py-3">Actor</th><th className="px-4 py-3">Action</th><th className="px-4 py-3">Target</th><th className="px-5 py-3">Details</th></tr></thead>
-              <tbody className="divide-y divide-slate-100">{result.records.map((record) => { const details = metadataEntries(record.metadata); return <tr key={record.id} className="align-top text-[11px]"><td className="whitespace-nowrap px-5 py-4 font-medium text-slate-500">{dateTime.format(new Date(record.createdAt)).replace(",", "")}<span className="ml-1 text-[9px] text-slate-400">WIB</span></td><td className="px-4 py-4"><p className="max-w-52 font-semibold text-slate-800">{actorLabel(record)}</p><p className="mt-1 text-[9px] font-bold uppercase tracking-wide text-slate-400">{humanize(record.actorType)}</p></td><td className="px-4 py-4"><span className="inline-flex rounded-lg bg-indigo-50 px-2 py-1 text-[10px] font-bold text-indigo-700">{humanize(record.action)}</span></td><td className="px-4 py-4"><p className="font-semibold text-slate-700">{humanize(record.entityType)}</p><p className="mt-1 max-w-48 break-all font-mono text-[9px] text-slate-400">{record.entityId}</p></td><td className="px-5 py-4">{details.length ? <dl className="space-y-1">{details.map((detail) => <div key={detail.key} className="grid grid-cols-[8rem_1fr] gap-2"><dt className="font-semibold text-slate-400">{detail.key}</dt><dd className="max-w-sm break-words text-slate-600" title={detail.value}>{detail.value}</dd></div>)}</dl> : <span className="text-slate-300">—</span>}</td></tr>; })}</tbody>
+              <tbody className="divide-y divide-slate-100">{result.records.map((record) => { const details = metadataEntries(record.metadata); return <tr key={record.id} className="align-top text-[11px]"><td className="whitespace-nowrap px-5 py-4 font-medium text-slate-500">{dateTime.format(new Date(record.createdAt)).replace(",", "")}<span className="ml-1 text-[9px] text-slate-400">WIB</span></td><td className="px-4 py-4"><p className="max-w-52 font-semibold text-slate-800">{actorLabel(record)}</p><p className="mt-1 text-[9px] font-bold uppercase tracking-wide text-slate-400">{humanize(record.actorType)}</p></td><td className="px-4 py-4"><ActionBadge action={record.action} /></td><td className="px-4 py-4"><p className="font-semibold text-slate-700">{humanize(record.entityType)}</p><p className="mt-1 max-w-48 break-all font-mono text-[9px] text-slate-400">{record.entityId}</p></td><td className="px-5 py-4">{details.length ? <dl className="space-y-1">{details.map((detail) => <div key={detail.key} className="grid grid-cols-[8rem_1fr] gap-2"><dt className="font-semibold text-slate-400">{detail.key}</dt><dd className="max-w-sm break-words text-slate-600" title={detail.value}>{detail.value}</dd></div>)}</dl> : <span className="text-slate-300">—</span>}</td></tr>; })}</tbody>
             </table>
           </div>
         </> : <div className="px-5 py-14 text-center"><ShieldCheck className="mx-auto text-slate-300" size={28} /><p className="mt-3 text-sm font-bold text-slate-700">No audit records found</p><p className="mt-1 text-xs text-slate-400">Adjust the filters or wait for new application activity.</p></div>}

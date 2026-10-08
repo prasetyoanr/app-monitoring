@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
-import { Activity, CircleAlert, CircleCheck, Clock3, Database, HardDrive, RefreshCw, Rocket, TriangleAlert } from "lucide-react";
+import { Activity, CircleAlert, CircleCheck, Clock3, Database, HardDrive, Rocket, TriangleAlert } from "lucide-react";
 
 import { Card, PageHeader } from "@/components/ui";
 import { getSystemHealth, type HealthStatus } from "@/data/system-health";
+import { RefreshIcon } from "@/components/refresh-icon";
 
 export const metadata: Metadata = { title: "System Health" };
 
@@ -43,7 +44,7 @@ export default async function SystemHealthPage() {
         eyebrow="Administrator Only"
         title="System Health"
         description="Read-only checks for the application runtime, database, storage, version, and migrations."
-        action={<form method="get"><button type="submit" className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 text-xs font-semibold text-white hover:bg-indigo-700"><RefreshCw size={14} /> Refresh checks</button></form>}
+        action={<form method="get"><button type="submit" className="group inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 text-xs font-semibold text-white transition hover:bg-indigo-700 active:scale-95"><RefreshIcon size={14} className="group-hover:rotate-180" /> Refresh checks</button></form>}
       />
 
       <Card className="mb-4 flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">

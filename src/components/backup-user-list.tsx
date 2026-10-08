@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, Eye, Filter, FolderSync, Link2, Pencil, Plus, RefreshCw, Search, Trash2, X } from "lucide-react";
+import { Check, Eye, Filter, FolderSync, Link2, Pencil, Plus, Search, Trash2, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useDeferredValue, useMemo, useRef, useState, useTransition } from "react";
 import {
@@ -11,6 +11,8 @@ import {
 import { BackupInvitationModal } from "@/components/backup-invitation-modal";
 import { Card, StatusBadge } from "@/components/ui";
 import type { BackupRecord } from "@/data/types";
+import { RefreshIcon } from "@/components/refresh-icon";
+import { useSpinHold } from "@/components/use-spin-hold";
 
 type FormMode = "create" | "edit" | null;
 
@@ -42,6 +44,7 @@ function AccountDataIndicator({ record }: { record: BackupRecord }) {
 export function BackupUserList({ initialRecords, canManage, divisionOptions }: { initialRecords: BackupRecord[]; canManage: boolean; divisionOptions: string[] }) {
   const router = useRouter();
   const [isRefreshing, startRefresh] = useTransition();
+  const [spinHold, holdSpin] = useSpinHold();
   const backupRecords = initialRecords;
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("All Status");
@@ -146,6 +149,7 @@ export function BackupUserList({ initialRecords, canManage, divisionOptions }: {
   }
 
   function refreshRecords() {
+    holdSpin();
     startRefresh(() => router.refresh());
   }
 
@@ -157,8 +161,8 @@ export function BackupUserList({ initialRecords, canManage, divisionOptions }: {
           <label className="relative"><Filter className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={15} /><select value={status} onChange={(event) => setStatus(event.target.value)} className="h-10 w-full min-w-40 appearance-none rounded-xl border border-slate-200 bg-white pl-9 pr-8 text-xs text-slate-600 outline-none sm:w-auto"><option>All Status</option><option>Success</option><option>Overdue</option><option>Failed</option><option>Pending</option></select></label>
         </div>
         <div className={`grid gap-2 ${canManage ? "sm:grid-cols-3" : "sm:grid-cols-1"}`}>
-          <button type="button" onClick={refreshRecords} disabled={isRefreshing} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-xs font-semibold text-slate-600 disabled:text-slate-400" aria-label="Refresh backup records">
-            <RefreshCw size={16} className={isRefreshing ? "animate-spin" : ""} />
+          <button type="button" onClick={refreshRecords} disabled={isRefreshing} className="group inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 active:scale-95 disabled:text-slate-400" aria-label="Refresh backup records">
+            <RefreshIcon size={16} spinning={isRefreshing || spinHold} className="group-hover:rotate-180" />
             {isRefreshing ? "Refreshing..." : "Refresh"}
           </button>
           {canManage ? <><button onClick={() => setInvitationOpen(true)} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-[#3157d5] bg-white px-4 text-xs font-semibold text-[#3157d5]"><Link2 size={16} /> Client Link</button><button onClick={() => openForm("create")} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-[#3157d5] px-4 text-xs font-semibold text-white shadow-lg shadow-blue-600/15 hover:bg-[#2445b5]"><Plus size={16} /> Add Record</button></> : null}

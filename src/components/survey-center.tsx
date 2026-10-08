@@ -15,7 +15,6 @@ import {
   MessageSquareText,
   Network,
   Pencil,
-  RefreshCw,
   RotateCcw,
   Send,
   Star,
@@ -36,6 +35,7 @@ import {
   setSurveyStatusAction,
 } from "@/app/surveys/actions";
 import { Card, MetricCard, PageHeader, StatusBadge } from "@/components/ui";
+import { RefreshIcon } from "@/components/refresh-icon";
 import type {
   SurveyAnswerValue,
   SurveyAnswerAnalysisRecord,
@@ -454,7 +454,7 @@ export function SurveyCenter({
         </Card>
       ) : (
         <div className="mt-4">
-          {surveys.length ? <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between"><label className="block max-w-md flex-1 text-[11px] font-bold text-slate-600">Survey<select value={selectedSurveyId} onChange={(event) => selectSurvey(event.target.value)} className="mt-2 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-xs outline-none focus:border-indigo-500">{surveys.map((survey) => <option key={survey.id} value={survey.id}>{survey.title} ({survey.responseCount})</option>)}</select></label><button type="button" onClick={() => void loadResponses(selectedSurveyId)} disabled={loadingResponses} className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-xs font-semibold text-slate-600 disabled:text-slate-300"><RefreshCw size={15} className={loadingResponses ? "animate-spin" : ""} />Refresh Results</button></div> : null}
+          {surveys.length ? <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between"><label className="block max-w-md flex-1 text-[11px] font-bold text-slate-600">Survey<select value={selectedSurveyId} onChange={(event) => selectSurvey(event.target.value)} className="mt-2 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-xs outline-none focus:border-indigo-500">{surveys.map((survey) => <option key={survey.id} value={survey.id}>{survey.title} ({survey.responseCount})</option>)}</select></label><button type="button" onClick={() => void loadResponses(selectedSurveyId)} disabled={loadingResponses} className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-xs font-semibold text-slate-600 disabled:text-slate-300"><RefreshIcon size={15} spinning={loadingResponses} />Refresh Results</button></div> : null}
           {loadingResponses ? <div className="mt-4 grid min-h-48 place-items-center rounded-2xl border border-slate-200 bg-white"><LoaderCircle className="animate-spin text-indigo-600" size={26} /></div> : responseData ? (
             <>
               <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">

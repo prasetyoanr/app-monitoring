@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Activity, ArrowRight, ChevronDown, ChevronRight, CircleCheck, Clock3, FileText, Inbox, Plus, ShieldAlert, TicketCheck, UserRoundCheck } from "lucide-react";
 import { isITTeamUser } from "@/auth/session";
+import { AdminOverview, type AdminTile } from "@/components/admin-overview";
 import { Card, MetricCard, SectionTitle, StatusBadge } from "@/components/ui";
 import { getDashboardData } from "@/data/dashboard-data";
 import { ticketStatusLabel } from "@/lib/request-workflow";
@@ -147,6 +148,42 @@ export default async function DashboardPage() {
         }
       : null,
   ].filter((item): item is { href: string; label: string; sub: string; icon: typeof TicketCheck; tile: string; hover: string } => item !== null);
+
+  // The administrator gets a compact, interactive overview of its own.
+  if (isAdmin && adminControl) {
+    // Failed sign-ins only count as an alert from 5 attempts, like the notification bell.
+    const tiles: AdminTile[] = [
+      { id: "intake", group: "workflow", label: "Admin", hint: "Intake dan revisi", value: adminControl.gaAdmin, href: "/inbox?workflow=intake", severity: "info" },
+      { id: "first", group: "workflow", label: "First Approval", hint: "Menunggu persetujuan", value: adminControl.gaSupervisor, href: "/inbox?workflow=waiting_approver", severity: "info" },
+      { id: "final", group: "workflow", label: "Final Approval", hint: "Menunggu persetujuan akhir", value: adminControl.seniorApprover, href: "/inbox?workflow=waiting_final_approver", severity: "info" },
+      { id: "assign", group: "workflow", label: "Menunggu assignment", hint: "Siap ditugaskan ke staf", value: adminControl.unassigned, href: "/inbox?workflow=ready_for_assignment", severity: "warning" },
+      { id: "stalled", group: "operations", label: "Pekerjaan macet", hint: "Tanpa update lebih dari 3 hari", value: adminControl.stalled, href: "/admin-operations?view=stalled", severity: "warning" },
+      { id: "locked", group: "operations", label: "Akun terkunci", hint: "Perlu dibuka atau ditinjau", value: adminControl.lockedAccounts, href: "/accounts?status=locked", severity: "critical" },
+      { id: "failed", group: "security", label: "Login gagal", hint: "24 jam terakhir", value: adminControl.failedLogins, href: "/audit-logs?event=failed_login&period=24h", severity: adminControl.failedLogins >= 5 ? "critical" : "info" },
+      { id: "denied", group: "security", label: "Akses ditolak", hint: "24 jam terakhir", value: adminControl.deniedAttempts, href: "/audit-logs?event=authorization_denied&period=24h", severity: "warning" },
+      { id: "sensitive", group: "security", label: "Akses data sensitif", hint: "24 jam terakhir", value: adminControl.sensitiveAccess, href: "/audit-logs?event=sensitive_access&period=24h", severity: "info" },
+    ];
+    return (
+      <AdminOverview
+        firstName={currentUser.name.split(" ")[0]}
+        dateLabel={todayLabel}
+        compactDateLabel={compactDateLabel}
+        timeLabel={timeLabel}
+        activeIssues={activeIssues}
+        completionRate={completionRate}
+        tiles={tiles}
+        tickets={tickets.slice(0, 4).map((ticket) => ({
+          id: ticket.id,
+          title: ticket.title,
+          category: ticket.category,
+          location: ticket.location,
+          statusLabel: ticketStatusLabel(ticket),
+          statusTone: ticket.status === "Completed" ? "green" : ticket.status === "In Progress" ? "blue" : "amber",
+          completion: ticket.completedDays === null ? "Belum selesai" : ticket.completedDays === 0 ? "Hari yang sama" : `${ticket.completedDays} hari`,
+        }))}
+      />
+    );
+  }
 
   // The Inbox has no per-ticket page; open the list instead of a 404.
   const ticketHref = () => (isRequester ? "/requests" : "/inbox");

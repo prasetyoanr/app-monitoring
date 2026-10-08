@@ -16,7 +16,6 @@ const dateTime = new Intl.DateTimeFormat("en-GB", {
   timeZone: "Asia/Jakarta",
   day: "2-digit",
   month: "short",
-  year: "numeric",
   hour: "2-digit",
   minute: "2-digit",
   hour12: false,
@@ -76,39 +75,58 @@ export function AdminOperationsCenter({
 
   return (
     <>
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+      <div role="tablist" aria-label="Exception type" className="flex flex-wrap gap-1.5">
         {([
-          ["all", "All exceptions", counts.all],
-          ["stalled", "Stalled", counts.stalled],
-          ["unassigned", "Unassigned", counts.unassigned],
-          ["invalid", "Invalid assignment", counts.invalid],
-        ] as const).map(([value, label, count]) => (
-          <button key={value} type="button" onClick={() => setView(value)} className={`rounded-xl border p-3 text-left transition ${view === value ? "border-indigo-300 bg-indigo-50 ring-2 ring-indigo-100" : "border-slate-200 bg-white hover:bg-slate-50"}`}>
-            <span className="block text-[9px] font-bold uppercase tracking-wide text-slate-500">{label}</span><strong className="mt-1 block text-xl font-bold text-slate-900">{count}</strong>
+          ["all", "All", counts.all, "border-slate-300 bg-slate-900 text-white", "border-slate-200 bg-white text-slate-600 hover:bg-slate-50", "bg-white/20 text-white", "bg-slate-100 text-slate-600"],
+          ["stalled", "Stalled", counts.stalled, "border-amber-500 bg-amber-500 text-white", "border-amber-200 bg-amber-50 text-amber-800 hover:bg-amber-100", "bg-white/25 text-white", "bg-amber-200/70 text-amber-900"],
+          ["unassigned", "Unassigned", counts.unassigned, "border-amber-500 bg-amber-500 text-white", "border-amber-200 bg-amber-50 text-amber-800 hover:bg-amber-100", "bg-white/25 text-white", "bg-amber-200/70 text-amber-900"],
+          ["invalid", "Invalid assignment", counts.invalid, "border-rose-600 bg-rose-600 text-white", "border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100", "bg-white/25 text-white", "bg-rose-200/70 text-rose-800"],
+        ] as const).map(([value, label, count, activeStyle, idleStyle, activeCount, idleCount]) => (
+          <button
+            key={value}
+            type="button"
+            role="tab"
+            aria-selected={view === value}
+            onClick={() => setView(value)}
+            className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-[11px] font-bold transition active:scale-95 ${view === value ? activeStyle : count === 0 ? "border-slate-200 bg-white text-slate-400 hover:bg-slate-50" : idleStyle}`}
+          >
+            {label}
+            <span className={`min-w-5 rounded-full px-1.5 text-center text-[10px] tabular-nums ${view === value ? activeCount : count === 0 ? "bg-slate-100 text-slate-400" : idleCount}`}>{count}</span>
           </button>
         ))}
       </div>
 
-      {success ? <p role="status" className="mt-4 rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-xs font-semibold text-emerald-700">{success}</p> : null}
+      {success ? <p role="status" className="mt-3 rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-2.5 text-xs font-semibold text-emerald-700">{success}</p> : null}
 
-      <Card className="mt-4 overflow-hidden">
-        <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-4 py-4 sm:px-5"><div><h2 className="text-sm font-bold text-slate-900">Recovery Queue</h2><p className="mt-1 text-[10px] text-slate-500">Only exceptions are shown. Normal work remains in Inbox.</p></div><span className="rounded-lg bg-slate-100 px-2.5 py-1 text-[10px] font-bold text-slate-600">{records.length} records</span></div>
-        {records.length ? <div className="divide-y divide-slate-100">{records.map((record) => (
-          <article key={record.id} className="p-4 sm:p-5">
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-center">
-              <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-center gap-2"><span className="font-mono text-[9px] font-bold text-slate-400">{record.id}</span>{record.stalled ? <StatusBadge tone="amber">Stalled · {record.inactiveDays}d</StatusBadge> : null}{record.unassigned ? <StatusBadge tone="blue">Awaiting assignment</StatusBadge> : null}{record.invalidAssignment ? <StatusBadge tone="red">Invalid assignment</StatusBadge> : null}</div>
-                <h3 className="mt-2 truncate text-sm font-bold text-slate-900">{record.title}</h3>
-                <p className="mt-1 text-[10px] text-slate-500">{record.division} → {record.serviceDivision} · {issueStatusLabel(record.status)}</p>
+      <Card className="mt-3 overflow-hidden">
+        <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-4 py-2.5"><div className="min-w-0"><h2 className="text-sm font-bold text-slate-900">Recovery Queue</h2><p className="truncate text-[10px] text-slate-500">Only exceptions are shown. Normal work remains in Inbox.</p></div><span className="shrink-0 rounded-lg bg-slate-100 px-2.5 py-1 text-[10px] font-bold text-slate-600">{records.length} records</span></div>
+        {records.length ? <div className="divide-y divide-slate-100">{records.map((record) => {
+          // Stalled for a week or more, or an invalid assignment, is more serious than a
+          // plain 3-day stall or a request that is simply waiting to be assigned.
+          const severe = record.invalidAssignment || (record.stalled && record.inactiveDays >= 7);
+          return (
+            <article key={record.id} className={`border-l-4 px-3 py-2.5 transition hover:bg-slate-50/70 sm:px-4 ${severe ? "border-rose-500" : "border-amber-400"}`}>
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+                <div className="min-w-0 flex-1 basis-72">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="font-mono text-[9px] font-bold text-slate-400">{record.id}</span>
+                    {record.stalled ? <StatusBadge tone={record.inactiveDays >= 7 ? "red" : "amber"}>Stalled · {record.inactiveDays}d</StatusBadge> : null}
+                    {record.unassigned ? <StatusBadge tone="amber">Awaiting assignment</StatusBadge> : null}
+                    {record.invalidAssignment ? <StatusBadge tone="red">Invalid assignment</StatusBadge> : null}
+                  </div>
+                  <h3 className="mt-1 truncate text-xs font-bold text-slate-900">{record.title}</h3>
+                  <p className="mt-0.5 truncate text-[10px] text-slate-500">
+                    {record.division} → {record.serviceDivision} · {issueStatusLabel(record.status)} · Staff: <strong className="font-semibold text-slate-700">{record.currentAssignee ?? "Not available"}</strong> · {dateTime.format(new Date(record.lastUpdatedAt)).replace(",", "")}
+                  </p>
+                </div>
+                <div className="flex shrink-0 items-center gap-1.5">
+                  {record.canReassign ? <button type="button" onClick={() => openReassign(record)} className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg bg-indigo-600 px-3 text-[10px] font-semibold text-white transition hover:bg-indigo-700 active:scale-95"><UserRoundPlus size={13} /> Reassign</button> : null}
+                  <Link href={record.unassigned ? "/inbox?workflow=ready_for_assignment" : "/inbox?attention=stalled"} title="Open Inbox" aria-label={`Open Inbox for ${record.id}`} className="grid size-8 place-items-center rounded-lg border border-slate-200 text-slate-500 transition hover:bg-slate-100 hover:text-slate-800 active:scale-95"><ArrowRight size={14} /></Link>
+                </div>
               </div>
-              <div className="grid shrink-0 gap-1 text-[10px] text-slate-500 sm:grid-cols-2 lg:w-[24rem]"><p className="rounded-lg bg-slate-50 px-3 py-2"><span className="block text-[8px] font-bold uppercase tracking-wide text-slate-400">Assigned staff</span><strong className="mt-0.5 block truncate text-slate-700">{record.currentAssignee ?? "Not available"}</strong></p><p className="rounded-lg bg-slate-50 px-3 py-2"><span className="block text-[8px] font-bold uppercase tracking-wide text-slate-400">Last update</span><strong className="mt-0.5 block text-slate-700">{dateTime.format(new Date(record.lastUpdatedAt)).replace(",", "")} WIB</strong></p></div>
-              <div className="flex shrink-0 gap-2 lg:w-36 lg:flex-col">
-                {record.canReassign ? <button type="button" onClick={() => openReassign(record)} className="inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-lg bg-indigo-600 px-3 text-[10px] font-semibold text-white hover:bg-indigo-700"><UserRoundPlus size={13} /> Reassign</button> : null}
-                <Link href={record.unassigned ? "/inbox?workflow=ready_for_assignment" : "/inbox?attention=stalled"} className="inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-lg border border-slate-200 px-3 text-[10px] font-semibold text-slate-600 hover:bg-slate-50">Open Inbox <ArrowRight size={12} /></Link>
-              </div>
-            </div>
-          </article>
-        ))}</div> : <div className="px-5 py-14 text-center"><Wrench className="mx-auto text-slate-300" size={28} /><p className="mt-3 text-sm font-bold text-slate-700">No recovery items</p><p className="mt-1 text-xs text-slate-400">There are no records in this exception category.</p></div>}
+            </article>
+          );
+        })}</div> : <div className="px-5 py-10 text-center"><Wrench className="mx-auto text-slate-300" size={26} /><p className="mt-2.5 text-sm font-bold text-slate-700">No recovery items</p><p className="mt-1 text-xs text-slate-400">There are no records in this exception category.</p></div>}
       </Card>
 
       {target ? (

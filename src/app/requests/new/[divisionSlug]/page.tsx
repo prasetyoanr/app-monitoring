@@ -1,6 +1,5 @@
 import { notFound, redirect } from "next/navigation";
-import Link from "next/link";
-import { ArrowLeft, ArrowRight, Building2, ClipboardCheck } from "lucide-react";
+import { ArrowRight, Building2, ClipboardCheck } from "lucide-react";
 
 import { isITTeamUser, requireAuthenticatedUser } from "@/auth/session";
 import { ServiceRequestForm } from "@/components/service-request-form";
@@ -33,7 +32,6 @@ export default async function NewRequestPage({
 
   return (
     <div className="mx-auto w-full max-w-5xl">
-      <Link href="/requests" className={`mb-4 inline-flex min-h-10 items-center gap-2 rounded-lg text-xs font-semibold text-slate-500 transition focus-visible:outline-2 ${isIt ? "hover:text-indigo-700 focus-visible:outline-indigo-600" : "hover:text-emerald-700 focus-visible:outline-emerald-600"}`}><ArrowLeft size={15} /> Back to requests</Link>
       <PageHeader
         eyebrow="General Affairs"
         title="Create a GA request"

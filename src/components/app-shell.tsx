@@ -16,7 +16,6 @@ import {
   HeartPulse,
   LogOut,
   Menu,
-  RefreshCw,
   ScrollText,
   Send,
   UserCog,
@@ -29,6 +28,8 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { logoutAction } from "@/app/login/actions";
 import { markRequestNotificationsReadAction, markWorkflowNotificationsReadAction } from "@/app/notifications/actions";
 import { IssueLiveSync } from "@/components/issue-live-sync";
+import { RefreshIcon } from "@/components/refresh-icon";
+import { useSpinHold } from "@/components/use-spin-hold";
 import type { AccountRole, IssueStatus } from "@/data/types";
 import type { AdminAlert } from "@/lib/admin-alerts";
 import { isGaDivisionSlug } from "@/lib/request-destination";
@@ -118,6 +119,7 @@ export function AppShell({
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [notificationOpen, setNotificationOpen] = useState(false);
   const [isRefreshing, startRefreshTransition] = useTransition();
+  const [spinHold, holdSpin] = useSpinHold();
   const [readRequestNotificationSignature, setReadRequestNotificationSignature] = useState<string | null>(null);
   const [readWorkflowIds, setReadWorkflowIds] = useState<ReadonlySet<string>>(new Set());
   const userMenuRef = useRef<HTMLDivElement>(null);
@@ -365,17 +367,16 @@ export function AppShell({
                 setMenuOpen(false);
                 setUserMenuOpen(false);
                 setNotificationOpen(false);
+                holdSpin();
                 startRefreshTransition(() => router.refresh());
               }}
               disabled={isRefreshing}
-              className="group relative grid size-10 shrink-0 place-items-center rounded-xl border border-white/10 bg-white/10 text-indigo-100/80 transition hover:border-cyan-300/30 hover:bg-white/15 hover:text-white disabled:cursor-wait disabled:text-cyan-200"
+              className="group relative grid size-10 shrink-0 place-items-center rounded-xl border border-white/10 bg-white/10 text-indigo-100/80 transition hover:border-cyan-300/30 hover:bg-white/15 hover:text-white active:scale-90 disabled:cursor-wait disabled:text-cyan-200"
               aria-label={isRefreshing ? "Refreshing data" : "Refresh page data"}
               aria-busy={isRefreshing}
               title={isRefreshing ? "Refreshing data..." : "Refresh data"}
             >
-              <span className={isRefreshing ? "animate-spin motion-reduce:animate-none" : "transition-transform duration-300 group-hover:rotate-45 motion-reduce:transform-none"}>
-                <RefreshCw size={17} />
-              </span>
+              <RefreshIcon size={17} spinning={isRefreshing || spinHold} className="group-hover:rotate-180" />
               <span className="sr-only" aria-live="polite">{isRefreshing ? "Data is being refreshed" : ""}</span>
             </button>
             <div ref={notificationRef} className="relative">
@@ -455,16 +456,19 @@ export function AppShell({
 
       <main className="app-main page-enter relative mx-auto max-w-[1600px] p-4 sm:p-6 xl:p-8">
         {showBackButton ? (
+          // Sits in the page's left padding, level with the top of the title, so the title
+          // itself does not move. Hidden on phones, which have no spare gutter.
           <button
             type="button"
             onClick={() => {
               if (window.history.length > 1) router.back();
               else router.push(secondaryPageFallback(pathname));
             }}
-            className="mb-4 inline-flex h-9 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-[11px] font-semibold text-slate-600 shadow-sm hover:border-indigo-200 hover:text-indigo-700"
+            className="group absolute left-px top-6 z-10 hidden size-[22px] place-items-center rounded-full border border-slate-200 bg-white text-slate-500 shadow-sm transition hover:border-slate-900 hover:bg-slate-900 hover:text-white active:scale-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-slate-900 sm:grid xl:left-0.5 xl:top-8 xl:size-7"
             aria-label="Back to previous page"
+            title="Back"
           >
-            <ArrowLeft size={15} /> Back
+            <ArrowLeft size={13} className="transition-transform duration-200 group-hover:-translate-x-0.5" />
           </button>
         ) : null}
         {children}

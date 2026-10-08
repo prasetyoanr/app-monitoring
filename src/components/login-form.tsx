@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  ArrowRight,
   Eye,
   EyeOff,
   LoaderCircle,
@@ -68,10 +69,13 @@ export function LoginForm({ nextPath }: { nextPath: string }) {
           <button
             type="button"
             onClick={() => setShowPassword((visible) => !visible)}
-            className="absolute right-2 top-1/2 grid size-9 -translate-y-1/2 place-items-center rounded-lg text-slate-400 transition hover:bg-emerald-950 hover:text-slate-200"
+            className="auth-icon-button absolute right-2 top-1/2 grid size-9 -translate-y-1/2 place-items-center rounded-lg text-slate-400 hover:bg-emerald-950 hover:text-slate-200"
             aria-label={showPassword ? "Hide password" : "Show password"}
+            aria-pressed={showPassword}
           >
-            {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+            <span key={String(showPassword)} className="auth-icon-swap">
+              {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+            </span>
           </button>
         </span>
         {capsLock ? (
@@ -93,10 +97,12 @@ export function LoginForm({ nextPath }: { nextPath: string }) {
       <button
         type="submit"
         disabled={pending}
-        className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-orange-500 px-5 text-sm font-bold text-white shadow-lg shadow-orange-500/25 transition hover:-translate-y-0.5 hover:bg-orange-600 hover:shadow-xl hover:shadow-orange-500/25 disabled:cursor-not-allowed disabled:bg-slate-800 disabled:text-slate-500 disabled:shadow-none"
+        aria-busy={pending}
+        className="auth-button inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-orange-500 px-5 text-sm font-bold text-white shadow-lg shadow-orange-500/25 hover:bg-orange-600"
       >
         {pending ? <LoaderCircle size={17} className="animate-spin" /> : null}
         {pending ? "Checking..." : "Login"}
+        {pending ? null : <ArrowRight size={17} className="auth-button-arrow" aria-hidden="true" />}
       </button>
     </form>
   );
