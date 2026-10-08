@@ -43,6 +43,7 @@ export const troubleshootingExcelColumns: ExcelColumnDefinition[] = [
   { header: "Issue", key: "issue", width: 38, wrapText: true },
   { header: "Category", key: "category", width: 18 },
   { header: "Status", key: "status", width: 28 },
+  { header: "Completion Date", key: "completionDate", width: 17, alignment: "center", numberFormat: "dd/mm/yyyy" },
   { header: "Completion Time (Days)", key: "completionDays", width: 22, alignment: "center", numberFormat: "0" },
   { header: "Work Photo", key: "workPhoto", width: 22, alignment: "center" },
   { header: "Client Signature", key: "clientSignature", width: 22, alignment: "center" },

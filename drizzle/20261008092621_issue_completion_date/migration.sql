@@ -1,0 +1,1 @@
+ALTER TABLE "troubleshooting_issues" ADD COLUMN "completion_date" date;

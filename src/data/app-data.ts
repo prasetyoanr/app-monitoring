@@ -86,6 +86,7 @@ function toTicketRecord(
     | "priority"
     | "status"
     | "completedDays"
+    | "completionDate"
     | "description"
     | "updatedAt"
     | "workflowStatus"
@@ -119,6 +120,7 @@ function toTicketRecord(
     priority: row.priority,
     status: row.status,
     completedDays: row.completedDays,
+    completionDate: row.completionDate ?? "",
     description: row.description,
     hasWorkPhoto,
     workPhotoUrl: hasWorkPhoto
@@ -165,6 +167,7 @@ export async function getTicketRecords(options: { teamIt?: boolean } = {}): Prom
       priority: troubleshootingIssues.priority,
       status: troubleshootingIssues.status,
       completedDays: troubleshootingIssues.completedDays,
+      completionDate: troubleshootingIssues.completionDate,
       description: troubleshootingIssues.description,
       updatedAt: troubleshootingIssues.updatedAt,
       workflowStatus: troubleshootingIssues.workflowStatus,
@@ -291,6 +294,7 @@ export async function getDivisionRequestRecords(): Promise<TicketRecord[]> {
       priority: troubleshootingIssues.priority,
       status: troubleshootingIssues.status,
       completedDays: troubleshootingIssues.completedDays,
+      completionDate: troubleshootingIssues.completionDate,
       description: troubleshootingIssues.description,
       updatedAt: troubleshootingIssues.updatedAt,
       workflowStatus: troubleshootingIssues.workflowStatus,

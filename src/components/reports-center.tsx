@@ -140,6 +140,7 @@ export function ReportsCenter({ ticketRecords, backupRecords, surveyRecords, can
           issue: ticket.title,
           category: ticket.category,
           status: issueStatusLabel(ticket.status),
+          completionDate: ticket.completionDate ? excelDate(ticket.completionDate) : null,
           completionDays: ticket.completedDays,
           workPhoto: ticket.hasWorkPhoto ? "Available" : "Not available",
           clientSignature: ticket.clientApproval ? "Available" : "Not available",

@@ -37,6 +37,7 @@ import { generateRecordId } from "@/lib/record-id";
 import { issueChangeQuery } from "@/lib/issue-event-query";
 import { recordWorkflowNotifications } from "@/lib/workflow-notification-writer";
 import { recordAuthorizationDenied } from "@/security/audit";
+import { completedDaysBetween, parseCompletionDate } from "@/lib/completion-date";
 
 const priorities: IssuePriority[] = ["Low", "Medium", "High", "Critical"];
 const MAX_WORK_PHOTO_BYTES = 2 * 1024 * 1024;
@@ -196,6 +197,8 @@ export async function saveIssueAction(
     }
     const reportedAt = new Date(`${reportedDate}T00:00:00+07:00`);
     if (Number.isNaN(reportedAt.getTime())) throw new Error("Invalid request date.");
+    // The day IT says the work was finished; empty keeps whatever is stored.
+    const completionDate = parseCompletionDate(optionalField(formData, "completionDate", 10), reportedAt);
     const finalStatus = inboxProfile.features.approvalQr
       ? getITStatusAfterWorkPhoto(requestedStatus, hasFinalWorkPhoto)
       : requestedStatus;
@@ -230,8 +233,11 @@ export async function saveIssueAction(
               Math.floor((Date.now() - reportedAt.getTime()) / 86_400_000),
             )
           : mayKeepCompleted
-            ? existing.completedDays
+            ? completionDate
+              ? completedDaysBetween(reportedAt, completionDate, new Date())
+              : existing.completedDays
             : null,
+      ...(completionDate ? { completionDate } : {}),
       updatedAt: new Date(),
       ...photoValues,
     };
@@ -703,6 +709,7 @@ export async function updateIssueWorkPhotoAction(
         assignedTechnicianId: troubleshootingIssues.assignedTechnicianId,
         requesterId: troubleshootingIssues.requesterId,
         workPhotoData: troubleshootingIssues.workPhotoData,
+        reportedAt: troubleshootingIssues.reportedAt,
       })
       .from(troubleshootingIssues)
       .innerJoin(
@@ -760,11 +767,21 @@ export async function updateIssueWorkPhotoAction(
       hasFinalWorkPhoto,
     );
     const statusChanged = finalStatus !== issue.status;
+    const completionDate = parseCompletionDate(optionalField(formData, "completionDate", 10), issue.reportedAt);
 
     await db.transaction(async (tx) => {
       await tx
         .update(troubleshootingIssues)
-        .set({ ...photoValues, status: finalStatus, updatedAt: new Date() })
+        .set({
+          ...photoValues,
+          status: finalStatus,
+          ...(completionDate ? { completionDate } : {}),
+          // A request that is already completed keeps its completion time in step with the date.
+          ...(completionDate && issue.status === "Completed"
+            ? { completedDays: completedDaysBetween(issue.reportedAt, completionDate, new Date()) }
+            : {}),
+          updatedAt: new Date(),
+        })
         .where(eq(troubleshootingIssues.id, id));
       if (statusChanged) {
         if (issue.requesterId) {
@@ -989,6 +1006,7 @@ export async function approveIssueAction(input: {
       const [issue] = await tx
         .select({
           reportedAt: troubleshootingIssues.reportedAt,
+          completionDate: troubleshootingIssues.completionDate,
           requesterId: troubleshootingIssues.requesterId,
           status: troubleshootingIssues.status,
           inboxProfileKey: masterDivisions.inboxProfileKey,
@@ -1004,10 +1022,8 @@ export async function approveIssueAction(input: {
       if (!getServiceInboxProfile(issue.inboxProfileKey).features.approvalQr) {
         throw new Error("QR approval is no longer enabled for this division.");
       }
-      const completedDays = Math.max(
-        0,
-        Math.floor((respondedAt.getTime() - issue.reportedAt.getTime()) / 86_400_000),
-      );
+      // Counts up to the date IT chose; without one, up to the moment of approval.
+      const completedDays = completedDaysBetween(issue.reportedAt, issue.completionDate, respondedAt);
       await tx
         .update(troubleshootingIssues)
         .set({ status: "Completed", completedDays, updatedAt: respondedAt })

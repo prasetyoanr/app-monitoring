@@ -110,6 +110,7 @@ const ticketCommon = {
   status: issues.status,
   reportedAt: issues.reportedAt,
   completedDays: issues.completedDays,
+  completionDate: issues.completionDate,
   workflowStatus: issues.workflowStatus,
   workflowEnabled: issues.workflowEnabled,
   requesterName: issues.requesterName,
@@ -154,6 +155,7 @@ async function requestSheet(user: AuthenticatedUser, period: { start: string; en
     { header: "Priority", key: "priority", width: 10, align: "center" },
     { header: "Stage", key: "stage", width: 26 },
     { header: "Status", key: "status", width: 18, align: "center", status: true },
+    { header: "Completed on", key: "completedOn", width: 13, align: "center" },
     { header: "Days to complete", key: "days", width: 12, align: "center" },
   ];
   const tones = rows.map(toneOf);
@@ -176,6 +178,7 @@ async function requestSheet(user: AuthenticatedUser, period: { start: string; en
       priority: row.priority,
       stage: stageOf(row),
       status: row.workflowEnabled && row.workflowStatus === "rejected" ? "Rejected" : issueStatusLabel(row.status),
+      completedOn: row.completionDate ? displayDate(row.completionDate) : "—",
       days: row.completedDays,
     })),
   };
@@ -233,6 +236,7 @@ async function inboxSheet(user: AuthenticatedUser, period: { start: string; end:
       { header: "Your action", key: "action", width: 18 },
       { header: "Action date", key: "actionAt", width: 17, align: "center" as const },
     ] : []),
+    { header: "Completed on", key: "completedOn", width: 13, align: "center" },
     { header: "Days to complete", key: "days", width: 12, align: "center" },
   ];
   const tones = rows.map(toneOf);
@@ -257,6 +261,7 @@ async function inboxSheet(user: AuthenticatedUser, period: { start: string; end:
         handler: row.handler ?? "—",
         action: mine ? actionLabels[mine.action] ?? mine.action : "—",
         actionAt: mine ? displayDateTime(mine.at) : "—",
+        completedOn: row.completionDate ? displayDate(row.completionDate) : "—",
         days: row.completedDays,
       };
     }),

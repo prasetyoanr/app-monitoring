@@ -330,6 +330,8 @@ export const troubleshootingIssues = pgTable(
     priority: issuePriorityEnum("priority").notNull(),
     status: issueStatusEnum("status").notNull().default("New"),
     completedDays: integer("completed_days"),
+    // The day the IT staff says the work was finished; completed_days counts up to it.
+    completionDate: date("completion_date", { mode: "string" }),
     description: text("description").notNull(),
     resolution: text("resolution").notNull().default(""),
     workPhotoData: bytea("work_photo_data"),

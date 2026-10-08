@@ -116,6 +116,9 @@ export function TicketList({ initialRecords, canManage, canCreateIssue, useSourc
   const [approvalRecord, setApprovalRecord] = useState<TicketRecord | null>(null);
   const [pendingDelete, setPendingDelete] = useState<TicketRecord | null>(null);
   const [requestDate, setRequestDate] = useState(jakartaDateInput);
+  // The day the work was finished (IT picks it; today unless the record already has one).
+  const [completionDate, setCompletionDate] = useState(jakartaDateInput);
+  const [today, setToday] = useState(jakartaDateInput);
   const [formError, setFormError] = useState("");
   const [saving, setSaving] = useState(false);
   const [compressingPhoto, setCompressingPhoto] = useState(false);
@@ -132,6 +135,7 @@ export function TicketList({ initialRecords, canManage, canCreateIssue, useSourc
   const filterStartDateInputRef = useRef<HTMLInputElement>(null);
   const filterEndDateInputRef = useRef<HTMLInputElement>(null);
   const dateInputRef = useRef<HTMLInputElement>(null);
+  const completionDateInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
   const deferredQuery = useDeferredValue(query.trim().toLowerCase());
@@ -168,6 +172,8 @@ export function TicketList({ initialRecords, canManage, canCreateIssue, useSourc
   function openForm(nextMode: Exclude<FormMode, null>, record: TicketRecord | null = null) {
     setSelected(record);
     setRequestDate(record?.reportedDate ?? jakartaDateInput());
+    setToday(jakartaDateInput());
+    setCompletionDate(record?.completionDate || jakartaDateInput());
     setPhotoFile(null);
     setPhotoPreview(record?.workPhotoUrl ?? "");
     setPhotoRemoved(false);
@@ -226,6 +232,22 @@ export function TicketList({ initialRecords, canManage, canCreateIssue, useSourc
     setPhotoRemoved(Boolean(selected?.hasWorkPhoto));
   }
 
+  function completionDateField() {
+    return (
+      <div className="block text-[11px] font-semibold text-slate-600">
+        <span id="completion-date-label">Completion Date</span>
+        <div className="relative mt-1.5">
+          <button type="button" onClick={() => openDatePicker(completionDateInputRef.current)} aria-labelledby="completion-date-label" className="flex h-10 w-full items-center rounded-xl border border-slate-200 bg-white px-3 text-left text-xs font-normal text-slate-700 outline-none transition hover:border-slate-300 focus-visible:border-indigo-400 focus-visible:ring-2 focus-visible:ring-indigo-100">
+            <span className="flex-1">{formatCompactDate(completionDate)}</span>
+            <CalendarDays size={15} className="text-slate-400" />
+          </button>
+          <input ref={completionDateInputRef} type="date" value={completionDate} min={requestDate} max={today} onChange={(event) => setCompletionDate(event.target.value)} className="absolute bottom-0 left-0 h-px w-px opacity-0" tabIndex={-1} aria-hidden="true" />
+        </div>
+        <p className="mt-1 text-[10px] font-normal leading-4 text-slate-500">Completion time counts from the request date up to this date. Defaults to today.</p>
+      </div>
+    );
+  }
+
   function openDatePicker(input: HTMLInputElement | null) {
     if (!input) return;
     if (typeof input.showPicker === "function") input.showPicker();
@@ -240,6 +262,7 @@ export function TicketList({ initialRecords, canManage, canCreateIssue, useSourc
 
     if (mode === "evidence" && selectedIsDivisionRequest && selected) {
       data.set("id", selected.id);
+      data.set("completionDate", completionDate);
       data.set(
         "photoIntent",
         photoFile ? "replace" : photoRemoved ? "remove" : "keep",
@@ -255,6 +278,7 @@ export function TicketList({ initialRecords, canManage, canCreateIssue, useSourc
       );
     } else {
       data.set("reportedDate", requestDate);
+      if (showCompletionTime && activeFormProfile.features.approvalQr) data.set("completionDate", completionDate);
       if (selected) data.set("id", selected.id);
       const hasWorkPhoto =
         Boolean(photoFile) || (!photoRemoved && selected?.hasWorkPhoto);
@@ -636,6 +660,7 @@ export function TicketList({ initialRecords, canManage, canCreateIssue, useSourc
             <form key={`${mode}-${selected?.id ?? "new"}`} className="space-y-4 p-5" onSubmit={handleSubmit}>
               {mode === "evidence" ? <>
                 <div className="rounded-xl border border-slate-200 bg-slate-50 p-3"><p className="font-mono text-[9px] text-slate-400">{selected?.id}</p><p className="mt-1 text-xs font-semibold text-slate-800">{selected?.title}</p><p className="mt-1 text-[10px] text-slate-500">Saving a work photo while this request is In Progress automatically changes its status to Waiting Approval.</p></div>
+                {completionDateField()}
                 <section className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4" aria-labelledby="evidence-photo-field-title">
                   <div className="flex items-start justify-between gap-3"><div><h3 id="evidence-photo-field-title" className="text-[11px] font-semibold text-slate-700">Work Photo</h3><p className="mt-1 text-[10px] leading-4 text-slate-500">The photo is automatically converted to JPEG and compressed below 2 MB.</p></div>{photoPreview ? <button type="button" onClick={removeWorkPhoto} disabled={compressingPhoto || selected?.status === "Waiting for Client Approval"} className="shrink-0 rounded-lg bg-rose-50 px-2.5 py-1.5 text-[10px] font-semibold text-rose-600 disabled:cursor-not-allowed disabled:opacity-40">Remove</button> : null}</div>
                   {photoPreview ? <div className="mt-3 overflow-hidden rounded-xl border border-slate-200 bg-white p-2"><Image src={photoPreview} width={720} height={540} unoptimized alt="Selected work photo preview" className="h-48 w-full rounded-lg object-contain sm:h-56" /><div className="mt-2 flex items-center justify-between gap-2 px-1"><span className="inline-flex items-center gap-1.5 text-[10px] font-semibold text-emerald-600"><CheckCircle2 size={13} /> Ready to save</span>{photoFile ? <span className="text-[10px] text-slate-400">{formatPhotoSize(photoFile.size)}</span> : <span className="text-[10px] text-slate-400">Stored photo</span>}</div></div> : null}
@@ -651,7 +676,7 @@ export function TicketList({ initialRecords, canManage, canCreateIssue, useSourc
               <div className="grid gap-4 sm:grid-cols-2"><label className="block text-[11px] font-semibold text-slate-600">Location<select name="location" required defaultValue={selected?.location ?? defaultLocation} className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 px-3 text-xs outline-none">{optionsWithCurrent(locationOptions, selected?.location).map((option) => <option key={option} value={option}>{option}</option>)}</select></label><div className="block text-[11px] font-semibold text-slate-600"><span id="request-date-label">Request Date</span><div className="relative mt-1.5"><button type="button" onClick={() => openDatePicker(dateInputRef.current)} aria-labelledby="request-date-label" className="flex h-10 w-full items-center rounded-xl border border-slate-200 bg-white px-3 text-left text-xs font-normal text-slate-700 outline-none"><span className="flex-1">{formatCompactDate(requestDate)}</span><CalendarDays size={15} className="text-slate-400" /></button><input ref={dateInputRef} type="date" value={requestDate} onChange={(event) => setRequestDate(event.target.value)} className="absolute bottom-0 left-0 h-px w-px opacity-0" tabIndex={-1} aria-hidden="true" /></div></div></div>
               <div className="grid gap-4 sm:grid-cols-2"><label className="block text-[11px] font-semibold text-slate-600">Requester Name<input name="requester" required defaultValue={selected?.requester} className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 px-3 text-xs outline-none" /></label><label className="block text-[11px] font-semibold text-slate-600">Division<select name="division" required defaultValue={selected?.division ?? divisionOptions[0]} className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-xs outline-none">{optionsWithCurrent(divisionOptions, selected?.division).map((option) => <option key={option} value={option}>{option}</option>)}</select></label></div>
               <div><label className="block text-[11px] font-semibold text-slate-600">Category<select name="category" required defaultValue={selected?.category ?? defaultCategory} className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-xs outline-none">{optionsWithCurrent(categoryOptions, selected?.category).map((option) => <option key={option} value={option}>{option}</option>)}</select></label></div>
-              <div className={`grid gap-4 ${showCompletionTime ? "sm:grid-cols-2" : ""}`}><label className="block text-[11px] font-semibold text-slate-600">Status<select name="status" defaultValue={selected?.status ?? "New"} className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 px-3 text-xs outline-none">{optionsWithCurrent(editableFormStatuses(), selected?.status).map((option) => <option key={option} value={option}>{issueStatusLabel(option as IssueStatus)}</option>)}</select></label>{showCompletionTime ? <div><p className="text-[11px] font-semibold text-slate-600">Completion Time</p><p className="mt-1.5 rounded-xl bg-slate-50 px-3 py-2.5 text-[10px] leading-5 text-slate-500">{activeFormProfile.features.directCompletion ? "Calculated automatically when the request is completed." : "Calculated automatically after client approval."}</p></div> : null}</div>
+              <div className={`grid gap-4 ${showCompletionTime ? "sm:grid-cols-2" : ""}`}><label className="block text-[11px] font-semibold text-slate-600">Status<select name="status" defaultValue={selected?.status ?? "New"} className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 px-3 text-xs outline-none">{optionsWithCurrent(editableFormStatuses(), selected?.status).map((option) => <option key={option} value={option}>{issueStatusLabel(option as IssueStatus)}</option>)}</select></label>{showCompletionTime ? (activeFormProfile.features.directCompletion ? <div><p className="text-[11px] font-semibold text-slate-600">Completion Time</p><p className="mt-1.5 rounded-xl bg-slate-50 px-3 py-2.5 text-[10px] leading-5 text-slate-500">Calculated automatically when the request is completed.</p></div> : completionDateField()) : null}</div>
               <label className="block text-[11px] font-semibold text-slate-600">Issue Description<textarea name="description" required rows={4} defaultValue={selected?.description} className="mt-1.5 w-full resize-none rounded-xl border border-slate-200 p-3 text-xs outline-none" /></label>
               {activeFormProfile.features.workPhoto ? <section className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4" aria-labelledby="work-photo-field-title">
                 <div className="flex items-start justify-between gap-3">

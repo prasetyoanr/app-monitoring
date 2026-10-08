@@ -60,6 +60,8 @@ export interface TicketRecord {
   priority: IssuePriority;
   status: IssueStatus;
   completedDays: number | null;
+  // YYYY-MM-DD chosen by IT as the day the work was finished; empty until set.
+  completionDate: string;
   description: string;
   hasWorkPhoto: boolean;
   workPhotoUrl: string | null;
