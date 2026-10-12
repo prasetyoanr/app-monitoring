@@ -68,8 +68,9 @@ export function workflowNotificationPlan(input: WorkflowNotificationInput): Work
       addAll(pools.final_approver, "final_approval_needed");
       break;
     case "final_approved":
-      // The first approver assigns the work once the final approver agrees.
+      // The first approver who handled it is asked first; every other First Approval can assign too.
       add(approverId, "ready_for_assignment");
+      addAll(pools.approver, "ready_for_assignment");
       break;
     case "returned":
       if (input.previousStatus === "waiting_final_approver") {

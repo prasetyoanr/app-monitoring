@@ -296,7 +296,7 @@ export const gaWorkPlanItems = pgTable(
     ),
     check(
       "ga_work_plan_items_target_week_check",
-      sql`(${table.targetMode} = 'date' and ${table.targetDate} >= ${table.weekStart} and ${table.targetDate} < ${table.weekStart} + 7) or (${table.targetMode} = 'until_completed' and ${table.targetDate} is null)`,
+      sql`(${table.targetMode} = 'date' and ${table.targetDate} is not null) or (${table.targetMode} = 'until_completed' and ${table.targetDate} is null)`,
     ),
   ],
 );

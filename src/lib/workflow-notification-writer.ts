@@ -26,6 +26,8 @@ export async function recordWorkflowNotifications(
         return ["approver"] as const;
       case "escalated":
         return ["final_approver"] as const;
+      case "final_approved":
+        return ["approver"] as const;
       default:
         return [] as const;
     }

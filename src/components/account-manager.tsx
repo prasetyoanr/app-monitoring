@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  ChevronDown,
   KeyRound,
   Pencil,
   Plus,
@@ -10,7 +11,7 @@ import {
   X,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import {
   createAccountAction,
@@ -53,6 +54,24 @@ function divisionHint(role: AccountRecord["role"]) {
   return "The administrator works globally and is not tied to a division.";
 }
 
+function PresenceDot({ online, light = false, className = "" }: { online: boolean; light?: boolean; className?: string }) {
+  return <span aria-hidden="true" data-online={online} data-tone={light ? "light" : undefined} className={`presence-dot ${className}`} />;
+}
+
+function PresenceLine({ account, compact = false }: { account: AccountRecord; compact?: boolean }) {
+  const online = account.presence === "online";
+  const title = online ? "A tab was open in the last 90 seconds" : `Last activity: ${account.lastSeenLabel}`;
+  return (
+    <span
+      title={title}
+      className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg px-2 py-1 text-[10px] font-bold ring-1 ring-inset ${online ? "bg-emerald-50 text-emerald-700 ring-emerald-600/20" : "bg-slate-100 text-slate-500 ring-slate-500/15"}`}
+    >
+      <PresenceDot online={online} />
+      {online ? "Online" : compact || account.lastSeenLabel === "Not seen yet" ? "Offline" : `Offline · ${account.lastSeenLabel}`}
+    </span>
+  );
+}
+
 export function AccountManager({
   initialAccounts,
   currentUserId,
@@ -71,6 +90,18 @@ export function AccountManager({
   const [deleteTarget, setDeleteTarget] = useState<AccountRecord | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [onlineOnly, setOnlineOnly] = useState(false);
+  const [expandedId, setExpandedId] = useState("");
+  const onlineCount = initialAccounts.filter((account) => account.presence === "online").length;
+  const shownAccounts = onlineOnly ? initialAccounts.filter((account) => account.presence === "online") : initialAccounts;
+
+  // Keep "online" fresh while this page stays open.
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === "visible") router.refresh();
+    }, 60_000);
+    return () => window.clearInterval(timer);
+  }, [router]);
 
   async function handleCreate(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -159,6 +190,16 @@ export function AccountManager({
         <div className="flex items-center gap-3 text-xs text-slate-500">
           <span className="grid size-9 place-items-center rounded-xl bg-blue-50 text-[#3157d5]"><UsersRound size={17} /></span>
           <span><b className="text-slate-800">{initialAccounts.length}</b> registered accounts</span>
+          <button
+            type="button"
+            aria-pressed={onlineOnly}
+            onClick={() => setOnlineOnly((value) => !value)}
+            title="Show only accounts with an open tab in the last 90 seconds"
+            className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-bold transition active:scale-95 ${onlineOnly ? "border-emerald-600 bg-emerald-600 text-white" : "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"}`}
+          >
+            <PresenceDot online={onlineCount > 0} light={onlineOnly} />
+            {onlineCount} online
+          </button>
         </div>
         <button onClick={openCreate} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-[#3157d5] px-4 text-xs font-semibold text-white shadow-lg shadow-blue-600/15 hover:bg-[#2445b5]"><Plus size={16} /> Add Account</button>
       </div>
@@ -166,33 +207,68 @@ export function AccountManager({
       {error && !createOpen && !resetTarget && !editTarget && !deleteTarget ? <p role="alert" className="mb-4 rounded-xl border border-rose-100 bg-rose-50 px-4 py-3 text-xs font-semibold text-rose-700">{error}</p> : null}
 
       <Card className="table-card overflow-hidden">
-        <div className="border-b border-slate-100 px-4 py-4 sm:px-5"><h2 className="text-sm font-bold text-slate-800">Account List</h2><p className="mt-1 text-[11px] text-slate-500">Only administrators can manage account access.</p></div>
+        <div className="border-b border-slate-100 px-4 py-3 sm:py-4 sm:px-5"><h2 className="text-sm font-bold text-slate-800">Account List</h2><p className="mt-1 hidden text-[11px] text-slate-500 sm:block">Only administrators can manage account access.</p></div>
 
-        <div className="divide-y divide-slate-100 md:hidden">
-          {initialAccounts.map((account) => (
-            <article key={account.id} className="p-4">
-              <div className="flex items-start gap-3">
-                <span className={`grid size-10 shrink-0 place-items-center rounded-xl ${account.role === "administrator" ? "bg-blue-50 text-blue-600" : "bg-violet-50 text-violet-600"}`}><UserCog size={18} /></span>
-                <div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><h3 className="text-sm font-bold text-slate-800">@{account.username}</h3>{account.id === currentUserId ? <span className="rounded bg-blue-50 px-1.5 py-0.5 text-[9px] font-bold text-blue-700">Your Account</span> : null}</div></div>
-                <StatusBadge tone={!account.isActive || account.isLocked ? "amber" : "green"}>{!account.isActive ? "Inactive" : account.isLocked ? "Locked" : "Active"}</StatusBadge>
-              </div>
-              <div className="mt-4 grid grid-cols-2 gap-3 rounded-xl bg-slate-50 p-3 text-[11px]"><div><p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Role</p><p className="mt-1 font-semibold text-slate-700">{roleLabel(account.role)}</p></div><div><p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Scope</p><p className="mt-1 font-semibold text-slate-700">{divisionScopeLabel(account)}</p></div><div><p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Created</p><p className="mt-1 font-semibold text-slate-700">{account.createdAt}</p></div>{account.isLocked ? <p className="col-span-2 text-[10px] font-semibold text-amber-600">This account is temporarily locked after failed login attempts.</p> : null}</div>
-              <div className="mt-4 grid grid-cols-3 gap-2"><button onClick={() => openEdit(account)} className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-blue-600 px-2 text-[10px] font-semibold text-white"><Pencil size={13} /> Edit</button><button onClick={() => openReset(account)} className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-amber-500 px-2 text-[10px] font-semibold text-white"><KeyRound size={13} /> Reset</button><button disabled={saving || account.id === currentUserId} onClick={() => openDelete(account)} className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-rose-600 px-2 text-[10px] font-semibold text-white disabled:cursor-not-allowed disabled:bg-slate-300"><Trash2 size={13} /> Delete</button></div>
-            </article>
-          ))}
-        </div>
+        {shownAccounts.length === 0 ? <p className="px-5 py-8 text-center text-xs text-slate-400">{onlineOnly ? "No one is online right now." : "No accounts to show."}</p> : null}
+
+        <ul className="divide-y divide-slate-100 md:hidden">
+          {shownAccounts.map((account) => {
+            const open = expandedId === account.id;
+            const isAdminRole = account.role === "administrator";
+            const stateLabel = !account.isActive ? "Inactive" : account.isLocked ? "Locked" : "Active";
+            return (
+              <li key={account.id}>
+                <button
+                  type="button"
+                  onClick={() => setExpandedId(open ? "" : account.id)}
+                  aria-expanded={open}
+                  className={`flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left transition active:bg-slate-100 ${open ? "bg-slate-50/80" : ""}`}
+                >
+                  <span className={`grid size-9 shrink-0 place-items-center rounded-full text-[11px] font-black uppercase ${isAdminRole ? "bg-blue-50 text-blue-700" : "bg-violet-50 text-violet-700"}`}>{account.username.slice(0, 2)}</span>
+                  <span className="min-w-0 flex-1">
+                    <span className="flex items-center gap-1.5">
+                      <span className="truncate text-[13px] font-bold text-slate-800">@{account.username}</span>
+                      {account.id === currentUserId ? <span className="shrink-0 rounded bg-blue-50 px-1.5 py-px text-[9px] font-bold text-blue-700">You</span> : null}
+                    </span>
+                    <span className="mt-0.5 block truncate text-[11px] text-slate-500">{roleLabel(account.role)} · {divisionScopeLabel(account)}</span>
+                  </span>
+                  <span className="flex shrink-0 flex-col items-end gap-1">
+                    <PresenceLine account={account} compact />
+                    {stateLabel !== "Active" ? <StatusBadge tone="amber">{stateLabel}</StatusBadge> : null}
+                  </span>
+                  <ChevronDown size={14} aria-hidden="true" className={`shrink-0 text-slate-400 transition-transform ${open ? "rotate-180" : ""}`} />
+                </button>
+                {open ? (
+                  <div className="space-y-2.5 bg-slate-50/80 px-3.5 pb-3 pt-1">
+                    <dl className="grid grid-cols-3 gap-2 text-[11px]">
+                      <div><dt className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Status</dt><dd className="mt-0.5 font-semibold text-slate-700">{stateLabel}</dd></div>
+                      <div><dt className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Last seen</dt><dd className="mt-0.5 font-semibold text-slate-700">{account.presence === "online" ? "Now" : account.lastSeenLabel}</dd></div>
+                      <div><dt className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Created</dt><dd className="mt-0.5 font-semibold text-slate-700">{account.createdAt}</dd></div>
+                    </dl>
+                    {account.isLocked ? <p className="text-[10px] font-semibold text-amber-600">Locked after failed login attempts; it unlocks by itself or when the password is reset.</p> : null}
+                    <div className="grid grid-cols-3 gap-2">
+                      <button type="button" onClick={() => openEdit(account)} className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg bg-blue-600 text-[11px] font-semibold text-white transition active:scale-95"><Pencil size={12} /> Edit</button>
+                      <button type="button" onClick={() => openReset(account)} className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg bg-amber-500 text-[11px] font-semibold text-white transition active:scale-95"><KeyRound size={12} /> Reset</button>
+                      <button type="button" disabled={saving || account.id === currentUserId} onClick={() => openDelete(account)} className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg bg-rose-600 text-[11px] font-semibold text-white transition active:scale-95 disabled:cursor-not-allowed disabled:bg-slate-300"><Trash2 size={12} /> Delete</button>
+                    </div>
+                  </div>
+                ) : null}
+              </li>
+            );
+          })}
+        </ul>
 
         <div className="hidden overflow-x-auto md:block">
           <table className="w-full min-w-[780px] text-left">
             <thead className="bg-slate-50/90 text-[9px] font-bold uppercase tracking-wider text-slate-400"><tr><th className="px-5 py-3.5">Username</th><th className="px-4 py-3.5">Role</th><th className="px-4 py-3.5">Scope</th><th className="px-4 py-3.5">Created</th><th className="px-4 py-3.5">Status</th><th className="px-5 py-3.5 text-center">Actions</th></tr></thead>
             <tbody className="divide-y divide-slate-100">
-              {initialAccounts.map((account) => (
+              {shownAccounts.map((account) => (
                 <tr key={account.id} className="text-xs">
                   <td className="px-5 py-4"><div className="flex items-center gap-3"><span className={`grid size-9 shrink-0 place-items-center rounded-xl ${account.role === "administrator" ? "bg-blue-50 text-blue-600" : "bg-violet-50 text-violet-600"}`}><UserCog size={16} /></span><div><p className="font-semibold text-slate-800">@{account.username} {account.id === currentUserId ? <span className="ml-1 rounded bg-blue-50 px-1.5 py-0.5 text-[9px] text-blue-700">You</span> : null}</p></div></div></td>
                   <td className="px-4 py-4"><span className={`rounded-lg px-2 py-1 text-[10px] font-bold ${account.role === "administrator" ? "bg-blue-50 text-blue-700" : account.role === "service_agent" ? "bg-emerald-50 text-emerald-700" : "bg-violet-50 text-violet-700"}`}>{roleLabel(account.role)}</span></td>
                   <td className="px-4 py-4 text-[11px] text-slate-600">{divisionScopeLabel(account)}</td>
                   <td className="px-4 py-4 text-[11px] text-slate-500">{account.createdAt}</td>
-                  <td className="px-4 py-4"><StatusBadge tone={!account.isActive || account.isLocked ? "amber" : "green"}>{!account.isActive ? "Inactive" : account.isLocked ? "Locked" : "Active"}</StatusBadge></td>
+                  <td className="px-4 py-4"><div className="flex flex-wrap items-center gap-1.5"><StatusBadge tone={!account.isActive || account.isLocked ? "amber" : "green"}>{!account.isActive ? "Inactive" : account.isLocked ? "Locked" : "Active"}</StatusBadge><PresenceLine account={account} /></div></td>
                   <td className="px-5 py-4"><div className="flex justify-center gap-2"><button onClick={() => openEdit(account)} className="grid size-8 place-items-center rounded-lg bg-blue-600 text-white" title="Edit account" aria-label={`Edit ${account.username}`}><Pencil size={14} /></button><button onClick={() => openReset(account)} className="grid size-8 place-items-center rounded-lg bg-amber-500 text-white" title="Reset Password" aria-label={`Reset password ${account.username}`}><KeyRound size={14} /></button><button disabled={saving || account.id === currentUserId} onClick={() => openDelete(account)} className="grid size-8 place-items-center rounded-lg bg-rose-600 text-white disabled:cursor-not-allowed disabled:bg-slate-300" title="Delete" aria-label={`Delete ${account.username}`}><Trash2 size={14} /></button></div></td>
                 </tr>
               ))}

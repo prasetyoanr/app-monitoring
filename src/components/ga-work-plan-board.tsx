@@ -32,7 +32,6 @@ const statusStrip: Record<GaWorkPlanStatus, string> = {
 export function GaWorkPlanBoard({
   memberName,
   periodStart,
-  periodEnd,
   selectedDate,
   plans,
   canEdit,
@@ -40,7 +39,6 @@ export function GaWorkPlanBoard({
 }: {
   memberName: string;
   periodStart: string;
-  periodEnd: string;
   selectedDate?: string;
   plans: GaWorkPlanRecord[];
   canEdit: boolean;
@@ -106,7 +104,7 @@ export function GaWorkPlanBoard({
             <label className="text-xs font-medium text-slate-600">Plan title<input name="title" required minLength={3} maxLength={200} disabled={pending} placeholder="Example: Inspect meeting rooms" className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-xs font-normal text-slate-700 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100" /></label>
             <div className="grid gap-3 sm:grid-cols-2">
               <label className="text-xs font-medium text-slate-600">Target type<select name="targetMode" value={targetMode} disabled={pending} onChange={(event) => setTargetMode(event.target.value as GaWorkPlanTargetMode)} className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 bg-white px-2.5 text-xs font-normal text-slate-700 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"><option value="date">Specific date</option><option value="until_completed">Until completed</option></select></label>
-              {targetMode === "date" ? <label className="text-xs font-medium text-slate-600">Target date<input name="targetDate" type="date" required min={selectedDate ?? periodStart} max={selectedDate ?? periodEnd} defaultValue={selectedDate ?? periodStart} disabled={pending} className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 bg-white px-2.5 text-xs font-normal text-slate-700 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100" /></label> : <div className="rounded-xl border border-dashed border-indigo-200 bg-indigo-50/70 px-3 py-2"><p className="text-xs font-semibold text-indigo-600">Open target</p><p className="mt-1 text-xs leading-4 text-slate-600">Runs until marked Completed.</p></div>}
+              {targetMode === "date" ? <label className="text-xs font-medium text-slate-600">Target date<input name="targetDate" type="date" required defaultValue={selectedDate ?? periodStart} disabled={pending} className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 bg-white px-2.5 text-xs font-normal text-slate-700 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100" /></label> : <div className="rounded-xl border border-dashed border-indigo-200 bg-indigo-50/70 px-3 py-2"><p className="text-xs font-semibold text-indigo-600">Open target</p><p className="mt-1 text-xs leading-4 text-slate-600">Runs until marked Completed.</p></div>}
             </div>
             <label className="text-xs font-medium text-slate-600 sm:col-span-2">Plan notes<textarea name="description" maxLength={2000} rows={2} disabled={pending} placeholder="Optional scope, location, or expected result" className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white p-3 text-xs font-normal text-slate-700 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100" /></label>
             <button type="submit" disabled={pending} className={`inline-flex h-10 items-center justify-center gap-2 rounded-xl px-4 text-xs font-bold transition active:scale-[0.98] disabled:cursor-wait disabled:opacity-60 sm:col-start-2 ${amberCta ? "bg-amber-400 text-slate-900 hover:bg-amber-300" : "bg-slate-900 text-white hover:bg-slate-700"}`}>{pending && !updatingId ? <LoaderCircle size={14} className="animate-spin" /> : <CalendarDays size={14} />} Save Work Plan</button>

@@ -6,7 +6,8 @@ import { redirect } from "next/navigation";
 import { isITDivisionName, requireAuthenticatedUser, type AuthenticatedUser } from "@/auth/session";
 import { db } from "@/db";
 import { gaWorkPlanItems, masterDivisions, technicians, troubleshootingIssues } from "@/db/schema";
-import type { GaWorkPlanStatus, GaWorkPlanTargetMode } from "@/lib/ga-work-plan";
+import { gaWorkPlansForPeriod } from "@/data/ga-work-plan-period";
+import { shiftDate, type GaWorkPlanStatus, type GaWorkPlanTargetMode } from "@/lib/ga-work-plan";
 import { GA_DIVISION_SLUGS, isGaDivisionSlug } from "@/lib/request-destination";
 
 // Only these roles see the staff name list. Admin (receptionist) does not: like staff,
@@ -196,10 +197,11 @@ export async function getGaWorkspaceData(input: {
         })
         .from(gaWorkPlanItems)
         .where(and(
-          eq(gaWorkPlanItems.weekStart, input.weekStart),
+          gaWorkPlansForPeriod(input.weekStart, shiftDate(input.weekStart, 6)),
           input.targetDate ? or(
             eq(gaWorkPlanItems.targetDate, input.targetDate),
             eq(gaWorkPlanItems.targetMode, "until_completed"),
+            inArray(gaWorkPlanItems.status, ["planned", "in_progress"]),
           ) : undefined,
           inArray(gaWorkPlanItems.memberId, memberIds),
         ))
@@ -264,10 +266,11 @@ export async function getGaWorkspaceData(input: {
       .from(gaWorkPlanItems)
       .where(and(
         eq(gaWorkPlanItems.memberId, selectedMember.id),
-        eq(gaWorkPlanItems.weekStart, input.weekStart),
+        gaWorkPlansForPeriod(input.weekStart, shiftDate(input.weekStart, 6)),
         input.targetDate ? or(
           eq(gaWorkPlanItems.targetDate, input.targetDate),
           eq(gaWorkPlanItems.targetMode, "until_completed"),
+          inArray(gaWorkPlanItems.status, ["planned", "in_progress"]),
         ) : undefined,
       ))
       .orderBy(asc(gaWorkPlanItems.targetDate), desc(gaWorkPlanItems.updatedAt)),

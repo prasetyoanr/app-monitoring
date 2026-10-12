@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, asc, eq, inArray, isNull, lt, ne, or } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, lt, notInArray, or } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 
 import { requireAdministrator } from "@/auth/session";
@@ -8,6 +8,8 @@ import { db } from "@/db";
 import { masterDivisions, technicians, troubleshootingIssues } from "@/db/schema";
 import { canAssignRequestToUnit } from "@/lib/ga-assignment";
 import { canAdminReassignIssue } from "@/lib/admin-recovery";
+import { assigneeAccountFilter } from "@/data/assignee-filter";
+import { isAssigneeRole } from "@/lib/assignee-roles";
 
 const assignedAccounts = alias(technicians, "admin_operation_assignees");
 
@@ -70,7 +72,7 @@ export async function getAdminOperationRecords(): Promise<AdminOperationRecord[]
             or(
               isNull(assignedAccounts.id),
               eq(assignedAccounts.isActive, false),
-              ne(assignedAccounts.role, "service_agent"),
+              notInArray(assignedAccounts.role, ["service_agent", "receptionist"]),
             ),
           ),
         ),
@@ -86,7 +88,7 @@ export async function getAdminOperationRecords(): Promise<AdminOperationRecord[]
       })
       .from(technicians)
       .innerJoin(masterDivisions, eq(technicians.divisionId, masterDivisions.id))
-      .where(and(eq(technicians.role, "service_agent"), eq(technicians.isActive, true)))
+      .where(and(assigneeAccountFilter, eq(technicians.isActive, true)))
       .orderBy(asc(masterDivisions.name), asc(technicians.name)),
   ]);
 
@@ -97,7 +99,7 @@ export async function getAdminOperationRecords(): Promise<AdminOperationRecord[]
       !row.assignedTechnicianId ||
       !row.assignedTechnicianName ||
       !row.assignedTechnicianActive ||
-      row.assignedTechnicianRole !== "service_agent"
+      !isAssigneeRole(row.assignedTechnicianRole)
     );
     const eligibleAgents = agents
       .filter((agent) => canAssignRequestToUnit(

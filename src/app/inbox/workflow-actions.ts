@@ -22,6 +22,7 @@ import { workflowNoteError, workflowTransition } from "@/lib/request-workflow";
 import { issueChangeQuery } from "@/lib/issue-event-query";
 import { recordWorkflowNotifications } from "@/lib/workflow-notification-writer";
 import { canAssignRequestToUnit } from "@/lib/ga-assignment";
+import { assigneeAccountFilter } from "@/data/assignee-filter";
 import { recordAuthorizationDenied } from "@/security/audit";
 
 const issueIdPattern = /^(?:INC-[0-9]{4}-[0-9]{4,6}|TR-[0-9]{4}-[0-9]{4})$/;
@@ -71,7 +72,7 @@ export async function updateRequestWorkflowAction(
       throw new Error("The division request was not found.");
     }
     if (input.command === "resolve" && !issue.receivingDivisionId) throw new Error("Administrative resolution is only available for GA requests.");
-    if (currentUser.role === "approver" && issue.approverId && issue.approverId !== currentUser.id) {
+    if (currentUser.role === "approver" && issue.approverId && issue.approverId !== currentUser.id && issue.workflowStatus !== "ready_for_assignment") {
       await recordAuthorizationDenied(currentUser, `request.workflow.${input.command}`, { reason: "different_approver", issueId });
       throw new Error("This request belongs to the approver who handled its approval.");
     }
@@ -111,7 +112,7 @@ export async function updateRequestWorkflowAction(
         .where(
           and(
             eq(technicians.id, assigneeId),
-            eq(technicians.role, "service_agent"),
+            assigneeAccountFilter,
             eq(technicians.isActive, true),
           ),
         )
@@ -145,7 +146,7 @@ export async function updateRequestWorkflowAction(
               ? currentUser.id
               : undefined,
           approverId:
-            issue.workflowStatus === "waiting_approver" ? currentUser.id : undefined,
+            issue.workflowStatus === "waiting_approver" || (issue.workflowStatus === "ready_for_assignment" && currentUser.role === "approver") ? currentUser.id : undefined,
           finalApproverId:
             currentUser.role === "final_approver" ? currentUser.id : undefined,
           assignedTechnicianId: needsAssignee ? validatedAssigneeId : undefined,

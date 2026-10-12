@@ -30,7 +30,7 @@ test("division request viewers remain scoped while reception and approval pools 
   assert.equal(canReceiveIssueChange(viewer("final_approver", "GA"), audience), false);
 });
 
-test("only the first approver keeps receiving an escalated or approved request", () => {
+test("only the first approver keeps an escalated request; every First Approval may assign once it is approved", () => {
   const first = viewer("approver", null, null, "first");
   const other = viewer("approver", null, null, "other");
   assert.equal(canReceiveIssueChange(first, audience), true);
@@ -40,7 +40,9 @@ test("only the first approver keeps receiving an escalated or approved request",
   assert.equal(canReceiveIssueChange(first, escalated), true);
   assert.equal(canReceiveIssueChange(other, escalated), false);
   assert.equal(canReceiveIssueChange(first, { ...escalated, workflowStatus: "ready_for_assignment" }), true);
-  assert.equal(canReceiveIssueChange(other, { ...escalated, workflowStatus: "ready_for_assignment" }), false);
+  assert.equal(canReceiveIssueChange(other, { ...escalated, workflowStatus: "ready_for_assignment" }), true);
+  assert.equal(canReceiveIssueChange(other, { ...escalated, workflowStatus: "assigned" }), true);
+  assert.equal(canReceiveIssueChange(other, { ...escalated, workflowStatus: "rejected" }), false);
 });
 
 test("service agents only receive assigned work or legacy/manual division records", () => {

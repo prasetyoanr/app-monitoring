@@ -195,6 +195,38 @@ body {
   animation: auth-icon-pop 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
+/* Online indicator: a solid dot with a ring that expands and fades (green, 1.5 s). */
+.presence-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  flex-shrink: 0;
+  border-radius: 9999px;
+  background: #cbd5e1;
+}
+
+.presence-dot[data-online="true"] {
+  background: #10b981;
+  animation: presence-pulse 1.5s ease-out infinite;
+}
+
+.presence-dot[data-online="true"][data-tone="light"] {
+  background: #ffffff;
+  animation-name: presence-pulse-light;
+}
+
+@keyframes presence-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.75); }
+  70% { box-shadow: 0 0 0 9px rgba(16, 185, 129, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+}
+
+@keyframes presence-pulse-light {
+  0% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.85); }
+  70% { box-shadow: 0 0 0 9px rgba(255, 255, 255, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0); }
+}
+
 /* Refresh icon (every refresh button). */
 .refresh-icon {
   display: inline-grid;
@@ -256,6 +288,12 @@ body {
 
   .auth-button .animate-spin {
     animation-duration: 1s !important;
+    animation-iteration-count: infinite !important;
+  }
+
+  /* Whether someone is online is information, not decoration, so the pulse keeps running. */
+  .presence-dot[data-online="true"] {
+    animation-duration: 1.5s !important;
     animation-iteration-count: infinite !important;
   }
 

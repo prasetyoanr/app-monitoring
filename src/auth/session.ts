@@ -1,7 +1,7 @@
 import "server-only";
 
 import { createHash, randomBytes } from "node:crypto";
-import { and, eq, gt } from "drizzle-orm";
+import { and, eq, gt, lt } from "drizzle-orm";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { cache } from "react";
@@ -10,6 +10,7 @@ import { SESSION_COOKIE_NAME } from "@/auth/constants";
 import { db } from "@/db";
 import { authSessions, masterDivisions, technicians } from "@/db/schema";
 import type { AccountRole } from "@/data/types";
+import { HEARTBEAT_WRITE_INTERVAL_MS, SESSION_TOUCH_INTERVAL_MS } from "@/lib/presence";
 import { recordAuthorizationDenied } from "@/security/audit";
 
 const SESSION_DURATION_MS = 4 * 60 * 60 * 1000;
@@ -57,7 +58,24 @@ export function isSessionToken(value: string | null | undefined): value is strin
 
 // Creates the session row and returns the raw token. The web login puts it in a cookie,
 // the API login hands it to the client as a bearer token.
+// Expired sessions are only useful for a short while ("last seen"), then they are removed so
+// the table does not grow forever. Runs on sign-in, at most once an hour per server process.
+const EXPIRED_SESSION_RETENTION_MS = 7 * 86_400_000;
+let lastSessionPurgeAt = 0;
+
+async function purgeExpiredSessions() {
+  const now = Date.now();
+  if (now - lastSessionPurgeAt < 3_600_000) return;
+  lastSessionPurgeAt = now;
+  try {
+    await db.delete(authSessions).where(lt(authSessions.expiresAt, new Date(now - EXPIRED_SESSION_RETENTION_MS)));
+  } catch (error) {
+    console.error("Unable to remove expired sessions.", error);
+  }
+}
+
 export async function issueSessionToken(technicianId: string) {
+  void purgeExpiredSessions();
   const token = randomBytes(32).toString("base64url");
   const expiresAt = new Date(Date.now() + SESSION_DURATION_MS);
 
@@ -80,6 +98,49 @@ export async function createSession(technicianId: string) {
     path: "/",
     expires: expiresAt,
   });
+}
+
+// Marks the session as used, at most once per SESSION_TOUCH_INTERVAL_MS. The "older than"
+// condition is part of the UPDATE, so most calls change nothing and cost one indexed lookup.
+async function touchSession(token: string) {
+  try {
+    await db
+      .update(authSessions)
+      .set({ lastUsedAt: new Date() })
+      .where(and(
+        eq(authSessions.tokenHash, tokenHash(token)),
+        lt(authSessions.lastUsedAt, new Date(Date.now() - SESSION_TOUCH_INTERVAL_MS)),
+      ));
+  } catch (error) {
+    // Presence is informational; never fail a request because of it.
+    console.error("Unable to record session activity.", error);
+  }
+}
+
+// Called by the heartbeat endpoint. Records activity (at most once per
+// HEARTBEAT_WRITE_INTERVAL_MS) and reports whether the session is still valid. It does not
+// extend the session: the sign-in expiry stays exactly as it was.
+export async function recordHeartbeat(token: string | null | undefined): Promise<"ok" | "expired"> {
+  if (!isSessionToken(token)) return "expired";
+  const hash = tokenHash(token);
+  const now = new Date();
+  const written = await db
+    .update(authSessions)
+    .set({ lastUsedAt: now })
+    .where(and(
+      eq(authSessions.tokenHash, hash),
+      gt(authSessions.expiresAt, now),
+      lt(authSessions.lastUsedAt, new Date(now.getTime() - HEARTBEAT_WRITE_INTERVAL_MS)),
+    ))
+    .returning({ tokenHash: authSessions.tokenHash });
+  if (written.length) return "ok";
+  // Nothing written: either another tab just reported, or the session has ended.
+  const [valid] = await db
+    .select({ tokenHash: authSessions.tokenHash })
+    .from(authSessions)
+    .where(and(eq(authSessions.tokenHash, hash), gt(authSessions.expiresAt, now)))
+    .limit(1);
+  return valid ? "ok" : "expired";
 }
 
 export async function findUserBySessionToken(
@@ -117,6 +178,7 @@ export async function findUserBySessionToken(
       .limit(1);
 
     if (!row?.username) return null;
+    void touchSession(token);
     return {
       id: row.id,
       name: row.name,
@@ -172,6 +234,17 @@ export async function requireITRoleUser(capability?: string) {
 export async function requireServiceAgent(capability?: string) {
   const user = await requireAuthenticatedUser();
   if (user.role !== "administrator" && user.role !== "service_agent") {
+    if (capability) await recordAuthorizationDenied(user, capability);
+    redirect("/");
+  }
+  return user;
+}
+
+// Staff do assigned work, and so do Admin (Receptionist) accounts; each action still checks
+// that the request is assigned to the caller.
+export async function requireIssueWorker(capability?: string) {
+  const user = await requireAuthenticatedUser();
+  if (user.role !== "administrator" && user.role !== "service_agent" && user.role !== "receptionist") {
     if (capability) await recordAuthorizationDenied(user, capability);
     redirect("/");
   }

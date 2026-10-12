@@ -29,8 +29,10 @@ export function serviceInboxScope(user: AuthenticatedUser, options: { teamIt?: b
         eq(issues.workflowStatus, "waiting_approver"),
         or(isNull(issues.approverId), eq(issues.approverId, user.id)),
       ),
+      // Once the final approver agrees, every First Approval can assign and follow the work.
+      inArray(issues.workflowStatus, ["ready_for_assignment", "assigned", "resolved"]),
       and(
-        inArray(issues.workflowStatus, ["waiting_final_approver", "ready_for_assignment", "assigned", "resolved", "rejected"]),
+        inArray(issues.workflowStatus, ["waiting_final_approver", "rejected"]),
         eq(issues.approverId, user.id),
       ),
     ),

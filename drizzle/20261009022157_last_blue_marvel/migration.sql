@@ -1,0 +1,1 @@
+ALTER TABLE "ga_work_plan_items" DROP CONSTRAINT "ga_work_plan_items_target_week_check", ADD CONSTRAINT "ga_work_plan_items_target_week_check" CHECK (("target_mode" = 'date' and "target_date" is not null) or ("target_mode" = 'until_completed' and "target_date" is null));

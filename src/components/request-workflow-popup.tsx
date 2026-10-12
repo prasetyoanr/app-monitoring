@@ -46,7 +46,6 @@ export function RequestWorkflowPopup({
   const [command, setCommand] = useState<RequestWorkflowCommand | "">("");
   const [note, setNote] = useState("");
   const [assignee, setAssignee] = useState("");
-  const [unit, setUnit] = useState("");
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState("");
   const [workflowStatusOverride, setWorkflowStatusOverride] = useState<TicketRecord["workflowStatus"] | null>(null);
@@ -60,8 +59,12 @@ export function RequestWorkflowPopup({
   const eligibleAgents = serviceAgents.filter(
     (agent) => record.receivingDivisionId ? agent.isGaUnit : agent.division === record.serviceDivision,
   );
-  const unitOptions = [...new Map(eligibleAgents.map((agent) => [agent.divisionId, agent.division])).entries()];
-  const agents = eligibleAgents.filter((agent) => agent.divisionId === unit);
+  // One flat list of everyone in scope, grouped by unit when more than one unit is eligible.
+  const agentGroups = [...eligibleAgents.reduce((groups, agent) => {
+    const group = groups.get(agent.divisionId) ?? { name: agent.division, agents: [] as ServiceAgentOption[] };
+    group.agents.push(agent);
+    return groups.set(agent.divisionId, group);
+  }, new Map<string, { name: string; agents: ServiceAgentOption[] }>()).values()];
 
   function handleApply() {
     if (!command) {
@@ -94,7 +97,6 @@ export function RequestWorkflowPopup({
           setWorkflowStatusOverride("ready_for_assignment");
           setCommand("assign");
           setNote("");
-          setUnit("");
           setAssignee("");
           return;
         }
@@ -126,7 +128,7 @@ export function RequestWorkflowPopup({
               <CheckCircle2 className="mt-0.5 shrink-0" size={17} aria-hidden="true" />
               <div>
                 <p className="text-[11px] font-bold">Approval saved successfully.</p>
-                <p className="mt-0.5 text-[10px] leading-4">Continue by selecting the service unit and assigned staff.</p>
+                <p className="mt-0.5 text-[10px] leading-4">Continue by selecting the assigned staff.</p>
               </div>
             </div>
           ) : null}
@@ -151,18 +153,6 @@ export function RequestWorkflowPopup({
           {needsAssignee ? (
             <>
               <label className="block">
-                <span className={fieldLabelClass}>Service Unit</span>
-                <select
-                  disabled={isPending}
-                  value={unit}
-                  onChange={(e) => { setUnit(e.target.value); setAssignee(""); }}
-                  className={`h-10 w-full rounded-xl border border-slate-200 bg-white px-3 ${controlTextClass}`}
-                >
-                  <option value="">Select GA unit</option>
-                  {unitOptions.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
-                </select>
-              </label>
-              <label className="block">
                 <span className={fieldLabelClass}>Assigned Staff</span>
                 <select
                   disabled={isPending}
@@ -170,26 +160,33 @@ export function RequestWorkflowPopup({
                   onChange={(e) => setAssignee(e.target.value)}
                   className={`h-10 w-full rounded-xl border border-slate-200 bg-white px-3 ${controlTextClass} font-semibold text-slate-700 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100`}
                 >
-                  <option value="">Select agent</option>
-                  {agents.map((agent) => <option key={agent.id} value={agent.id}>{agent.name}</option>)}
+                  <option value="">Select staff ({eligibleAgents.length} available)</option>
+                  {agentGroups.length > 1
+                    ? agentGroups.map((group) => (
+                        <optgroup key={group.name} label={group.name}>
+                          {group.agents.map((agent) => <option key={agent.id} value={agent.id}>{agent.name}{agent.role === "receptionist" ? " (Admin)" : ""}</option>)}
+                        </optgroup>
+                      ))
+                    : agentGroups[0]?.agents.map((agent) => <option key={agent.id} value={agent.id}>{agent.name}{agent.role === "receptionist" ? " (Admin)" : ""}</option>)}
                 </select>
               </label>
               {eligibleAgents.length === 0 ? <p className="text-[10px] text-amber-700">No active staff are available.</p> : null}
             </>
-          ) : (
+          ) : null}
+          {!needsAssignee || command === "direct_assign" ? (
             <label className="block">
-              <span className={fieldLabelClass}>{command === "resolve" ? "Resolution Details (required)" : isReceptionist ? "Note (optional)" : "Note"}</span>
+              <span className={fieldLabelClass}>{command === "resolve" ? "Resolution Details (required)" : command === "direct_assign" ? "Reason (required)" : isReceptionist ? "Note (optional)" : "Note"}</span>
               <textarea
                 disabled={isPending}
                 value={note}
                 onChange={(e) => { setNote(e.target.value); setError(""); }}
                 maxLength={1000}
                 rows={3}
-                placeholder={isReceptionist ? "Add context for the approver" : "Optional; required for return/reject"}
+                placeholder={command === "direct_assign" ? "Why First Approval is not needed" : isReceptionist ? "Add context for the approver" : "Optional; required for return/reject"}
                 className={`w-full resize-y rounded-xl border border-slate-200 px-3 py-2 ${controlTextClass} outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 ${isReceptionist ? "bg-white" : ""}`}
               />
             </label>
-          )}
+          ) : null}
         </div>
 
         <div className="grid shrink-0 grid-cols-1 gap-2 border-t border-slate-100 bg-white px-4 py-4 sm:flex sm:items-center sm:justify-end sm:px-5">

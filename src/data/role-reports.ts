@@ -7,6 +7,7 @@ import { isITDivisionName, requireAuthenticatedUser, type AuthenticatedUser } fr
 import { getAdminOperationRecords } from "@/data/admin-operations";
 import { AUDIT_LOG_EXPORT_LIMIT, getAuditLogExportRecords } from "@/data/audit-log-data";
 import { canKeepGaWorkPlan, roleMayKeepGaWorkPlan } from "@/data/ga-workspace";
+import { gaWorkPlansForPeriod } from "@/data/ga-work-plan-period";
 import { serviceInboxScope } from "@/data/issue-scope";
 import { getSystemHealth } from "@/data/system-health";
 import { db } from "@/db";
@@ -299,8 +300,7 @@ async function gaActivitySheets(user: AuthenticatedUser, period: { start: string
     .innerJoin(masterDivisions, eq(gaWorkPlanItems.divisionId, masterDivisions.id))
     .where(and(
       isAdmin ? (memberId ? eq(gaWorkPlanItems.memberId, memberId) : undefined) : eq(gaWorkPlanItems.memberId, user.id),
-      sql`${gaWorkPlanItems.weekStart}::date <= ${period.end}::date`,
-      sql`(${gaWorkPlanItems.weekStart}::date + 6) >= ${period.start}::date`,
+      gaWorkPlansForPeriod(period.start, period.end),
     ))
     .orderBy(asc(technicians.name), asc(gaWorkPlanItems.weekStart), asc(gaWorkPlanItems.createdAt))
     .limit(REPORT_ROW_LIMIT + 1));

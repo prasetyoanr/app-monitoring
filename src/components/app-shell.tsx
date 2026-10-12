@@ -4,7 +4,8 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
-  ArrowLeft,
+  CheckCheck,
+  ChevronLeft,
   Bell,
   ChevronDown,
   ClipboardCheck,
@@ -28,6 +29,7 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { logoutAction } from "@/app/login/actions";
 import { markRequestNotificationsReadAction, markWorkflowNotificationsReadAction } from "@/app/notifications/actions";
 import { IssueLiveSync } from "@/components/issue-live-sync";
+import { PresenceHeartbeat } from "@/components/presence-heartbeat";
 import { RefreshIcon } from "@/components/refresh-icon";
 import { useSpinHold } from "@/components/use-spin-hold";
 import type { AccountRole, IssueStatus } from "@/data/types";
@@ -386,10 +388,9 @@ export function AppShell({
                 </button>
                 {notificationOpen ? (
                     <div className="fixed inset-x-3 top-20 z-50 w-auto overflow-hidden rounded-2xl border border-indigo-100 bg-white text-slate-700 shadow-2xl shadow-indigo-950/25 sm:absolute sm:left-auto sm:right-0 sm:top-12 sm:w-[min(24rem,calc(100vw-2rem))]" role="dialog" aria-label="Request and status-change notifications">
-                      <div className="border-b border-slate-100 bg-slate-50 px-4 py-3">
-                        <p className="text-xs font-bold text-slate-800">Notifications</p>
-                        <p className="mt-0.5 text-[10px] text-slate-500">{isAdministrator ? (adminAlerts.length ? "Alerts that need your action, then the latest requests" : "All clear · latest requests below") : "Latest incoming requests and status changes"}</p>
-                        {visibleWorkflowNotifications.length > 0 ? <button type="button" onClick={() => markWorkflowRead()} className="mt-1.5 text-[10px] font-semibold text-indigo-600 hover:text-indigo-800">Mark task alerts as read</button> : null}
+                      <div className="flex items-center justify-between gap-2 border-b border-slate-100 bg-slate-50 px-4 py-2">
+                        <p className="text-xs font-bold text-slate-800" title={isAdministrator ? "Alerts that need your action, then the latest requests" : "Latest incoming requests and status changes"}>Notifications</p>
+                        {visibleWorkflowNotifications.length > 0 ? <button type="button" onClick={() => markWorkflowRead()} className="inline-flex h-6 items-center gap-1 rounded-md px-1.5 text-[10px] font-semibold text-indigo-600 transition hover:bg-indigo-50 hover:text-indigo-800 active:scale-95" title="Mark all task alerts as read" aria-label="Mark all task alerts as read"><CheckCheck size={13} aria-hidden="true" /> Read all</button> : null}
                       </div>
                       {combinedNotifications.length > 0 ? <div className="max-h-[calc(100dvh-10rem)] divide-y divide-slate-100 overflow-y-auto sm:max-h-80">{combinedNotifications.map((notification) => <Link key={`${notification.source}-${notification.id}`} href={notification.href} onClick={() => { setNotificationOpen(false); if (notification.source === "Workflow") markWorkflowRead(notification.id); }} className="block px-4 py-3 transition hover:bg-indigo-50"><span className="flex items-center gap-2"><span className="min-w-0 flex-1 truncate text-[11px] font-semibold text-slate-800">{notification.title}</span><span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wide ${notification.source === "Alert" ? ("severity" in notification && notification.severity === "critical" ? "bg-rose-50 text-rose-600" : "bg-amber-50 text-amber-700") : notification.source === "Inbox" ? "bg-blue-50 text-blue-600" : notification.source === "Workflow" ? "bg-amber-50 text-amber-700" : "bg-violet-50 text-violet-600"}`}>{notification.source}</span></span><span className="mt-1 block text-[10px] leading-4 text-slate-500">{notification.description}</span><span className="mt-1 block text-[9px] text-slate-400">{notification.reportedAt}</span></Link>)}</div> : <div className="px-4 py-7 text-center text-[11px] text-slate-400">No new notifications.</div>}
                     </div>
@@ -454,9 +455,10 @@ export function AppShell({
         </div>
       </header>
 
+      <PresenceHeartbeat />
       <main className="app-main page-enter relative mx-auto max-w-[1600px] p-4 sm:p-6 xl:p-8">
         {showBackButton ? (
-          // Sits in the page's left padding, level with the top of the title, so the title
+          // A bold "<" in the page's left padding, level with the page title, so the title
           // itself does not move. Hidden on phones, which have no spare gutter.
           <button
             type="button"
@@ -464,11 +466,14 @@ export function AppShell({
               if (window.history.length > 1) router.back();
               else router.push(secondaryPageFallback(pathname));
             }}
-            className="group absolute left-px top-6 z-10 hidden size-[22px] place-items-center rounded-full border border-slate-200 bg-white text-slate-500 shadow-sm transition hover:border-slate-900 hover:bg-slate-900 hover:text-white active:scale-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-slate-900 sm:grid xl:left-0.5 xl:top-8 xl:size-7"
+            className="group absolute top-[50px] z-10 hidden h-9 w-6 place-items-center text-slate-500 transition hover:text-indigo-600 active:scale-90 focus-visible:rounded-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-500 sm:grid xl:top-[58px] xl:w-8"
+            // Moves up to 24px out into the empty margin beside the page; where there is no margin
+            // (narrow windows) it stays at the page edge, so it is never cut off.
+            style={{ left: "clamp(-24px, calc((100% - 100vw + 16px) / 2), 0px)" }}
             aria-label="Back to previous page"
             title="Back"
           >
-            <ArrowLeft size={13} className="transition-transform duration-200 group-hover:-translate-x-0.5" />
+            <ChevronLeft size={42} strokeWidth={2} className="transition-transform duration-200 group-hover:-translate-x-1" />
           </button>
         ) : null}
         {children}

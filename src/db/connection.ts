@@ -17,7 +17,9 @@ function createDatabasePool() {
     // Development navigation starts several Server Component queries at once.
     // Two reusable connections avoid a burst of concurrent authentication while
     // keeping these small local queries responsive.
-    max: process.env.NODE_ENV === "production" ? 10 : 2,
+    // Production default is 10; raise it with DATABASE_POOL_MAX if there are many users and
+    // PostgreSQL's max_connections allows it.
+    max: Number(process.env.DATABASE_POOL_MAX) > 0 ? Number(process.env.DATABASE_POOL_MAX) : process.env.NODE_ENV === "production" ? 10 : 2,
     connectionTimeoutMillis: 10_000,
     idleTimeoutMillis: 30_000,
     keepAlive: true,

@@ -46,11 +46,12 @@ test("escalation notifies final approvers only", () => {
   ]);
 });
 
-test("final approval hands the request back to the first approver", () => {
-  assert.deepEqual(plan({ event: "final_approved", actorId: "fin-1", approverId: "app-1" }), [
+test("final approval asks the first approver who handled it, and every other First Approval, to assign", () => {
+  assert.deepEqual(plan({ event: "final_approved", actorId: "fin-1", approverId: "app-2" }), [
+    { recipientId: "app-2", kind: "ready_for_assignment" },
     { recipientId: "app-1", kind: "ready_for_assignment" },
   ]);
-  assert.deepEqual(plan({ event: "final_approved", actorId: "fin-1", approverId: null }), []);
+  assert.deepEqual(plan({ event: "final_approved", actorId: "fin-1", approverId: null }).map((item) => item.recipientId), ["app-1", "app-2"]);
 });
 
 test("a return from final approval goes to the first approver; otherwise to reception", () => {

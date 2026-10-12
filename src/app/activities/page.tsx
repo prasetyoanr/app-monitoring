@@ -310,7 +310,7 @@ export default async function ActivitiesPage({
               {data.inbox.length ? <div className="divide-y divide-slate-100">{data.inbox.map((item) => <article key={item.id} className={`border-l-4 p-4 transition hover:bg-slate-50 sm:px-5 ${inboxEdge(item.status)}`}><div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="text-[9px] font-semibold text-slate-400">{item.id} · {dateFormat.format(new Date(item.reportedAt))}</p><h3 className="mt-1.5 text-xs font-bold text-slate-900">{item.title}</h3><p className="mt-1 text-[10px] text-slate-500">{item.location} · {item.priority} priority</p></div><span className={`shrink-0 rounded-md px-2 py-1 text-[9px] font-bold ${statusTone(item.status)}`}>{item.status}</span></div></article>)}</div> : <div className="px-5 py-12 text-center"><span className="mx-auto grid size-11 place-items-center rounded-2xl bg-slate-100 text-slate-400"><Inbox size={20} /></span><p className="mt-3 text-sm font-bold text-slate-700">Inbox is clear</p><p className="mt-1 text-xs text-slate-400">No assigned GA requests for this staff.</p></div>}
             </Card>
 
-            <GaWorkPlanBoard memberName={data.selectedMember.name} periodStart={weekStart} periodEnd={weekEnd} selectedDate={mode === "date" ? referenceDate : undefined} plans={data.workPlans} canEdit={canEditPlan} amberCta={isGaViewer} />
+            <GaWorkPlanBoard memberName={data.selectedMember.name} periodStart={weekStart} selectedDate={mode === "date" ? referenceDate : undefined} plans={data.workPlans} canEdit={canEditPlan} amberCta={isGaViewer} />
           </div>
         )}
       </> : null}

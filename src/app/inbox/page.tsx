@@ -38,7 +38,8 @@ export default async function InboxPage({
   );
   const canManage =
     currentUser.role === "administrator" ||
-    currentUser.role === "service_agent";
+    currentUser.role === "service_agent" ||
+    currentUser.role === "receptionist";
   const requestedWorkflow = single(params.workflow);
   const workflowFilter = dashboardWorkflowFilters.includes(
     requestedWorkflow as (typeof dashboardWorkflowFilters)[number],
@@ -62,6 +63,10 @@ export default async function InboxPage({
             : [workflowFilter as RequestWorkflowStatus];
           return record.workflowEnabled && statuses.includes(record.workflowStatus);
         });
+  // An Admin (Receptionist) can be assigned work too; those requests get the usual work list.
+  const ownAssignments = currentUser.role === "receptionist"
+    ? records.filter((record) => record.workflowEnabled && record.workflowStatus === "assigned" && record.assignedTechnicianId === currentUser.id)
+    : [];
   const filterLabel = isTeamItScope
     ? "Team IT Inbox"
     : attentionFilter === "stalled"
@@ -85,9 +90,9 @@ export default async function InboxPage({
         </Card>
       ) : null}
       <RequestWorkflowQueue records={visibleRecords} role={currentUser.role} serviceAgents={serviceAgents} />
-      {currentUser.role !== "receptionist" ? (
+      {currentUser.role !== "receptionist" || ownAssignments.length > 0 ? (
         <TicketList
-          initialRecords={visibleRecords}
+          initialRecords={currentUser.role === "receptionist" ? ownAssignments : visibleRecords}
           canManage={canManage}
           canCreateIssue={
             isITTeamUser(currentUser) &&

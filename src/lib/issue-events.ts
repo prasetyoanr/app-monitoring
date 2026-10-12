@@ -32,8 +32,10 @@ export function canReceiveIssueChange(user: Viewer, issue: IssueAudience): boole
     if (issue.workflowStatus === "waiting_approver") {
       return !issue.approverId || issue.approverId === user.id;
     }
+    // Every First Approval can assign and follow the work once the final approver has agreed.
+    if (["ready_for_assignment", "assigned", "resolved"].includes(issue.workflowStatus)) return true;
     return (
-      ["waiting_final_approver", "ready_for_assignment", "assigned", "resolved", "rejected"].includes(issue.workflowStatus) &&
+      ["waiting_final_approver", "rejected"].includes(issue.workflowStatus) &&
       issue.approverId === user.id
     );
   }

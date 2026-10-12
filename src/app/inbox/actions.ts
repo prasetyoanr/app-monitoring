@@ -4,7 +4,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { and, eq, gt } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
-import { isITTeamUser, requireAuthenticatedUser, requireServiceAgent } from "@/auth/session";
+import { isITTeamUser, requireAuthenticatedUser, requireIssueWorker, requireServiceAgent } from "@/auth/session";
 import { canManageServiceIssue } from "@/auth/issue-access";
 import { requestDestinationError } from "@/lib/request-destination";
 import { db } from "@/db";
@@ -327,7 +327,7 @@ export async function updateIssueStatusAction(
   reasonValue = "",
   requesterNoteValue = "",
 ): Promise<ActionResult<{ id: string }>> {
-  const currentUser = await requireServiceAgent("issue.status.update");
+  const currentUser = await requireIssueWorker("issue.status.update");
   try {
     if (!/^(?:INC-[0-9]{4}-[0-9]{4,6}|TR-[0-9]{4}-[0-9]{4})$/.test(id)) {
       throw new Error("Invalid issue ID.");
@@ -365,7 +365,7 @@ export async function updateIssueStatusAction(
       .limit(1);
 
     if (!issue) throw new Error("Issue was not found.");
-    if (!canManageServiceIssue(currentUser, issue.serviceDivisionId)) {
+    if (!canManageServiceIssue(currentUser, issue.serviceDivisionId, issue)) {
       await recordAuthorizationDenied(currentUser, "issue.status.update", { reason: "different_division", issueId: id });
       throw new Error("You cannot manage requests assigned to another division.");
     }
@@ -683,7 +683,7 @@ export async function createRequesterTicketAction(
 export async function updateIssueWorkPhotoAction(
   formData: FormData,
 ): Promise<ActionResult<{ id: string }>> {
-  const currentUser = await requireServiceAgent("issue.work_photo.update");
+  const currentUser = await requireIssueWorker("issue.work_photo.update");
   try {
     if (!isITTeamUser(currentUser)) {
       await recordAuthorizationDenied(currentUser, "issue.work_photo.update", { reason: "it_only" });
@@ -719,7 +719,7 @@ export async function updateIssueWorkPhotoAction(
       .where(eq(troubleshootingIssues.id, id))
       .limit(1);
     if (!issue) throw new Error("Issue was not found.");
-    if (!canManageServiceIssue(currentUser, issue.serviceDivisionId)) {
+    if (!canManageServiceIssue(currentUser, issue.serviceDivisionId, issue)) {
       await recordAuthorizationDenied(currentUser, "issue.work_photo.update", { reason: "different_division", issueId: id });
       throw new Error("You cannot manage requests assigned to another division.");
     }
@@ -882,11 +882,12 @@ export async function deleteIssueAction(id: string): Promise<ActionResult> {
 export async function requestApprovalAction(
   issueId: string,
 ): Promise<ActionResult<{ token: string; expiresAt: string }>> {
-  const currentUser = await requireServiceAgent("approval.request");
+  const currentUser = await requireIssueWorker("approval.request");
   try {
     const [issue] = await db
       .select({
         status: troubleshootingIssues.status,
+        source: troubleshootingIssues.source,
         workflowEnabled: troubleshootingIssues.workflowEnabled,
         workflowStatus: troubleshootingIssues.workflowStatus,
         assignedTechnicianId: troubleshootingIssues.assignedTechnicianId,
@@ -901,7 +902,7 @@ export async function requestApprovalAction(
       )
       .where(eq(troubleshootingIssues.id, issueId))
       .limit(1);
-    if (!issue || !canManageServiceIssue(currentUser, issue.serviceDivisionId)) {
+    if (!issue || !canManageServiceIssue(currentUser, issue.serviceDivisionId, issue)) {
       if (issue) await recordAuthorizationDenied(currentUser, "approval.request", { reason: "different_division", issueId });
       throw new Error("Issue is not available to your division.");
     }

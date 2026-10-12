@@ -37,10 +37,6 @@ export function isFriday(value: string) {
   return isDateInput(value) && new Date(`${value}T00:00:00Z`).getUTCDay() === 5;
 }
 
-export function isTargetInReportingPeriod(periodStart: string, targetDate: string) {
-  return isFriday(periodStart) && isDateInput(targetDate) && targetDate >= periodStart && targetDate <= shiftDate(periodStart, 6);
-}
-
 export function workPlanInputError(input: {
   title: string;
   description: string;
@@ -55,7 +51,7 @@ export function workPlanInputError(input: {
   if (description.length > 2_000) return "Plan notes must not exceed 2,000 characters.";
   if (!isFriday(input.weekStart)) return "Select a valid Friday-to-Thursday reporting period.";
   if (!gaWorkPlanTargetModes.includes(input.targetMode as GaWorkPlanTargetMode)) return "Select a valid target type.";
-  if (input.targetMode === "date" && !isTargetInReportingPeriod(input.weekStart, input.targetDate)) return "Target date must be within the selected reporting period.";
+  if (input.targetMode === "date" && !isDateInput(input.targetDate)) return "Select a valid target date.";
   if (input.targetMode === "until_completed" && input.targetDate) return "An until-completed plan must not have a target date.";
   return null;
 }

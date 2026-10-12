@@ -26,6 +26,7 @@ import { getServiceInboxProfile } from "@/features/service-inbox/profile-registr
 import { jakartaDateInput } from "@/lib/jakarta-date";
 import { accountRoleRequiresDivision } from "@/lib/account-role";
 import { serviceInboxScope } from "@/data/issue-scope";
+import { assigneeAccountFilter } from "@/data/assignee-filter";
 import { workflowNotificationHref, workflowNotificationText, type WorkflowNotificationKind } from "@/lib/workflow-notifications";
 import { getAdminAlerts } from "@/data/admin-alerts";
 
@@ -250,22 +251,19 @@ export async function getAssignableServiceAgents(): Promise<ServiceAgentOption[]
     .select({
       id: technicians.id,
       name: technicians.name,
+      role: technicians.role,
       divisionId: technicians.divisionId,
       division: masterDivisions.name,
       isGaUnit: masterDivisions.isGaUnit,
     })
     .from(technicians)
     .innerJoin(masterDivisions, eq(technicians.divisionId, masterDivisions.id))
-    .where(
-      and(
-        eq(technicians.role, "service_agent"),
-        eq(technicians.isActive, true),
-      ),
-    )
+    .where(and(assigneeAccountFilter, eq(technicians.isActive, true)))
     .orderBy(asc(masterDivisions.name), asc(technicians.name));
   return rows.map((row) => ({
     id: row.id,
     name: row.name,
+    role: row.role,
     divisionId: row.divisionId!,
     division: row.division,
     isGaUnit: row.isGaUnit,
@@ -399,8 +397,13 @@ export async function getNavigationCounts() {
       : currentUser.role === "approver"
         ? and(
             eq(troubleshootingIssues.workflowEnabled, true),
-            or(isNull(troubleshootingIssues.approverId), eq(troubleshootingIssues.approverId, currentUser.id)),
-            inArray(troubleshootingIssues.workflowStatus, ["waiting_approver", "ready_for_assignment"]),
+            or(
+              eq(troubleshootingIssues.workflowStatus, "ready_for_assignment"),
+              and(
+                eq(troubleshootingIssues.workflowStatus, "waiting_approver"),
+                or(isNull(troubleshootingIssues.approverId), eq(troubleshootingIssues.approverId, currentUser.id)),
+              ),
+            ),
           )
         : currentUser.role === "final_approver"
           ? and(

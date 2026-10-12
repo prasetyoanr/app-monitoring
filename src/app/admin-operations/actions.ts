@@ -10,6 +10,7 @@ import type { ActionResult } from "@/data/types";
 import { adminRecoveryReasonError, canAdminReassignIssue } from "@/lib/admin-recovery";
 import { canAssignRequestToUnit } from "@/lib/ga-assignment";
 import { issueChangeQuery } from "@/lib/issue-event-query";
+import { assigneeAccountFilter } from "@/data/assignee-filter";
 
 const issueIdPattern = /^(?:INC-[0-9]{4}-[0-9]{4,6}|TR-[0-9]{4}-[0-9]{4})$/;
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -58,7 +59,7 @@ export async function adminReassignIssueAction(input: {
       .innerJoin(masterDivisions, eq(technicians.divisionId, masterDivisions.id))
       .where(and(
         eq(technicians.id, assigneeId),
-        eq(technicians.role, "service_agent"),
+        assigneeAccountFilter,
         eq(technicians.isActive, true),
       ))
       .limit(1);
@@ -76,7 +77,6 @@ export async function adminReassignIssueAction(input: {
         .from(technicians)
         .where(and(
           eq(technicians.id, assignee.id),
-          eq(technicians.role, "service_agent"),
           eq(technicians.isActive, true),
         ))
         .limit(1);

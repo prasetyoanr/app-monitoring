@@ -29,6 +29,7 @@ export type RequestWorkflowCommand =
 export interface ServiceAgentOption {
   id: string;
   name: string;
+  role?: AccountRole;
   divisionId: string;
   division: string;
   isGaUnit: boolean;
@@ -106,6 +107,8 @@ export interface AccountRecord {
   isActive: boolean;
   isLocked: boolean;
   createdAt: string;
+  presence: "online" | "offline";
+  lastSeenLabel: string;
 }
 
 export type ActionResult<T = undefined> =
