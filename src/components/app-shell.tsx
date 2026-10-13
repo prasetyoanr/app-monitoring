@@ -423,7 +423,7 @@ export function AppShell({
                       className={`nav-link relative flex h-10 items-center gap-2 whitespace-nowrap rounded-xl px-3 text-[11px] font-semibold transition ${active ? "bg-white text-indigo-700 shadow-lg shadow-indigo-950/20" : "text-indigo-100/75 hover:bg-white/10 hover:text-white"}`}
                     >
                       <Icon size={15} strokeWidth={active ? 2.4 : 2} />
-                      {item.label}
+                      {item.children.find((child) => isNavigationItemActive(pathname, child.href, true)) ? `${item.label} · ${item.children.find((child) => isNavigationItemActive(pathname, child.href, true))?.label}` : item.label}
                       {item.count ? <span className="grid min-w-4 place-items-center rounded-full bg-teal-500 px-1 text-[9px] font-bold leading-4 text-white">{item.count > 99 ? "99+" : item.count}</span> : null}
                       <ChevronDown size={13} className={`transition ${internalMenuOpen ? "rotate-180" : ""}`} />
                     </button>

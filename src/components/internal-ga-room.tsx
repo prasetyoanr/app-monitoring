@@ -168,6 +168,7 @@ export function InternalGaRoom({
 
   return (
     <>
+      {mode === "history" ? (
       <section aria-label={config.label} className={`relative mb-4 overflow-hidden rounded-2xl ${t.hero} px-4 py-3 text-white shadow-lg sm:px-5`}>
         <div aria-hidden="true" className="pointer-events-none absolute -right-10 -top-24 size-48 rounded-full border-[32px] border-white/5" />
         <div className="relative flex items-center justify-between gap-3">
@@ -181,6 +182,7 @@ export function InternalGaRoom({
           <button type="button" onClick={() => { setCreating(true); setError(""); }} className={`inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-lg px-3 text-xs font-bold shadow-sm transition ${t.cta}`}><Plus size={15} /> <span className="hidden sm:inline">New internal request</span><span className="sm:hidden">New</span></button>
         </div>
       </section>
+      ) : null}
 
       {error && !creating ? <p role="alert" className="mb-3 rounded-xl bg-rose-50 p-3 text-xs font-semibold text-rose-700">{error}</p> : null}
 
@@ -250,7 +252,7 @@ export function InternalGaRoom({
         )}
       </Card>
 
-      {creating ? (
+      {mode === "history" && creating ? (
         <div className="fixed inset-0 z-[80] grid place-items-center overflow-y-auto bg-slate-950/55 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="internal-ga-title">
           <form onSubmit={createRequest} className="w-full max-w-lg space-y-4 rounded-2xl bg-white p-5 shadow-2xl">
             <div className="flex items-start justify-between gap-3">
