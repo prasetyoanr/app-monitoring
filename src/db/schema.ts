@@ -818,3 +818,44 @@ export const surveyResponses = pgTable(
     check("survey_responses_score_check", sql`${table.score} between 1 and 5`),
   ],
 );
+
+export const gaInternalStatusEnum = pgEnum("ga_internal_status", [
+  "open",
+  "in_progress",
+  "done",
+  "cancelled",
+]);
+
+// Requests between members of the GA team (General Affair and IT Team). They are kept apart
+// from troubleshooting_issues on purpose so the official request queue, dashboards and
+// reports only ever contain requests from other divisions.
+export const gaInternalRequests = pgTable(
+  "ga_internal_requests",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    title: varchar("title", { length: 200 }).notNull(),
+    description: text("description").notNull(),
+    location: varchar("location", { length: 160 }),
+    status: gaInternalStatusEnum("status").notNull().default("open"),
+    createdById: uuid("created_by_id").references(() => technicians.id, {
+      onDelete: "set null",
+    }),
+    // Null means the request is addressed to the whole team.
+    assignedToId: uuid("assigned_to_id").references(() => technicians.id, {
+      onDelete: "set null",
+    }),
+    resolutionNote: text("resolution_note"),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("ga_internal_requests_status_idx").on(table.status, table.createdAt),
+    index("ga_internal_requests_creator_idx").on(table.createdById),
+    index("ga_internal_requests_assignee_idx").on(table.assignedToId),
+  ],
+);
