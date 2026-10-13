@@ -5,11 +5,14 @@ import { revalidatePath } from "next/cache";
 
 import { requireAuthenticatedUser } from "@/auth/session";
 import { db } from "@/db";
-import { auditLogs, gaInternalRequests, masterDivisions, technicians } from "@/db/schema";
+import { auditLogs, gaInternalNotifications, gaInternalRequests, masterDivisions, technicians } from "@/db/schema";
+import { getInternalGaMembers } from "@/data/internal-ga";
 import type { ActionResult } from "@/data/types";
 import {
   canUseInternalGa,
   INTERNAL_GA_STATUSES,
+  internalGaCreateRecipients,
+  internalGaStatusRecipients,
   internalGaTransitionError,
   isInternalGaDivisionSlug,
   type InternalGaStatus,
@@ -49,6 +52,7 @@ export async function createInternalGaRequestAction(
       }
     }
 
+    const memberIds = assignedToId ? [] : (await getInternalGaMembers()).map((member) => member.id);
     const id = await db.transaction(async (tx) => {
       const [row] = await tx
         .insert(gaInternalRequests)
@@ -68,6 +72,16 @@ export async function createInternalGaRequestAction(
         entityId: row.id,
         metadata: { assignedToId: assignedToId || null },
       });
+      const { kind, recipientIds } = internalGaCreateRecipients({
+        creatorId: currentUser.id,
+        assignedToId: assignedToId || null,
+        memberIds,
+      });
+      if (recipientIds.length) {
+        await tx.insert(gaInternalNotifications).values(
+          recipientIds.map((recipientId) => ({ recipientId, requestId: row.id, actorId: currentUser.id, kind })),
+        );
+      }
       return row.id;
     });
     revalidatePath("/requests");
@@ -126,6 +140,23 @@ export async function updateInternalGaStatusAction(
         entityId: id,
         metadata: { previousStatus: request.status, status },
       });
+      const notify = internalGaStatusRecipients({
+        actorId: currentUser.id,
+        createdById: request.createdById,
+        assignedToId: request.assignedToId,
+        status,
+      });
+      if (notify) {
+        await tx.insert(gaInternalNotifications).values(
+          notify.recipientIds.map((recipientId) => ({
+            recipientId,
+            requestId: id,
+            actorId: currentUser.id,
+            kind: notify.kind,
+            note: finished ? note || null : null,
+          })),
+        );
+      }
     });
     revalidatePath("/requests");
     return { ok: true, data: undefined };

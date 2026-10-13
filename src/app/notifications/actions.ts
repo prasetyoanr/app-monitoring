@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 
 import { requireAuthenticatedUser } from "@/auth/session";
 import { db } from "@/db";
-import { requestStatusNotifications, workflowNotifications } from "@/db/schema";
+import { gaInternalNotifications, requestStatusNotifications, workflowNotifications } from "@/db/schema";
 import type { ActionResult } from "@/data/types";
 
 export async function markRequestNotificationsReadAction(): Promise<ActionResult> {
@@ -49,6 +49,29 @@ export async function markWorkflowNotificationsReadAction(id?: string): Promise<
     return { ok: true, data: undefined };
   } catch (error) {
     console.error("Unable to mark workflow notifications as read.", error);
+    return { ok: false, error: "Unable to update notifications." };
+  }
+}
+
+// Marks one internal GA notification read, or all of the caller's unread ones when no id is given.
+export async function markInternalGaNotificationsReadAction(id?: string): Promise<ActionResult> {
+  const currentUser = await requireAuthenticatedUser();
+  if (id !== undefined && !uuidPattern.test(id)) return { ok: false, error: "Invalid notification." };
+  try {
+    await db
+      .update(gaInternalNotifications)
+      .set({ readAt: new Date() })
+      .where(
+        and(
+          eq(gaInternalNotifications.recipientId, currentUser.id),
+          isNull(gaInternalNotifications.readAt),
+          id ? eq(gaInternalNotifications.id, id) : undefined,
+        ),
+      );
+    revalidatePath("/", "layout");
+    return { ok: true, data: undefined };
+  } catch (error) {
+    console.error("Unable to mark internal GA notifications as read.", error);
     return { ok: false, error: "Unable to update notifications." };
   }
 }

@@ -12,6 +12,8 @@ import {
   masterDivisions,
   requestStatusNotifications,
   workflowNotifications,
+  gaInternalNotifications,
+  gaInternalRequests,
   requestWorkflowHistory,
   technicians,
   troubleshootingApprovals,
@@ -27,6 +29,7 @@ import { jakartaDateInput } from "@/lib/jakarta-date";
 import { accountRoleRequiresDivision } from "@/lib/account-role";
 import { serviceInboxScope } from "@/data/issue-scope";
 import { assigneeAccountFilter } from "@/data/assignee-filter";
+import { internalGaNotificationText } from "@/lib/internal-ga";
 import { workflowNotificationHref, workflowNotificationText, type WorkflowNotificationKind } from "@/lib/workflow-notifications";
 import { getAdminAlerts } from "@/data/admin-alerts";
 
@@ -450,6 +453,8 @@ export async function getNavigationCounts() {
     requestNotificationRows,
     [unreadWorkflowNotifications],
     workflowNotificationRows,
+    [unreadInternalNotifications],
+    internalNotificationRows,
     adminAlerts,
   ] = await Promise.all([
     (currentUser.role === "requester"
@@ -537,6 +542,25 @@ export async function getNavigationCounts() {
       .where(and(eq(workflowNotifications.recipientId, currentUser.id), isNull(workflowNotifications.readAt)))
       .orderBy(desc(workflowNotifications.createdAt))
       .limit(10),
+    db
+      .select({ value: count() })
+      .from(gaInternalNotifications)
+      .where(and(eq(gaInternalNotifications.recipientId, currentUser.id), isNull(gaInternalNotifications.readAt))),
+    db
+      .select({
+        id: gaInternalNotifications.id,
+        kind: gaInternalNotifications.kind,
+        note: gaInternalNotifications.note,
+        createdAt: gaInternalNotifications.createdAt,
+        title: gaInternalRequests.title,
+        actorName: technicians.name,
+      })
+      .from(gaInternalNotifications)
+      .innerJoin(gaInternalRequests, eq(gaInternalNotifications.requestId, gaInternalRequests.id))
+      .leftJoin(technicians, eq(gaInternalNotifications.actorId, technicians.id))
+      .where(and(eq(gaInternalNotifications.recipientId, currentUser.id), isNull(gaInternalNotifications.readAt)))
+      .orderBy(desc(gaInternalNotifications.createdAt))
+      .limit(10),
     currentUser.role === "administrator" ? getAdminAlerts() : Promise.resolve([]),
   ]);
   const workflowNotificationItems = workflowNotificationRows.map((row) => ({
@@ -545,6 +569,14 @@ export async function getNavigationCounts() {
     description: workflowNotificationText(row.kind as WorkflowNotificationKind, row.note),
     reportedAt: jakartaDateTime.format(row.createdAt).replace(",", ""),
     href: workflowNotificationHref(row.kind as WorkflowNotificationKind),
+    status: "New" as const,
+  }));
+  const internalNotificationItems = internalNotificationRows.map((row) => ({
+    id: row.id,
+    title: row.title,
+    description: internalGaNotificationText(row.kind, row.actorName, row.note),
+    reportedAt: jakartaDateTime.format(row.createdAt).replace(",", ""),
+    href: "/requests",
     status: "New" as const,
   }));
   const inboxNotifications = inboxNotificationRows.map((row) => ({
@@ -574,9 +606,11 @@ export async function getNavigationCounts() {
     inProgressRequests: inProgressRequests.value,
     unreadRequestNotifications: unreadRequestNotifications.value,
     unreadWorkflowNotifications: unreadWorkflowNotifications.value,
+    unreadInternalNotifications: unreadInternalNotifications.value,
     inboxNotifications,
     requestNotifications,
     workflowNotifications: workflowNotificationItems,
+    internalNotifications: internalNotificationItems,
     adminAlerts,
   };
 }

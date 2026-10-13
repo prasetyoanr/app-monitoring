@@ -859,3 +859,35 @@ export const gaInternalRequests = pgTable(
     index("ga_internal_requests_assignee_idx").on(table.assignedToId),
   ],
 );
+
+// Bell notifications for the internal GA room. Kept apart from workflow_notifications, which
+// is tied to official requests, so the two kinds never mix.
+export const gaInternalNotifications = pgTable(
+  "ga_internal_notifications",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    recipientId: uuid("recipient_id")
+      .notNull()
+      .references(() => technicians.id, { onDelete: "cascade" }),
+    requestId: uuid("request_id")
+      .notNull()
+      .references(() => gaInternalRequests.id, { onDelete: "cascade" }),
+    actorId: uuid("actor_id").references(() => technicians.id, {
+      onDelete: "set null",
+    }),
+    kind: varchar("kind", { length: 40 }).notNull(),
+    note: text("note"),
+    readAt: timestamp("read_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("ga_internal_notifications_recipient_unread_idx").on(
+      table.recipientId,
+      table.readAt,
+      table.createdAt,
+    ),
+    index("ga_internal_notifications_request_idx").on(table.requestId),
+  ],
+);

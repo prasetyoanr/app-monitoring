@@ -49,9 +49,11 @@ export default async function RootLayout({
         inProgressRequests: 0,
         unreadRequestNotifications: 0,
         unreadWorkflowNotifications: 0,
+        unreadInternalNotifications: 0,
         inboxNotifications: [],
         requestNotifications: [],
         workflowNotifications: [],
+        internalNotifications: [],
         adminAlerts: [],
       };
   return (
@@ -59,7 +61,7 @@ export default async function RootLayout({
       <body>
         <PwaRegistration />
         {user ? (
-          <AppShell counts={counts} notifications={{ inbox: counts.inboxNotifications, request: counts.requestNotifications, workflow: counts.workflowNotifications, admin: counts.adminAlerts }} user={user}>{children}</AppShell>
+          <AppShell counts={counts} notifications={{ inbox: counts.inboxNotifications, request: counts.requestNotifications, workflow: counts.workflowNotifications, internal: counts.internalNotifications, admin: counts.adminAlerts }} user={user}>{children}</AppShell>
         ) : (
           children
         )}

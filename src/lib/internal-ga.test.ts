@@ -3,6 +3,9 @@ import test from "node:test";
 import {
   canUseInternalGa,
   canViewInternalGaRequest,
+  internalGaCreateRecipients,
+  internalGaNotificationText,
+  internalGaStatusRecipients,
   internalGaTransitionError,
 } from "./internal-ga";
 
@@ -43,4 +46,33 @@ test("finished requests can only be reopened", () => {
   const done = { createdById: "a", assignedToId: "b", status: "done" as const };
   assert.equal(internalGaTransitionError("a", done, "open"), null);
   assert.match(internalGaTransitionError("b", done, "in_progress")!, /cannot be changed/);
+});
+
+test("a new request notifies the recipient, or the whole team except the creator", () => {
+  assert.deepEqual(
+    internalGaCreateRecipients({ creatorId: "a", assignedToId: "b", memberIds: ["a", "b", "c"] }),
+    { kind: "assigned", recipientIds: ["b"] },
+  );
+  assert.deepEqual(
+    internalGaCreateRecipients({ creatorId: "a", assignedToId: null, memberIds: ["a", "b", "c"] }),
+    { kind: "team_request", recipientIds: ["b", "c"] },
+  );
+});
+
+test("a status change notifies the other side only", () => {
+  assert.deepEqual(
+    internalGaStatusRecipients({ actorId: "b", createdById: "a", assignedToId: "b", status: "done" }),
+    { kind: "done", recipientIds: ["a"] },
+  );
+  assert.deepEqual(
+    internalGaStatusRecipients({ actorId: "a", createdById: "a", assignedToId: "b", status: "cancelled" }),
+    { kind: "cancelled", recipientIds: ["b"] },
+  );
+  assert.equal(internalGaStatusRecipients({ actorId: "a", createdById: "a", assignedToId: null, status: "cancelled" }), null);
+  assert.equal(internalGaStatusRecipients({ actorId: "a", createdById: "a", assignedToId: "a", status: "open" }), null);
+});
+
+test("notification text names who acted", () => {
+  assert.equal(internalGaNotificationText("assigned", "Wasik", null), "Wasik sent you a request.");
+  assert.match(internalGaNotificationText("done", null, "Fixed"), /^A teammate marked your request as done\. Fixed$/);
 });

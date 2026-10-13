@@ -27,7 +27,7 @@ import {
 } from "lucide-react";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { logoutAction } from "@/app/login/actions";
-import { markRequestNotificationsReadAction, markWorkflowNotificationsReadAction } from "@/app/notifications/actions";
+import { markInternalGaNotificationsReadAction, markRequestNotificationsReadAction, markWorkflowNotificationsReadAction } from "@/app/notifications/actions";
 import { IssueLiveSync } from "@/components/issue-live-sync";
 import { PresenceHeartbeat } from "@/components/presence-heartbeat";
 import { RefreshIcon } from "@/components/refresh-icon";
@@ -102,8 +102,8 @@ export function AppShell({
   user,
 }: {
   children: React.ReactNode;
-  counts: { issues: number; backups: number; newRequests: number; inProgressRequests: number; unreadRequestNotifications: number; unreadWorkflowNotifications: number };
-  notifications: { inbox: NotificationItem[]; request: NotificationItem[]; workflow: NotificationItem[]; admin: AdminAlert[] };
+  counts: { issues: number; backups: number; newRequests: number; inProgressRequests: number; unreadRequestNotifications: number; unreadWorkflowNotifications: number; unreadInternalNotifications: number };
+  notifications: { inbox: NotificationItem[]; request: NotificationItem[]; workflow: NotificationItem[]; internal: NotificationItem[]; admin: AdminAlert[] };
   user: {
     name: string;
     username: string;
@@ -124,6 +124,7 @@ export function AppShell({
   const [spinHold, holdSpin] = useSpinHold();
   const [readRequestNotificationSignature, setReadRequestNotificationSignature] = useState<string | null>(null);
   const [readWorkflowIds, setReadWorkflowIds] = useState<ReadonlySet<string>>(new Set());
+  const [readInternalIds, setReadInternalIds] = useState<ReadonlySet<string>>(new Set());
   const userMenuRef = useRef<HTMLDivElement>(null);
   const notificationRef = useRef<HTMLDivElement>(null);
   const requestNotificationReadAttemptRef = useRef<string | null>(null);
@@ -260,13 +261,26 @@ export function AppShell({
     setReadWorkflowIds((current) => new Set([...current, ...(id ? [id] : notifications.workflow.map((notification) => notification.id))]));
     void markWorkflowNotificationsReadAction(id);
   };
+  const visibleInternalNotifications = notifications.internal.filter((notification) => !readInternalIds.has(notification.id));
+  const unreadInternalCount = Math.max(
+    0,
+    counts.unreadInternalNotifications - (notifications.internal.length - visibleInternalNotifications.length),
+  );
+  const markInternalRead = (id?: string) => {
+    setReadInternalIds((current) => new Set([...current, ...(id ? [id] : notifications.internal.map((notification) => notification.id))]));
+    void markInternalGaNotificationsReadAction(id);
+  };
+  const markAllTaskAlertsRead = () => {
+    if (visibleWorkflowNotifications.length > 0) markWorkflowRead();
+    if (visibleInternalNotifications.length > 0) markInternalRead();
+  };
   // The administrator's bell lists conditions that need action; the count is the number of
   // active alerts, and the latest tickets below them are informational only.
   const isAdministrator = user.role === "administrator";
   const adminAlerts = isAdministrator ? notifications.admin : [];
   const notificationCount = isAdministrator
     ? adminAlerts.length
-    : counts.newRequests + unreadRequestNotificationCount + unreadWorkflowCount;
+    : counts.newRequests + unreadRequestNotificationCount + unreadWorkflowCount + unreadInternalCount;
   const combinedNotifications = [
     ...adminAlerts.map((alert) => ({
       id: alert.id,
@@ -277,6 +291,7 @@ export function AppShell({
       source: "Alert" as const,
       severity: alert.severity,
     })),
+    ...visibleInternalNotifications.map((notification) => ({ ...notification, source: "Internal" as const })),
     ...visibleWorkflowNotifications.map((notification) => ({ ...notification, source: "Workflow" as const })),
     ...notifications.inbox.map((notification) => ({ ...notification, source: "Inbox" as const })),
     ...visibleRequestNotifications.map((notification) => ({ ...notification, source: "Request" as const })),
@@ -390,9 +405,9 @@ export function AppShell({
                     <div className="fixed inset-x-3 top-20 z-50 w-auto overflow-hidden rounded-2xl border border-indigo-100 bg-white text-slate-700 shadow-2xl shadow-indigo-950/25 sm:absolute sm:left-auto sm:right-0 sm:top-12 sm:w-[min(24rem,calc(100vw-2rem))]" role="dialog" aria-label="Request and status-change notifications">
                       <div className="flex items-center justify-between gap-2 border-b border-slate-100 bg-slate-50 px-4 py-2">
                         <p className="text-xs font-bold text-slate-800" title={isAdministrator ? "Alerts that need your action, then the latest requests" : "Latest incoming requests and status changes"}>Notifications</p>
-                        {visibleWorkflowNotifications.length > 0 ? <button type="button" onClick={() => markWorkflowRead()} className="inline-flex h-6 items-center gap-1 rounded-md px-1.5 text-[10px] font-semibold text-indigo-600 transition hover:bg-indigo-50 hover:text-indigo-800 active:scale-95" title="Mark all task alerts as read" aria-label="Mark all task alerts as read"><CheckCheck size={13} aria-hidden="true" /> Read all</button> : null}
+                        {visibleWorkflowNotifications.length + visibleInternalNotifications.length > 0 ? <button type="button" onClick={() => markAllTaskAlertsRead()} className="inline-flex h-6 items-center gap-1 rounded-md px-1.5 text-[10px] font-semibold text-indigo-600 transition hover:bg-indigo-50 hover:text-indigo-800 active:scale-95" title="Mark all task alerts as read" aria-label="Mark all task alerts as read"><CheckCheck size={13} aria-hidden="true" /> Read all</button> : null}
                       </div>
-                      {combinedNotifications.length > 0 ? <div className="max-h-[calc(100dvh-10rem)] divide-y divide-slate-100 overflow-y-auto sm:max-h-80">{combinedNotifications.map((notification) => <Link key={`${notification.source}-${notification.id}`} href={notification.href} onClick={() => { setNotificationOpen(false); if (notification.source === "Workflow") markWorkflowRead(notification.id); }} className="block px-4 py-3 transition hover:bg-indigo-50"><span className="flex items-center gap-2"><span className="min-w-0 flex-1 truncate text-[11px] font-semibold text-slate-800">{notification.title}</span><span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wide ${notification.source === "Alert" ? ("severity" in notification && notification.severity === "critical" ? "bg-rose-50 text-rose-600" : "bg-amber-50 text-amber-700") : notification.source === "Inbox" ? "bg-blue-50 text-blue-600" : notification.source === "Workflow" ? "bg-amber-50 text-amber-700" : "bg-violet-50 text-violet-600"}`}>{notification.source}</span></span><span className="mt-1 block text-[10px] leading-4 text-slate-500">{notification.description}</span><span className="mt-1 block text-[9px] text-slate-400">{notification.reportedAt}</span></Link>)}</div> : <div className="px-4 py-7 text-center text-[11px] text-slate-400">No new notifications.</div>}
+                      {combinedNotifications.length > 0 ? <div className="max-h-[calc(100dvh-10rem)] divide-y divide-slate-100 overflow-y-auto sm:max-h-80">{combinedNotifications.map((notification) => <Link key={`${notification.source}-${notification.id}`} href={notification.href} onClick={() => { setNotificationOpen(false); if (notification.source === "Workflow") markWorkflowRead(notification.id); if (notification.source === "Internal") markInternalRead(notification.id); }} className={`block px-4 py-3 transition ${notification.source === "Internal" ? "border-l-[3px] border-l-teal-500 bg-teal-50/50 hover:bg-teal-50" : "hover:bg-indigo-50"}`}><span className="flex items-center gap-2"><span className="min-w-0 flex-1 truncate text-[11px] font-semibold text-slate-800">{notification.title}</span><span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wide ${notification.source === "Alert" ? ("severity" in notification && notification.severity === "critical" ? "bg-rose-50 text-rose-600" : "bg-amber-50 text-amber-700") : notification.source === "Inbox" ? "bg-blue-50 text-blue-600" : notification.source === "Workflow" ? "bg-amber-50 text-amber-700" : notification.source === "Internal" ? "bg-teal-100 text-teal-800" : "bg-violet-50 text-violet-600"}`}>{notification.source === "Internal" ? "Internal GA" : notification.source}</span></span><span className="mt-1 block text-[10px] leading-4 text-slate-500">{notification.description}</span><span className="mt-1 block text-[9px] text-slate-400">{notification.reportedAt}</span></Link>)}</div> : <div className="px-4 py-7 text-center text-[11px] text-slate-400">No new notifications.</div>}
                     </div>
                 ) : null}
             </div>

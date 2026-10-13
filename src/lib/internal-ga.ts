@@ -67,3 +67,47 @@ export function internalGaTransitionError(
   if (next === "open") return isCreator || isHandler ? null : "You cannot reopen this request.";
   return isHandler ? null : "Only the person it is addressed to can work on this request.";
 }
+
+export type InternalGaNotificationKind = "assigned" | "team_request" | "started" | "done" | "reopened" | "cancelled";
+
+// Who is told about a new request: the person it is addressed to, or every other member for a
+// team-wide request.
+export function internalGaCreateRecipients(input: {
+  creatorId: string;
+  assignedToId: string | null;
+  memberIds: readonly string[];
+}): { kind: InternalGaNotificationKind; recipientIds: string[] } {
+  if (input.assignedToId) {
+    return { kind: "assigned", recipientIds: input.assignedToId === input.creatorId ? [] : [input.assignedToId] };
+  }
+  return { kind: "team_request", recipientIds: input.memberIds.filter((id) => id !== input.creatorId) };
+}
+
+// A status change is reported to the other side: the handler's progress goes to the creator,
+// the creator's cancel or reopen goes to whoever is handling the request.
+export function internalGaStatusRecipients(input: {
+  actorId: string;
+  createdById: string | null;
+  assignedToId: string | null;
+  status: InternalGaStatus;
+}): { kind: InternalGaNotificationKind; recipientIds: string[] } | null {
+  const kind: InternalGaNotificationKind =
+    input.status === "in_progress" ? "started" : input.status === "open" ? "reopened" : input.status;
+  const target = input.actorId === input.createdById ? input.assignedToId : input.createdById;
+  if (!target || target === input.actorId) return null;
+  return { kind, recipientIds: [target] };
+}
+
+const notificationText: Record<InternalGaNotificationKind, string> = {
+  assigned: "sent you a request.",
+  team_request: "sent a request to the whole GA team.",
+  started: "started working on your request.",
+  done: "marked your request as done.",
+  reopened: "reopened the request.",
+  cancelled: "cancelled the request.",
+};
+
+export function internalGaNotificationText(kind: string, actorName: string | null, note: string | null): string {
+  const base = `${actorName ?? "A teammate"} ${notificationText[kind as InternalGaNotificationKind] ?? "updated the request."}`;
+  return note ? `${base} ${note}` : base;
+}
