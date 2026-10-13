@@ -891,3 +891,33 @@ export const gaInternalNotifications = pgTable(
     index("ga_internal_notifications_request_idx").on(table.requestId),
   ],
 );
+
+// What happened to an internal request, in order. Names are copied in so the trail stays
+// readable after an account is removed, and the note survives later status changes (the
+// request row only keeps the latest one).
+export const gaInternalRequestEvents = pgTable(
+  "ga_internal_request_events",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    requestId: uuid("request_id")
+      .notNull()
+      .references(() => gaInternalRequests.id, { onDelete: "cascade" }),
+    // created | status_changed | assigned
+    kind: varchar("kind", { length: 40 }).notNull(),
+    actorId: uuid("actor_id").references(() => technicians.id, {
+      onDelete: "set null",
+    }),
+    actorName: varchar("actor_name", { length: 120 }).notNull(),
+    previousStatus: gaInternalStatusEnum("previous_status"),
+    status: gaInternalStatusEnum("status"),
+    // The person involved: the recipient on creation, the new handler on "assigned".
+    subjectName: varchar("subject_name", { length: 120 }),
+    note: text("note"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("ga_internal_request_events_request_idx").on(table.requestId, table.createdAt),
+  ],
+);

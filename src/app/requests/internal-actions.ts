@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 
 import { requireAuthenticatedUser } from "@/auth/session";
 import { db } from "@/db";
-import { auditLogs, gaInternalNotifications, gaInternalRequests, masterDivisions, technicians } from "@/db/schema";
+import { auditLogs, gaInternalNotifications, gaInternalRequestEvents, gaInternalRequests, masterDivisions, technicians } from "@/db/schema";
 import { getInternalGaMembers } from "@/data/internal-ga";
 import type { ActionResult } from "@/data/types";
 import { recordAuthorizationDenied } from "@/security/audit";
@@ -48,11 +48,12 @@ export async function createInternalGaRequestAction(
     const description = textField(formData, "description", 10_000, true, "Description");
     const location = textField(formData, "location", 160, false, "Location");
     const assignedToId = String(formData.get("assignedToId") ?? "").trim();
+    let recipientName: string | null = null;
 
     if (assignedToId) {
       if (!UUID.test(assignedToId)) throw new Error("The recipient is invalid.");
       const [recipient] = await db
-        .select({ slug: masterDivisions.slug, isActive: technicians.isActive })
+        .select({ slug: masterDivisions.slug, isActive: technicians.isActive, name: technicians.name })
         .from(technicians)
         .leftJoin(masterDivisions, eq(masterDivisions.id, technicians.divisionId))
         .where(eq(technicians.id, assignedToId))
@@ -60,6 +61,7 @@ export async function createInternalGaRequestAction(
       if (!recipient?.isActive || !isInternalGaDivisionSlug(recipient.slug)) {
         throw new Error("The recipient is not an active member of the GA team.");
       }
+      recipientName = recipient.name;
     }
 
     const memberIds = assignedToId ? [] : (await getInternalGaMembers()).map((member) => member.id);
@@ -81,6 +83,14 @@ export async function createInternalGaRequestAction(
         entityType: "ga_internal_request",
         entityId: row.id,
         metadata: { assignedToId: assignedToId || null },
+      });
+      await tx.insert(gaInternalRequestEvents).values({
+        requestId: row.id,
+        kind: "created",
+        actorId: currentUser.id,
+        actorName: currentUser.name,
+        status: "open",
+        subjectName: recipientName,
       });
       const { kind, recipientIds } = internalGaCreateRecipients({
         creatorId: currentUser.id,
@@ -158,8 +168,26 @@ export async function updateInternalGaStatusAction(
         action: "ga_internal_request.status_changed",
         entityType: "ga_internal_request",
         entityId: id,
-        metadata: { previousStatus: request.status, status },
+        metadata: { previousStatus: request.status, status, hasNote: Boolean(finished && note) },
       });
+      await tx.insert(gaInternalRequestEvents).values({
+        requestId: id,
+        kind: "status_changed",
+        actorId: currentUser.id,
+        actorName: currentUser.name,
+        previousStatus: request.status,
+        status,
+        note: finished ? note || null : null,
+      });
+      if (status === "in_progress" && request.assignedToId === null) {
+        await tx.insert(gaInternalRequestEvents).values({
+          requestId: id,
+          kind: "assigned",
+          actorId: currentUser.id,
+          actorName: currentUser.name,
+          subjectName: currentUser.name,
+        });
+      }
       const notify = internalGaStatusRecipients({
         actorId: currentUser.id,
         createdById: request.createdById,

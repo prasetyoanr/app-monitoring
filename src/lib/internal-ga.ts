@@ -123,3 +123,24 @@ export function internalGaNotificationText(kind: string, actorName: string | nul
 export function internalGaNotificationHref(kind: string): string {
   return kind === "assigned" || kind === "team_request" ? "/internal/inbox" : "/internal";
 }
+
+export interface InternalGaEventLike {
+  kind: string;
+  actorName: string;
+  previousStatus: InternalGaStatus | null;
+  status: InternalGaStatus | null;
+  subjectName: string | null;
+}
+
+// One line of the request timeline.
+export function internalGaEventText(event: InternalGaEventLike): string {
+  if (event.kind === "created") {
+    return `${event.actorName} created the request for ${event.subjectName ?? "the whole team"}.`;
+  }
+  if (event.kind === "assigned") return `${event.actorName} took the request.`;
+  if (event.kind === "status_changed" && event.status) {
+    const from = event.previousStatus ? internalGaStatusLabel[event.previousStatus] : null;
+    return `${event.actorName} changed the status${from ? ` from ${from}` : ""} to ${internalGaStatusLabel[event.status]}.`;
+  }
+  return `${event.actorName} updated the request.`;
+}

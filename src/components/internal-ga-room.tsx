@@ -7,7 +7,7 @@ import { CalendarDays, CheckCircle2, Clock3, LoaderCircle, MapPin, Plus, Search,
 import { createInternalGaRequestAction, updateInternalGaStatusAction } from "@/app/requests/internal-actions";
 import { Card, StatusBadge } from "@/components/ui";
 import type { InternalGaMember, InternalGaRequestRecord } from "@/data/internal-ga";
-import { internalGaStatusLabel, internalGaTransitionError, type InternalGaStatus } from "@/lib/internal-ga";
+import { internalGaEventText, internalGaStatusLabel, internalGaTransitionError, type InternalGaStatus } from "@/lib/internal-ga";
 
 const themes = {
   ga: {
@@ -85,6 +85,10 @@ function statusTone(status: InternalGaStatus): "green" | "blue" | "amber" | "red
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" });
+}
+
+function formatDateTime(iso: string) {
+  return new Date(iso).toLocaleString("id-ID", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
 }
 
 export function InternalGaRoom({
@@ -228,6 +232,20 @@ export function InternalGaRoom({
                     <span className="inline-flex items-center gap-1.5"><CalendarDays size={12} className="text-slate-400" /> {formatDate(request.createdAt)}</span>
                     {request.completedAt ? <span className="inline-flex items-center gap-1.5"><Clock3 size={12} className="text-slate-400" /> Finished {formatDate(request.completedAt)}</span> : null}
                   </div>
+                  {request.events.length > 1 ? (
+                    <details className="mt-3 text-[11px] text-slate-500">
+                      <summary className="cursor-pointer select-none font-semibold text-slate-600">History ({request.events.length})</summary>
+                      <ol className="mt-2 space-y-1.5 border-l-2 border-slate-100 pl-3">
+                        {request.events.map((event) => (
+                          <li key={event.id}>
+                            <span className="text-slate-700">{internalGaEventText(event)}</span>{" "}
+                            <span className="text-slate-400">{formatDateTime(event.createdAt)}</span>
+                            {event.note ? <span className="block text-slate-500">Note: {event.note}</span> : null}
+                          </li>
+                        ))}
+                      </ol>
+                    </details>
+                  ) : null}
                   {request.resolutionNote ? <p className="mt-3 rounded-lg bg-slate-50 p-2.5 text-xs leading-5 text-slate-600"><b className="font-semibold text-slate-700">Note:</b> {request.resolutionNote}</p> : null}
                   {actions.length ? (
                     <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">

@@ -4,6 +4,7 @@ import {
   canUseInternalGa,
   canViewInternalGaRequest,
   internalGaCreateRecipients,
+  internalGaEventText,
   internalGaMoveAllowed,
   internalGaNotificationHref,
   internalGaNotificationText,
@@ -89,4 +90,15 @@ test("notifications open the page where the person acts on them", () => {
 test("the status machine is separate from who is asking", () => {
   assert.equal(internalGaMoveAllowed("open", "done"), true);
   assert.equal(internalGaMoveAllowed("done", "in_progress"), false);
+});
+
+test("timeline lines name who did what", () => {
+  const base = { actorName: "Wasik", previousStatus: null, status: null, subjectName: null };
+  assert.equal(internalGaEventText({ ...base, kind: "created", subjectName: "Budi" }), "Wasik created the request for Budi.");
+  assert.equal(internalGaEventText({ ...base, kind: "created" }), "Wasik created the request for the whole team.");
+  assert.equal(internalGaEventText({ ...base, kind: "assigned" }), "Wasik took the request.");
+  assert.equal(
+    internalGaEventText({ ...base, kind: "status_changed", previousStatus: "open", status: "done" }),
+    "Wasik changed the status from Open to Done.",
+  );
 });

@@ -1,14 +1,26 @@
 import "server-only";
 
-import { and, count, desc, eq, inArray, isNull, ne, or } from "drizzle-orm";
+import { and, asc, count, desc, eq, inArray, isNull, ne, or } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 
 import { db } from "@/db";
-import { gaInternalRequests, masterDivisions, technicians } from "@/db/schema";
+import { gaInternalRequestEvents, gaInternalRequests, masterDivisions, technicians } from "@/db/schema";
 import { GA_DIVISION_SLUGS } from "@/lib/request-destination";
 import type { InternalGaStatus } from "@/lib/internal-ga";
 
+export interface InternalGaEventRecord {
+  id: string;
+  kind: string;
+  actorName: string;
+  previousStatus: InternalGaStatus | null;
+  status: InternalGaStatus | null;
+  subjectName: string | null;
+  note: string | null;
+  createdAt: string;
+}
+
 export interface InternalGaRequestRecord {
+  events: InternalGaEventRecord[];
   id: string;
   title: string;
   description: string;
@@ -76,11 +88,36 @@ export async function getInternalGaRequests(userId: string): Promise<InternalGaR
     .orderBy(desc(gaInternalRequests.createdAt))
     .limit(500);
 
+  const eventRows = rows.length
+    ? await db
+        .select({
+          id: gaInternalRequestEvents.id,
+          requestId: gaInternalRequestEvents.requestId,
+          kind: gaInternalRequestEvents.kind,
+          actorName: gaInternalRequestEvents.actorName,
+          previousStatus: gaInternalRequestEvents.previousStatus,
+          status: gaInternalRequestEvents.status,
+          subjectName: gaInternalRequestEvents.subjectName,
+          note: gaInternalRequestEvents.note,
+          createdAt: gaInternalRequestEvents.createdAt,
+        })
+        .from(gaInternalRequestEvents)
+        .where(inArray(gaInternalRequestEvents.requestId, rows.map((row) => row.id)))
+        .orderBy(asc(gaInternalRequestEvents.createdAt))
+    : [];
+  const eventsByRequest = new Map<string, InternalGaEventRecord[]>();
+  for (const { requestId, createdAt, ...event } of eventRows) {
+    const list = eventsByRequest.get(requestId) ?? [];
+    list.push({ ...event, createdAt: createdAt.toISOString() });
+    eventsByRequest.set(requestId, list);
+  }
+
   return rows.map((row) => ({
     ...row,
     createdByName: row.createdByName ?? "Former member",
     createdAt: row.createdAt.toISOString(),
     completedAt: row.completedAt?.toISOString() ?? null,
+    events: eventsByRequest.get(row.id) ?? [],
   }));
 }
 
