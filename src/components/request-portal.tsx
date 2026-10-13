@@ -14,8 +14,6 @@ import {
   Clock3,
   CheckCircle2,
   CircleX,
-  Scale,
-  ShoppingCart,
   TicketCheck,
   UsersRound,
   Wrench,
@@ -85,9 +83,7 @@ const portalThemes = {
 
 function getDivisionIcon(name: string) {
   const normalizedName = name.toLowerCase();
-  if (normalizedName.includes("purchase") || normalizedName.includes("procurement") || normalizedName.includes("pengadaan")) return ShoppingCart;
   if (normalizedName.includes("finance") || normalizedName.includes("keuangan")) return Landmark;
-  if (normalizedName.includes("legal") || normalizedName.includes("hukum")) return Scale;
   if (normalizedName.includes("human") || /(^|\s)hr(\s|$)/.test(normalizedName)) return UsersRound;
   if (normalizedName.includes("teknologi") || normalizedName.includes("informatika") || /(^|\s)it(\s|$)/.test(normalizedName)) return Wrench;
   return Building2;

@@ -1,5 +1,4 @@
 import { itSupportTemplate } from "@/features/divisions/it/request-template";
-import { purchaseRequestTemplate } from "@/features/divisions/purchase/request-template";
 
 import type { ServiceRequestTemplate } from "./template-types";
 
@@ -38,7 +37,6 @@ export const genericServiceRequestTemplate: ServiceRequestTemplate = {
 
 export const serviceRequestTemplates = [
   itSupportTemplate,
-  purchaseRequestTemplate,
 ] as const satisfies readonly ServiceRequestTemplate[];
 
 const templatesByKey = new Map(

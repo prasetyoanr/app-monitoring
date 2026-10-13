@@ -12,10 +12,10 @@ export function isGaDivisionSlug(slug: string | null | undefined): boolean {
 type RequestDestination = {
   id: string;
   slug: string;
-  isServiceTarget: boolean;
 };
 
 // Apply only to new requests; historical destinations keep their original scope.
+// GA always accepts requests, so there is no per-division switch to check.
 export function requestDestinationError(
   originDivisionId: string | null | undefined,
   destination: RequestDestination | null | undefined,
@@ -27,6 +27,5 @@ export function requestDestinationError(
   if (!destination || !isGaDivisionSlug(destination.slug)) {
     return "New requests can only be submitted to GA.";
   }
-  if (!destination.isServiceTarget) return "GA is not currently accepting new requests. Please contact an administrator.";
   return null;
 }

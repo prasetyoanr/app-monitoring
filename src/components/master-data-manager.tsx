@@ -71,7 +71,6 @@ export function MasterDataManager({ initialData }: { initialData: MasterDataReco
   );
   const adding = pendingAction === `add-${tab}`;
   const gaUnits = initialData.divisions.filter((division) => division.isGaUnit).length;
-  const acceptingRequests = initialData.divisions.filter((division) => isGaDivisionSlug(division.slug) && division.isServiceTarget).length;
 
   async function addItem(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -146,9 +145,7 @@ export function MasterDataManager({ initialData }: { initialData: MasterDataReco
             <div className="mt-0.5 flex flex-wrap items-center gap-1">
               <span className="font-mono text-[9px] text-slate-400">{division.slug}</span>
               {division.isGaUnit ? <span className="rounded bg-emerald-50 px-1.5 py-px text-[9px] font-bold text-emerald-700 ring-1 ring-inset ring-emerald-600/20">GA unit</span> : null}
-              {isGa ? (division.isServiceTarget
-                ? <span className="rounded bg-indigo-50 px-1.5 py-px text-[9px] font-bold text-indigo-700 ring-1 ring-inset ring-indigo-600/20">Accepts requests</span>
-                : <span className="rounded bg-amber-50 px-1.5 py-px text-[9px] font-bold text-amber-700 ring-1 ring-inset ring-amber-600/25">Closed to requests</span>) : null}
+              {isGa ? <span className="rounded bg-indigo-50 px-1.5 py-px text-[9px] font-bold text-indigo-700 ring-1 ring-inset ring-indigo-600/20">Request destination</span> : null}
               <span className="rounded bg-slate-100 px-1.5 py-px text-[9px] font-medium text-slate-500">{profileLabel}</span>
             </div>
           </div>
@@ -174,14 +171,7 @@ export function MasterDataManager({ initialData }: { initialData: MasterDataReco
               label="Can receive GA assignments"
               onChange={(value) => void saveDivisionRequestSettings(division, division.isServiceTarget, division.requestFormKey, division.inboxProfileKey, value)}
             />
-            {isGa ? (
-              <Switch
-                checked={division.isServiceTarget}
-                disabled={saving}
-                label="Accept requests to GA"
-                onChange={(value) => void saveDivisionRequestSettings(division, value, value ? division.requestFormKey : null, division.inboxProfileKey)}
-              />
-            ) : <span />}
+            <span />
             <label className="block text-[10px] font-semibold text-slate-500">Inbox profile
               <select
                 value={division.inboxProfileKey}
@@ -193,7 +183,7 @@ export function MasterDataManager({ initialData }: { initialData: MasterDataReco
                 {serviceInboxProfiles.map((profile) => <option key={profile.key} value={profile.key}>{profile.label}</option>)}
               </select>
             </label>
-            {isGa && division.isServiceTarget ? (
+            {isGa ? (
               <label className="block text-[10px] font-semibold text-slate-500">Request form template
                 <select
                   value={division.requestFormKey ?? ""}
@@ -219,7 +209,7 @@ export function MasterDataManager({ initialData }: { initialData: MasterDataReco
 
       <div className="mb-3 flex flex-wrap items-center gap-2 text-[10px] font-semibold text-slate-500">
         <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-emerald-700 ring-1 ring-inset ring-emerald-600/20">{gaUnits} GA units</span>
-        <span className="rounded-full bg-indigo-50 px-2.5 py-1 text-indigo-700 ring-1 ring-inset ring-indigo-600/20">{acceptingRequests ? "GA accepts requests" : "GA closed to requests"}</span>
+        <span className="rounded-full bg-indigo-50 px-2.5 py-1 text-indigo-700 ring-1 ring-inset ring-indigo-600/20">All divisions request to GA</span>
         <span className="text-slate-400">Deleting only removes an option from new forms; existing records stay unchanged.</span>
       </div>
 

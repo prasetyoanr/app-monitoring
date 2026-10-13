@@ -124,7 +124,7 @@ async function seed() {
       {
         id: "00000000-0000-4000-8000-000000000103",
         clientName: "Lina Wijaya",
-        department: "Legal",
+        department: "Marketing",
         score: 5,
         comment: "The explanation was easy to understand and very helpful.",
         issueReference: "INC-2026-0129",
