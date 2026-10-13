@@ -125,15 +125,19 @@ export function RequestPortal({
 
   return (
     <>
-      <section aria-label="GA service" className={`relative mb-5 overflow-hidden rounded-2xl ${t.hero} p-5 text-white shadow-lg sm:p-6`}>
-        <div aria-hidden="true" className="pointer-events-none absolute -right-10 -top-20 size-64 rounded-full border-[40px] border-white/5" />
-        <div className="relative flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex min-w-0 items-start gap-3 sm:gap-4">
-            <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-white/10 ring-1 ring-white/15"><Building2 size={24} /></span>
-            <div className="min-w-0"><p className={`text-[10px] font-bold uppercase tracking-[0.18em] ${t.eyebrow}`}>Service Destination</p><h2 className="mt-1 text-lg font-bold tracking-tight sm:text-xl">General Affairs</h2><p className={`mt-1.5 max-w-lg text-xs leading-5 ${t.body}`}>All new requests are received and reviewed by the Admin before being forwarded to the appropriate unit.</p><p className={`mt-3 flex items-center gap-2 text-[11px] ${t.meta}`}><span className={`size-1.5 shrink-0 rounded-full ${t.dot}`} /><span className="break-words">Requester division: <strong className="font-semibold text-white">{division ?? "Not assigned"}</strong></span></p></div>
+      <section aria-label="GA service" className={`relative mb-4 overflow-hidden rounded-2xl ${t.hero} px-4 py-3 text-white shadow-lg sm:px-5`}>
+        <div aria-hidden="true" className="pointer-events-none absolute -right-10 -top-24 size-48 rounded-full border-[32px] border-white/5" />
+        <div className="relative flex items-center justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-3">
+            <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-white/10 ring-1 ring-white/15"><Building2 size={18} /></span>
+            <div className="min-w-0">
+              <p className={`text-[10px] font-bold uppercase tracking-[0.16em] ${t.eyebrow}`}>General Affairs</p>
+              <p className={`truncate text-xs ${t.body}`} title="Requests are received and reviewed by the Admin before being forwarded to the right unit.">Requests are reviewed by the Admin · <span className="font-semibold text-white">{division ?? "No division assigned"}</span></p>
+            </div>
           </div>
-          {requestHref ? <Link href={requestHref} className={`group inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl px-4 py-3 text-xs font-bold shadow-sm transition ${t.cta} focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white`}><Plus size={16} /> Create GA Request <ArrowRight size={15} className="transition-transform group-hover:translate-x-1 motion-reduce:transform-none" /></Link> : <div className={`max-w-sm rounded-xl border border-white/15 bg-black/10 p-3 text-xs leading-5 ${t.notice}`}><p className="mb-1 flex items-center gap-2 font-semibold text-white"><Info size={15} /> Request unavailable</p>{unavailableReason ?? "GA is not currently accepting requests."}</div>}
+          {requestHref ? <Link href={requestHref} className={`inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-lg px-3 text-xs font-bold shadow-sm transition ${t.cta}`}><Plus size={15} /> <span className="hidden sm:inline">Create GA Request</span><span className="sm:hidden">New</span></Link> : null}
         </div>
+        {!requestHref ? <p className={`relative mt-2 flex items-start gap-2 rounded-lg border border-white/15 bg-black/10 px-3 py-2 text-[11px] leading-4 ${t.notice}`}><Info size={14} className="mt-px shrink-0" /><span>{unavailableReason ?? "Requests are currently unavailable."}</span></p> : null}
       </section>
 
       <Card className="overflow-hidden">
