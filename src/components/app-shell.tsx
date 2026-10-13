@@ -424,7 +424,7 @@ export function AppShell({
                     >
                       <Icon size={15} strokeWidth={active ? 2.4 : 2} />
                       {item.children.find((child) => isNavigationItemActive(pathname, child.href, true)) ? `${item.label} · ${item.children.find((child) => isNavigationItemActive(pathname, child.href, true))?.label}` : item.label}
-                      {item.count ? <span className="grid min-w-4 place-items-center rounded-full bg-teal-500 px-1 text-[9px] font-bold leading-4 text-white">{item.count > 99 ? "99+" : item.count}</span> : null}
+                      {item.count ? <span className="grid min-w-4 place-items-center rounded-full bg-rose-500 px-1 text-[9px] font-bold leading-4 text-white">{item.count > 99 ? "99+" : item.count}</span> : null}
                       <ChevronDown size={13} className={`transition ${internalMenuOpen ? "rotate-180" : ""}`} />
                     </button>
                     {internalMenuOpen ? (
@@ -436,7 +436,7 @@ export function AppShell({
                             <Link key={child.href} href={child.href} onClick={() => setInternalMenuOpen(false)} className={`flex h-11 items-center gap-3 rounded-xl px-3 text-xs font-semibold transition ${childActive ? "bg-indigo-50 text-indigo-700" : "text-slate-600 hover:bg-indigo-50 hover:text-indigo-700"}`} role="menuitem">
                               <ChildIcon size={16} />
                               <span className="flex-1">{child.label}</span>
-                              {child.count ? <span className="rounded-full bg-teal-100 px-1.5 py-0.5 text-[9px] font-bold text-teal-800">{child.count}</span> : null}
+                              {child.count ? <span className="rounded-full bg-rose-500 px-1.5 py-0.5 text-[9px] font-bold leading-4 text-white">{child.count}</span> : null}
                             </Link>
                           );
                         })}
