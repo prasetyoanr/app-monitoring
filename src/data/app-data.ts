@@ -29,7 +29,8 @@ import { jakartaDateInput } from "@/lib/jakarta-date";
 import { accountRoleRequiresDivision } from "@/lib/account-role";
 import { serviceInboxScope } from "@/data/issue-scope";
 import { assigneeAccountFilter } from "@/data/assignee-filter";
-import { internalGaNotificationText } from "@/lib/internal-ga";
+import { getInternalGaWaiting } from "@/data/internal-ga";
+import { canUseInternalGa, internalGaNotificationHref, internalGaNotificationText } from "@/lib/internal-ga";
 import { workflowNotificationHref, workflowNotificationText, type WorkflowNotificationKind } from "@/lib/workflow-notifications";
 import { getAdminAlerts } from "@/data/admin-alerts";
 
@@ -455,6 +456,7 @@ export async function getNavigationCounts() {
     workflowNotificationRows,
     [unreadInternalNotifications],
     internalNotificationRows,
+    internalWaiting,
     adminAlerts,
   ] = await Promise.all([
     (currentUser.role === "requester"
@@ -561,6 +563,7 @@ export async function getNavigationCounts() {
       .where(and(eq(gaInternalNotifications.recipientId, currentUser.id), isNull(gaInternalNotifications.readAt)))
       .orderBy(desc(gaInternalNotifications.createdAt))
       .limit(10),
+    canUseInternalGa(currentUser) ? getInternalGaWaiting(currentUser.id) : Promise.resolve({ forMe: 0, forTeam: 0 }),
     currentUser.role === "administrator" ? getAdminAlerts() : Promise.resolve([]),
   ]);
   const workflowNotificationItems = workflowNotificationRows.map((row) => ({
@@ -576,7 +579,7 @@ export async function getNavigationCounts() {
     title: row.title,
     description: internalGaNotificationText(row.kind, row.actorName, row.note),
     reportedAt: jakartaDateTime.format(row.createdAt).replace(",", ""),
-    href: "/requests",
+    href: internalGaNotificationHref(row.kind),
     status: "New" as const,
   }));
   const inboxNotifications = inboxNotificationRows.map((row) => ({
@@ -607,6 +610,7 @@ export async function getNavigationCounts() {
     unreadRequestNotifications: unreadRequestNotifications.value,
     unreadWorkflowNotifications: unreadWorkflowNotifications.value,
     unreadInternalNotifications: unreadInternalNotifications.value,
+    waitingInternalRequests: internalWaiting.forMe + internalWaiting.forTeam,
     inboxNotifications,
     requestNotifications,
     workflowNotifications: workflowNotificationItems,

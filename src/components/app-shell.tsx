@@ -34,7 +34,18 @@ import { RefreshIcon } from "@/components/refresh-icon";
 import { useSpinHold } from "@/components/use-spin-hold";
 import type { AccountRole, IssueStatus } from "@/data/types";
 import type { AdminAlert } from "@/lib/admin-alerts";
+import { canUseInternalGa } from "@/lib/internal-ga";
 import { isGaDivisionSlug } from "@/lib/request-destination";
+
+type NavigationChild = {
+  label: string;
+  // Phones and the collapsed menu have no dropdown, so each child is listed as its own entry.
+  flatLabel: string;
+  mobileLabel: string;
+  href: string;
+  icon: LucideIcon;
+  count?: number;
+};
 
 type NavigationItem = {
   label: string;
@@ -44,6 +55,9 @@ type NavigationItem = {
   itTeamOnly?: boolean;
   itRoleOnly?: boolean;
   administratorOnly?: boolean;
+  // Set on flattened dropdown children so "/internal" is not also active on "/internal/inbox".
+  exact?: boolean;
+  children?: NavigationChild[];
 };
 
 type NotificationItem = {
@@ -76,6 +90,8 @@ const primaryPagePaths = new Set([
   "/inbox",
   "/activities",
   "/requests",
+  "/internal",
+  "/internal/inbox",
   "/backups",
   "/surveys",
   "/reports",
@@ -91,7 +107,8 @@ function secondaryPageFallback(pathname: string) {
     : "/";
 }
 
-function isNavigationItemActive(pathname: string, href: string) {
+function isNavigationItemActive(pathname: string, href: string, exact = false) {
+  if (exact) return pathname === href;
   return href === "/" ? pathname === "/" : pathname.startsWith(href);
 }
 
@@ -102,7 +119,7 @@ export function AppShell({
   user,
 }: {
   children: React.ReactNode;
-  counts: { issues: number; backups: number; newRequests: number; inProgressRequests: number; unreadRequestNotifications: number; unreadWorkflowNotifications: number; unreadInternalNotifications: number };
+  counts: { issues: number; backups: number; newRequests: number; inProgressRequests: number; unreadRequestNotifications: number; unreadWorkflowNotifications: number; unreadInternalNotifications: number; waitingInternalRequests: number };
   notifications: { inbox: NotificationItem[]; request: NotificationItem[]; workflow: NotificationItem[]; internal: NotificationItem[]; admin: AdminAlert[] };
   user: {
     name: string;
@@ -118,6 +135,7 @@ export function AppShell({
   const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
   const [utilityOpen, setUtilityOpen] = useState(false);
+  const [internalMenuOpen, setInternalMenuOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [notificationOpen, setNotificationOpen] = useState(false);
   const [isRefreshing, startRefreshTransition] = useTransition();
@@ -174,6 +192,28 @@ export function AppShell({
     document.addEventListener("pointerdown", closeNotification);
     return () => document.removeEventListener("pointerdown", closeNotification);
   }, [notificationOpen]);
+
+  useEffect(() => {
+    if (!internalMenuOpen) return;
+
+    function closeInternalMenu(event: PointerEvent) {
+      const target = event.target;
+      if (!(target instanceof Element) || !target.closest("[data-internal-menu]")) {
+        setInternalMenuOpen(false);
+      }
+    }
+
+    function closeInternalMenuWithKeyboard(event: KeyboardEvent) {
+      if (event.key === "Escape") setInternalMenuOpen(false);
+    }
+
+    document.addEventListener("pointerdown", closeInternalMenu);
+    document.addEventListener("keydown", closeInternalMenuWithKeyboard);
+    return () => {
+      document.removeEventListener("pointerdown", closeInternalMenu);
+      document.removeEventListener("keydown", closeInternalMenuWithKeyboard);
+    };
+  }, [internalMenuOpen]);
 
   useEffect(() => {
     if (!utilityOpen) return;
@@ -304,13 +344,42 @@ export function AppShell({
     .filter((item) => !item.itTeamOnly || (isIT && ["administrator", "service_agent", "approver"].includes(user.role)))
     .filter((item) => !item.itRoleOnly || isITRole)
     .filter((item) => !item.administratorOnly || user.role === "administrator")
-    .map((item) => ({
-      ...item,
-      count:
-        item.href === "/backups"
-          ? counts.backups
-          : undefined,
-    }));
+    .map((item): NavigationItem & { count?: number } => {
+      // GA and IT staff do not send official requests, so their "Request" entry becomes
+      // the Internal dropdown: request history first, the internal inbox second.
+      if (item.href === "/requests" && canUseInternalGa(user)) {
+        const waiting = counts.waitingInternalRequests;
+        return {
+          label: "Internal",
+          href: "/internal",
+          icon: Send,
+          count: waiting || undefined,
+          children: [
+            { label: "Requests", flatLabel: "Internal", mobileLabel: "Internal", href: "/internal", icon: Send },
+            { label: "Inbox", flatLabel: "Internal Inbox", mobileLabel: "Int. Inbox", href: "/internal/inbox", icon: Inbox, count: waiting || undefined },
+          ],
+        };
+      }
+      return {
+        ...item,
+        count:
+          item.href === "/backups"
+            ? counts.backups
+            : undefined,
+      };
+    });
+  const flatNavigation = navigation.flatMap((item): Array<NavigationItem & { count?: number }> =>
+    item.children
+      ? item.children.map((child) => ({
+          label: child.flatLabel,
+          mobileLabel: child.mobileLabel,
+          href: child.href,
+          icon: child.icon,
+          count: child.count,
+          exact: true,
+        }))
+      : [item],
+  );
   const utilityActive = utilityNavigation.some((item) => isNavigationItemActive(pathname, item.href));
   const showBackButton = !primaryPagePaths.has(pathname);
 
@@ -342,6 +411,40 @@ export function AppShell({
             {navigation.map((item) => {
               const active = isNavigationItemActive(pathname, item.href);
               const Icon = item.icon;
+              if (item.children) {
+                return (
+                  <div key={item.href} className="relative" data-internal-menu>
+                    <button
+                      type="button"
+                      onClick={() => setInternalMenuOpen((open) => !open)}
+                      data-active={active}
+                      aria-expanded={internalMenuOpen}
+                      aria-haspopup="menu"
+                      className={`nav-link relative flex h-10 items-center gap-2 whitespace-nowrap rounded-xl px-3 text-[11px] font-semibold transition ${active ? "bg-white text-indigo-700 shadow-lg shadow-indigo-950/20" : "text-indigo-100/75 hover:bg-white/10 hover:text-white"}`}
+                    >
+                      <Icon size={15} strokeWidth={active ? 2.4 : 2} />
+                      {item.label}
+                      {item.count ? <span className="grid min-w-4 place-items-center rounded-full bg-teal-500 px-1 text-[9px] font-bold leading-4 text-white">{item.count > 99 ? "99+" : item.count}</span> : null}
+                      <ChevronDown size={13} className={`transition ${internalMenuOpen ? "rotate-180" : ""}`} />
+                    </button>
+                    {internalMenuOpen ? (
+                      <div className="absolute left-0 top-12 z-50 w-52 overflow-hidden rounded-2xl border border-indigo-100 bg-white p-2 text-slate-700 shadow-2xl shadow-indigo-950/25" role="menu">
+                        {item.children.map((child) => {
+                          const ChildIcon = child.icon;
+                          const childActive = isNavigationItemActive(pathname, child.href, true);
+                          return (
+                            <Link key={child.href} href={child.href} onClick={() => setInternalMenuOpen(false)} className={`flex h-11 items-center gap-3 rounded-xl px-3 text-xs font-semibold transition ${childActive ? "bg-indigo-50 text-indigo-700" : "text-slate-600 hover:bg-indigo-50 hover:text-indigo-700"}`} role="menuitem">
+                              <ChildIcon size={16} />
+                              <span className="flex-1">{child.label}</span>
+                              {child.count ? <span className="rounded-full bg-teal-100 px-1.5 py-0.5 text-[9px] font-bold text-teal-800">{child.count}</span> : null}
+                            </Link>
+                          );
+                        })}
+                      </div>
+                    ) : null}
+                  </div>
+                );
+              }
               return (
                 <Link
                   key={item.href}
@@ -454,8 +557,8 @@ export function AppShell({
               inert={!menuOpen}
             >
               <div className="mx-auto grid max-w-[1600px] gap-1 sm:grid-cols-2 lg:grid-cols-3">
-                {navigation.map((item) => {
-                  const active = isNavigationItemActive(pathname, item.href);
+                {flatNavigation.map((item) => {
+                  const active = isNavigationItemActive(pathname, item.href, item.exact);
                   const Icon = item.icon;
                   return <Link key={item.href} href={item.href} onClick={() => setMenuOpen(false)} className={`relative flex h-11 items-center gap-3 rounded-xl px-3 text-xs font-semibold ${active ? "bg-white text-indigo-700 shadow-lg" : "text-indigo-100/75 hover:bg-white/10 hover:text-white"}`}><Icon size={17} /><span className="flex-1">{item.label}</span>{item.count ? <span className={`rounded-md px-1.5 py-0.5 text-[9px] ${active ? "bg-indigo-100" : "bg-white/10"}`}>{item.count}</span> : null}</Link>;
                 })}
@@ -498,8 +601,8 @@ export function AppShell({
         {user.role === "administrator" && utilityOpen ? <div className="fixed bottom-[calc(5.75rem+env(safe-area-inset-bottom))] right-4 z-[60] w-[min(15rem,calc(100vw-2rem))] rounded-2xl border border-indigo-100 bg-white p-2 text-slate-700 shadow-2xl shadow-indigo-950/25" role="menu" data-utility-menu>{utilityNavigation.map((item) => { const Icon = item.icon; const active = isNavigationItemActive(pathname, item.href); return <Link key={item.href} href={item.href} onClick={() => setUtilityOpen(false)} className={`flex h-11 items-center gap-3 rounded-xl px-3 text-xs font-semibold ${active ? "bg-indigo-50 text-indigo-700" : "text-slate-600 hover:bg-indigo-50 hover:text-indigo-700"}`} role="menuitem"><Icon size={16} />{item.label}</Link>; })}</div> : null}
         <div className="mobile-bottom-surface mx-auto max-w-md overflow-hidden border border-white/80 bg-white/95 backdrop-blur-xl">
           <div className="mobile-bottom-track flex min-w-full items-stretch overflow-x-auto overscroll-x-contain px-2">
-            {navigation.map((item) => {
-              const active = isNavigationItemActive(pathname, item.href);
+            {flatNavigation.map((item) => {
+              const active = isNavigationItemActive(pathname, item.href, item.exact);
               const Icon = item.icon;
               return (
                 <Link

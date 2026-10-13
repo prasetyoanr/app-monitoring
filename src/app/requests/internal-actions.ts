@@ -18,6 +18,11 @@ import {
   type InternalGaStatus,
 } from "@/lib/internal-ga";
 
+function revalidateInternalPages() {
+  revalidatePath("/internal");
+  revalidatePath("/internal/inbox");
+}
+
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function textField(formData: FormData, key: string, max: number, required: boolean, label: string) {
@@ -84,7 +89,7 @@ export async function createInternalGaRequestAction(
       }
       return row.id;
     });
-    revalidatePath("/requests");
+    revalidateInternalPages();
     return { ok: true, data: { id } };
   } catch (error) {
     console.error("Unable to create internal GA request.", error);
@@ -158,7 +163,7 @@ export async function updateInternalGaStatusAction(
         );
       }
     });
-    revalidatePath("/requests");
+    revalidateInternalPages();
     return { ok: true, data: undefined };
   } catch (error) {
     console.error("Unable to update internal GA request.", error);

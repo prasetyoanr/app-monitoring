@@ -111,3 +111,9 @@ export function internalGaNotificationText(kind: string, actorName: string | nul
   const base = `${actorName ?? "A teammate"} ${notificationText[kind as InternalGaNotificationKind] ?? "updated the request."}`;
   return note ? `${base} ${note}` : base;
 }
+
+// New work (addressed to you or to the team) lands in the internal inbox; progress on a
+// request you sent lands in your internal request history.
+export function internalGaNotificationHref(kind: string): string {
+  return kind === "assigned" || kind === "team_request" ? "/internal/inbox" : "/internal";
+}

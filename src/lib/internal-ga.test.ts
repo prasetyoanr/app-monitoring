@@ -4,6 +4,7 @@ import {
   canUseInternalGa,
   canViewInternalGaRequest,
   internalGaCreateRecipients,
+  internalGaNotificationHref,
   internalGaNotificationText,
   internalGaStatusRecipients,
   internalGaTransitionError,
@@ -75,4 +76,11 @@ test("a status change notifies the other side only", () => {
 test("notification text names who acted", () => {
   assert.equal(internalGaNotificationText("assigned", "Wasik", null), "Wasik sent you a request.");
   assert.match(internalGaNotificationText("done", null, "Fixed"), /^A teammate marked your request as done\. Fixed$/);
+});
+
+test("notifications open the page where the person acts on them", () => {
+  assert.equal(internalGaNotificationHref("assigned"), "/internal/inbox");
+  assert.equal(internalGaNotificationHref("team_request"), "/internal/inbox");
+  assert.equal(internalGaNotificationHref("done"), "/internal");
+  assert.equal(internalGaNotificationHref("cancelled"), "/internal");
 });

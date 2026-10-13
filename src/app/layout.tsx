@@ -50,6 +50,7 @@ export default async function RootLayout({
         unreadRequestNotifications: 0,
         unreadWorkflowNotifications: 0,
         unreadInternalNotifications: 0,
+        waitingInternalRequests: 0,
         inboxNotifications: [],
         requestNotifications: [],
         workflowNotifications: [],
