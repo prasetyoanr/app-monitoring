@@ -11,7 +11,7 @@ import { gaWorkPlanStatuses, reportingPeriodStartForDate, shiftDate, workPlanInp
 import { jakartaDateInput } from "@/lib/jakarta-date";
 import { generateRecordId } from "@/lib/record-id";
 import { issueChangeQuery } from "@/lib/issue-event-query";
-import { validateGaSpreadsheetInput } from "@/lib/ga-spreadsheet";
+import { isGaSpreadsheetEligible, validateGaSpreadsheetInput } from "@/lib/ga-spreadsheet";
 import { recordAuthorizationDenied } from "@/security/audit";
 
 export async function createGaActivityAction(form: FormData): Promise<ActionResult> {
@@ -163,6 +163,7 @@ export async function setGaSpreadsheetPermissionAction(input: {
         role: technicians.role,
         isActive: technicians.isActive,
         divisionName: masterDivisions.name,
+        divisionSlug: masterDivisions.slug,
         isGaUnit: masterDivisions.isGaUnit,
         spreadsheetEnabled: technicians.spreadsheetEnabled,
       })
@@ -171,14 +172,8 @@ export async function setGaSpreadsheetPermissionAction(input: {
       .where(eq(technicians.id, input.memberId))
       .limit(1);
 
-    if (
-      !member ||
-      member.role !== "service_agent" ||
-      !member.isActive ||
-      !member.isGaUnit ||
-      isITDivisionName(member.divisionName)
-    ) {
-      throw new Error("Spreadsheet permission is only available for active non-IT GA staff.");
+    if (!member || !isGaSpreadsheetEligible({ ...member, isIt: isITDivisionName(member.divisionName) })) {
+      throw new Error("Spreadsheet permission is only available for active non-IT GA accounts that are not requesters.");
     }
     if (member.spreadsheetEnabled === input.enabled) return { ok: true, data: undefined };
 
@@ -207,7 +202,7 @@ export async function setGaSpreadsheetPermissionAction(input: {
 export async function saveGaSpreadsheetAction(form: FormData): Promise<ActionResult> {
   const user = await requireAuthenticatedUser();
   try {
-    if (user.role !== "service_agent" || !user.divisionId || isITTeamUser(user)) {
+    if (user.role === "requester" || user.role === "administrator" || !user.divisionId || isITTeamUser(user)) {
       await recordAuthorizationDenied(user, "ga.spreadsheet.update");
       throw new Error("Only the permitted GA staff account can update this spreadsheet report.");
     }
@@ -219,6 +214,7 @@ export async function saveGaSpreadsheetAction(form: FormData): Promise<ActionRes
         isActive: technicians.isActive,
         spreadsheetEnabled: technicians.spreadsheetEnabled,
         divisionName: masterDivisions.name,
+        divisionSlug: masterDivisions.slug,
         isGaUnit: masterDivisions.isGaUnit,
       })
       .from(technicians)
@@ -227,10 +223,7 @@ export async function saveGaSpreadsheetAction(form: FormData): Promise<ActionRes
       .limit(1);
     if (
       !member ||
-      member.role !== "service_agent" ||
-      !member.isActive ||
-      !member.isGaUnit ||
-      isITDivisionName(member.divisionName) ||
+      !isGaSpreadsheetEligible({ ...member, isIt: isITDivisionName(member.divisionName) }) ||
       !member.spreadsheetEnabled
     ) {
       await recordAuthorizationDenied(user, "ga.spreadsheet.update", { reason: "permission_disabled" });

@@ -94,11 +94,11 @@ export default async function ActivitiesPage({
   // Spreadsheet belongs to GA staff and only exists once an administrator enables it
   // (the administrator always sees it, to manage the permission).
   const showSpreadsheetTab = Boolean(data.spreadsheet)
-    && data.selectedMember?.role === "service_agent"
+    && Boolean(data.selectedMember)
     && (data.user.role === "administrator" || Boolean(data.spreadsheet?.enabled));
   const activeTab = single(params.tab) === "spreadsheet" && showSpreadsheetTab ? "spreadsheet" : "plan";
   const selectedMemberId = data.selectedMember?.id ?? "";
-  const canEdit = data.user.role === "service_agent" && data.selectedMember?.id === data.user.id;
+  const canEdit = data.user.role !== "requester" && data.user.role !== "administrator" && data.selectedMember?.id === data.user.id;
   const isOwnWorkspace = Boolean(data.selectedMember) && data.selectedMember?.id === data.user.id;
   const canEditPlan = isOwnWorkspace && roleMayKeepGaWorkPlan(data.user.role) && canKeepGaWorkPlan(data.selectedMember?.divisionSlug);
   const completedPlans = data.workPlans.filter((plan) => plan.status === "completed").length;

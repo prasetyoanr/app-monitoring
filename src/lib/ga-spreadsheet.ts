@@ -2,6 +2,24 @@ export const GA_SPREADSHEET_TITLE_MAX = 160;
 export const GA_SPREADSHEET_DESCRIPTION_MAX = 500;
 export const GA_SPREADSHEET_URL_MAX = 2048;
 
+import { isGaDivisionSlug } from "./request-destination";
+
+// Every role except requester can hold a spreadsheet report (the administrator has no GA
+// workspace of their own; they only manage the permission). The account must belong to the
+// non-IT GA scope: a service agent of any GA unit, or the other GA-division roles.
+const SPREADSHEET_ROLES: ReadonlySet<string> = new Set(["service_agent", "receptionist", "approver", "final_approver"]);
+
+export function isGaSpreadsheetEligible(member: {
+  role: string;
+  isActive: boolean;
+  isGaUnit: boolean;
+  divisionSlug: string | null | undefined;
+  isIt: boolean;
+}): boolean {
+  if (!member.isActive || member.isIt || !SPREADSHEET_ROLES.has(member.role)) return false;
+  return member.role === "service_agent" ? member.isGaUnit : isGaDivisionSlug(member.divisionSlug);
+}
+
 export interface GaSpreadsheetInput {
   title: string;
   url: string;
