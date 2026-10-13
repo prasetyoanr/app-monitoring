@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, desc, eq, inArray, isNull, or } from "drizzle-orm";
+import { and, count, desc, eq, inArray, isNull, ne, or } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 
 import { db } from "@/db";
@@ -82,4 +82,21 @@ export async function getInternalGaRequests(userId: string): Promise<InternalGaR
     createdAt: row.createdAt.toISOString(),
     completedAt: row.completedAt?.toISOString() ?? null,
   }));
+}
+
+export interface InternalGaWaiting {
+  forMe: number;
+  forTeam: number;
+}
+
+// Active requests that need the user: addressed to them, or to the whole team by someone else.
+export async function getInternalGaWaiting(userId: string): Promise<InternalGaWaiting> {
+  const active = inArray(gaInternalRequests.status, ["open", "in_progress"]);
+  const [forMe, forTeam] = await Promise.all([
+    db.select({ value: count() }).from(gaInternalRequests)
+      .where(and(active, eq(gaInternalRequests.assignedToId, userId))),
+    db.select({ value: count() }).from(gaInternalRequests)
+      .where(and(active, isNull(gaInternalRequests.assignedToId), or(isNull(gaInternalRequests.createdById), ne(gaInternalRequests.createdById, userId)))),
+  ]);
+  return { forMe: forMe[0].value, forTeam: forTeam[0].value };
 }

@@ -5,7 +5,9 @@ import { TicketList } from "@/components/ticket-list";
 import { RequestWorkflowQueue } from "@/components/request-workflow-queue";
 import { Card } from "@/components/ui";
 import { filterStalledTicketRecords, getAssignableServiceAgents, getTicketRecords } from "@/data/app-data";
+import { getInternalGaWaiting } from "@/data/internal-ga";
 import { getMasterDataRecords } from "@/data/master-data";
+import { canUseInternalGa } from "@/lib/internal-ga";
 import type { RequestWorkflowStatus } from "@/data/types";
 
 export const metadata: Metadata = { title: "Service Inbox" };
@@ -33,6 +35,8 @@ export default async function InboxPage({
     getMasterDataRecords(),
     getAssignableServiceAgents(),
   ]);
+  // GA and IT staff also get internal requests; the inbox only points to them.
+  const internalWaiting = canUseInternalGa(currentUser) ? await getInternalGaWaiting(currentUser.id) : null;
   const currentDivision = masterData.divisions.find(
     (division) => division.id === currentUser.divisionId,
   );
@@ -83,6 +87,19 @@ export default async function InboxPage({
 
   return (
     <>
+      {internalWaiting && internalWaiting.forMe + internalWaiting.forTeam > 0 ? (
+        <Link href="/requests" className="mb-4 flex items-center justify-between gap-3 rounded-2xl border border-teal-200 border-l-4 border-l-teal-500 bg-teal-50 px-4 py-3 transition hover:bg-teal-100/70">
+          <div className="min-w-0">
+            <p className="text-xs font-bold text-teal-900">Internal GA</p>
+            <p className="mt-0.5 text-[11px] text-teal-800">
+              {internalWaiting.forMe > 0 ? `${internalWaiting.forMe} request${internalWaiting.forMe === 1 ? "" : "s"} addressed to you` : null}
+              {internalWaiting.forMe > 0 && internalWaiting.forTeam > 0 ? " · " : null}
+              {internalWaiting.forTeam > 0 ? `${internalWaiting.forTeam} for the whole team` : null}
+            </p>
+          </div>
+          <span className="shrink-0 rounded-lg bg-white px-3 py-1.5 text-[10px] font-bold text-teal-800 ring-1 ring-teal-200">Open</span>
+        </Link>
+      ) : null}
       {isAdminFilter ? (
         <Card className="mb-4 flex flex-col gap-3 border-indigo-100 bg-indigo-50/60 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
           <div><p className="text-xs font-bold text-indigo-900">{currentUser.role === "administrator" ? "Administrator filter" : "Filter"}</p><p className="mt-1 text-[11px] text-indigo-700">{filterLabel} · {visibleRecords.length} records</p></div>
