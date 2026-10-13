@@ -17,6 +17,7 @@ export const auditModuleOptions = [
   { value: "requests", label: "Requests & workflow" },
   { value: "master_data", label: "Master data" },
   { value: "activities", label: "GA activities" },
+  { value: "internal_ga", label: "Internal GA" },
   { value: "reports", label: "Report exports" },
   { value: "audit_log", label: "Log administration" },
   { value: "surveys", label: "Surveys" },
@@ -73,6 +74,7 @@ function moduleCondition(module: AuditModule): SQL | undefined {
     like(auditLogs.action, "ga.work_plan.%"),
     like(auditLogs.action, "ga.spreadsheet.%"),
   );
+  if (module === "internal_ga") return like(auditLogs.action, "ga_internal_request.%");
   if (module === "reports") return like(auditLogs.action, "report.%");
   if (module === "audit_log") return like(auditLogs.action, "audit_log.%");
   if (module === "surveys") return like(auditLogs.action, "survey.%");

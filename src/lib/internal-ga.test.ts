@@ -4,6 +4,7 @@ import {
   canUseInternalGa,
   canViewInternalGaRequest,
   internalGaCreateRecipients,
+  internalGaMoveAllowed,
   internalGaNotificationHref,
   internalGaNotificationText,
   internalGaStatusRecipients,
@@ -83,4 +84,9 @@ test("notifications open the page where the person acts on them", () => {
   assert.equal(internalGaNotificationHref("team_request"), "/internal/inbox");
   assert.equal(internalGaNotificationHref("done"), "/internal");
   assert.equal(internalGaNotificationHref("cancelled"), "/internal");
+});
+
+test("the status machine is separate from who is asking", () => {
+  assert.equal(internalGaMoveAllowed("open", "done"), true);
+  assert.equal(internalGaMoveAllowed("done", "in_progress"), false);
 });

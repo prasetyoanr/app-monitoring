@@ -47,6 +47,12 @@ const transitions: Record<InternalGaStatus, readonly InternalGaStatus[]> = {
   cancelled: ["open"],
 };
 
+// Whether the status machine allows the move at all, regardless of who asks. A refusal for
+// this reason is a stale screen, not an authorization problem.
+export function internalGaMoveAllowed(from: InternalGaStatus, to: InternalGaStatus): boolean {
+  return transitions[from].includes(to);
+}
+
 // Returns an error message when the user may not move the request to `next`, otherwise null.
 // The creator may cancel or reopen; whoever it is addressed to (or any member for a team-wide
 // request) may work on it. Someone who is only the creator cannot mark their own request done

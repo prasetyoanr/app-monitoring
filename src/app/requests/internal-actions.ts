@@ -8,10 +8,12 @@ import { db } from "@/db";
 import { auditLogs, gaInternalNotifications, gaInternalRequests, masterDivisions, technicians } from "@/db/schema";
 import { getInternalGaMembers } from "@/data/internal-ga";
 import type { ActionResult } from "@/data/types";
+import { recordAuthorizationDenied } from "@/security/audit";
 import {
   canUseInternalGa,
   INTERNAL_GA_STATUSES,
   internalGaCreateRecipients,
+  internalGaMoveAllowed,
   internalGaStatusRecipients,
   internalGaTransitionError,
   isInternalGaDivisionSlug,
@@ -38,7 +40,10 @@ export async function createInternalGaRequestAction(
 ): Promise<ActionResult<{ id: string }>> {
   const currentUser = await requireAuthenticatedUser();
   try {
-    if (!canUseInternalGa(currentUser)) throw new Error("The internal GA room is only available to the GA team.");
+    if (!canUseInternalGa(currentUser)) {
+      await recordAuthorizationDenied(currentUser, "ga.internal.create");
+      throw new Error("The internal GA room is only available to the GA team.");
+    }
     const title = textField(formData, "title", 200, true, "Title");
     const description = textField(formData, "description", 10_000, true, "Description");
     const location = textField(formData, "location", 160, false, "Location");
@@ -104,7 +109,10 @@ export async function updateInternalGaStatusAction(
 ): Promise<ActionResult> {
   const currentUser = await requireAuthenticatedUser();
   try {
-    if (!canUseInternalGa(currentUser)) throw new Error("The internal GA room is only available to the GA team.");
+    if (!canUseInternalGa(currentUser)) {
+      await recordAuthorizationDenied(currentUser, "ga.internal.update", { requestId: id });
+      throw new Error("The internal GA room is only available to the GA team.");
+    }
     if (!UUID.test(id)) throw new Error("The request is invalid.");
     if (!INTERNAL_GA_STATUSES.includes(status)) throw new Error("The status is invalid.");
     const note = String(resolutionNote ?? "").trim();
@@ -123,7 +131,14 @@ export async function updateInternalGaStatusAction(
         .limit(1);
       if (!request) throw new Error("The request was not found.");
       const denied = internalGaTransitionError(currentUser.id, request, status);
-      if (denied) throw new Error(denied);
+      if (denied) {
+        // A move the status machine refuses is a stale screen; anything else is a person
+        // acting on a request they have no right to change.
+        if (internalGaMoveAllowed(request.status, status)) {
+          await recordAuthorizationDenied(currentUser, "ga.internal.update", { requestId: id, status });
+        }
+        throw new Error(denied);
+      }
 
       const finished = status === "done" || status === "cancelled";
       await tx
