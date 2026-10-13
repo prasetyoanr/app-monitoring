@@ -1,7 +1,8 @@
-import { auditModuleOptions, getAuditLogExportRecords, type AuditActorType, type AuditEvent, type AuditLogFilters, type AuditModule, type AuditPeriod } from "@/data/audit-log-data";
+import { AUDIT_LOG_EXPORT_LIMIT, auditModuleOptions, getAuditLogExportRecords, type AuditActorType, type AuditEvent, type AuditLogFilters, type AuditModule, type AuditPeriod } from "@/data/audit-log-data";
 import { db } from "@/db";
 import { auditLogs } from "@/db/schema";
 import { buildAuditLogCsv } from "@/lib/audit-log-export";
+import { buildAuditLogWorkbook } from "@/lib/audit-log-workbook";
 
 export const runtime = "nodejs";
 
@@ -23,6 +24,26 @@ function filtersFromUrl(url: URL): AuditLogFilters {
   };
 }
 
+const eventLabels: Record<Exclude<AuditEvent, "">, string> = {
+  failed_login: "Failed sign-ins",
+  authorization_denied: "Access denied",
+  sensitive_access: "Sensitive data access",
+};
+
+// A sentence for the sheet header, so the file explains what it contains.
+function describeFilters(filters: AuditLogFilters) {
+  const parts = [
+    filters.module ? `Module: ${auditModuleOptions.find((option) => option.value === filters.module)?.label ?? filters.module}` : null,
+    filters.event ? `Event: ${eventLabels[filters.event]}` : null,
+    filters.actorType ? `Actor type: ${filters.actorType}` : null,
+    filters.period === "24h" ? "Last 24 hours" : null,
+    filters.fromDate ? `From: ${filters.fromDate}` : null,
+    filters.toDate ? `To: ${filters.toDate}` : null,
+    filters.query ? "Text search applied" : null,
+  ].filter(Boolean);
+  return parts.length ? parts.join("  ·  ") : "None (all records)";
+}
+
 function jakartaFileTimestamp() {
   const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Jakarta",
@@ -38,16 +59,26 @@ function jakartaFileTimestamp() {
 }
 
 export async function POST(request: Request) {
-  const filters = filtersFromUrl(new URL(request.url));
+  const url = new URL(request.url);
+  const filters = filtersFromUrl(url);
+  // The workbook is the default; CSV stays available for tools that need plain text.
+  const format = url.searchParams.get("format") === "csv" ? "csv" : "xlsx";
   const result = await getAuditLogExportRecords(filters);
-  const csv = buildAuditLogCsv(result.records);
+  const body = format === "csv"
+    ? buildAuditLogCsv(result.records)
+    : await buildAuditLogWorkbook(result.records, {
+        generatedAt: `${new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Jakarta", dateStyle: "medium", timeStyle: "short" }).format(new Date())} WIB`,
+        filterSummary: describeFilters(filters),
+        truncated: result.truncated,
+        limit: AUDIT_LOG_EXPORT_LIMIT,
+      });
 
   await db.insert(auditLogs).values({
     actorType: "technician",
     actorId: result.exportedBy,
     action: "audit_log.exported",
     entityType: "audit_log",
-    entityId: "csv",
+    entityId: format,
     metadata: {
       recordCount: result.records.length,
       truncated: result.truncated,
@@ -63,11 +94,11 @@ export async function POST(request: Request) {
     },
   });
 
-  return new Response(csv, {
+  return new Response(new Uint8Array(typeof body === "string" ? Buffer.from(body) : body), {
     headers: {
       "Cache-Control": "no-store",
-      "Content-Disposition": `attachment; filename="activity-log-${jakartaFileTimestamp()}.csv"`,
-      "Content-Type": "text/csv; charset=utf-8",
+      "Content-Disposition": `attachment; filename="activity-log-${jakartaFileTimestamp()}.${format}"`,
+      "Content-Type": format === "csv" ? "text/csv; charset=utf-8" : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       "X-Content-Type-Options": "nosniff",
       "X-Export-Truncated": result.truncated ? "true" : "false",
     },
