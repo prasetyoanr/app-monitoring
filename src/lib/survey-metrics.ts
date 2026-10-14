@@ -59,3 +59,11 @@ export function calculateSurveyRatingMetrics(values: unknown[]) {
     targetAchievement,
   };
 }
+
+// A percentage from a handful of answers looks as firm as one from hundreds. Below this many
+// answers the results are shown with a warning instead.
+export const SURVEY_SMALL_SAMPLE_THRESHOLD = 30;
+
+export function isSmallSurveySample(answerCount: number) {
+  return answerCount > 0 && answerCount < SURVEY_SMALL_SAMPLE_THRESHOLD;
+}
