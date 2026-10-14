@@ -40,9 +40,6 @@ import { isGaDivisionSlug } from "@/lib/request-destination";
 
 type NavigationChild = {
   label: string;
-  // Phones and the collapsed menu have no dropdown, so each child is listed as its own entry.
-  flatLabel: string;
-  mobileLabel: string;
   href: string;
   icon: LucideIcon;
   count?: number;
@@ -56,8 +53,6 @@ type NavigationItem = {
   itTeamOnly?: boolean;
   itRoleOnly?: boolean;
   administratorOnly?: boolean;
-  // Set on flattened dropdown children so "/internal" is not also active on "/internal/inbox".
-  exact?: boolean;
   children?: NavigationChild[];
 };
 
@@ -359,8 +354,8 @@ export function AppShell({
           icon: Send,
           count: waiting || undefined,
           children: [
-            { label: "Requests", flatLabel: "Internal", mobileLabel: "Internal", href: "/internal", icon: Send },
-            { label: "Inbox", flatLabel: "Internal Inbox", mobileLabel: "Int. Inbox", href: "/internal/inbox", icon: Inbox, count: waiting || undefined },
+            { label: "Requests", href: "/internal", icon: Send },
+            { label: "Inbox", href: "/internal/inbox", icon: Inbox, count: waiting || undefined },
           ],
         };
       }
@@ -372,18 +367,6 @@ export function AppShell({
             : undefined,
       };
     });
-  const flatNavigation = navigation.flatMap((item): Array<NavigationItem & { count?: number }> =>
-    item.children
-      ? item.children.map((child) => ({
-          label: child.flatLabel,
-          mobileLabel: child.mobileLabel,
-          href: child.href,
-          icon: child.icon,
-          count: child.count,
-          exact: true,
-        }))
-      : [item],
-  );
   const utilityActive = utilityNavigation.some((item) => isNavigationItemActive(pathname, item.href));
   const showBackButton = !primaryPagePaths.has(pathname);
 
@@ -567,9 +550,29 @@ export function AppShell({
               inert={!menuOpen}
             >
               <div className="mx-auto grid max-w-[1600px] gap-1 sm:grid-cols-2 lg:grid-cols-3">
-                {flatNavigation.map((item) => {
-                  const active = isNavigationItemActive(pathname, item.href, item.exact);
+                {navigation.map((item) => {
+                  const active = isNavigationItemActive(pathname, item.href);
                   const Icon = item.icon;
+                  if (item.children) {
+                    return (
+                      <div key={item.href} data-internal-menu>
+                        <button type="button" onClick={() => setInternalMenuOpen((open) => !open)} aria-expanded={internalMenuOpen} aria-haspopup="menu" className={`flex h-11 w-full items-center gap-3 rounded-xl px-3 text-xs font-semibold ${active ? "bg-white text-indigo-700 shadow-lg" : "text-indigo-100/75 hover:bg-white/10 hover:text-white"}`}>
+                          <Icon size={17} /><span className="flex-1 text-left">{item.label}</span>
+                          {item.count ? <span className="rounded-full bg-rose-500 px-1.5 py-0.5 text-[9px] font-bold text-white">{item.count}</span> : null}
+                          <ChevronDown size={14} className={`transition ${internalMenuOpen ? "rotate-180" : ""}`} />
+                        </button>
+                        {internalMenuOpen ? (
+                          <div className="mt-1 grid gap-1 rounded-xl bg-white/5 p-1" role="menu">
+                            {item.children.map((child) => {
+                              const ChildIcon = child.icon;
+                              const childActive = isNavigationItemActive(pathname, child.href, true);
+                              return <Link key={child.href} href={child.href} onClick={() => { setInternalMenuOpen(false); setMenuOpen(false); }} className={`flex h-10 items-center gap-3 rounded-lg px-3 text-xs font-semibold ${childActive ? "bg-white text-indigo-700" : "text-indigo-100/80 hover:bg-white/10 hover:text-white"}`} role="menuitem"><ChildIcon size={15} /><span className="flex-1">{child.label}</span>{child.count ? <span className="rounded-full bg-rose-500 px-1.5 py-0.5 text-[9px] font-bold text-white">{child.count}</span> : null}</Link>;
+                            })}
+                          </div>
+                        ) : null}
+                      </div>
+                    );
+                  }
                   return <Link key={item.href} href={item.href} onClick={() => setMenuOpen(false)} className={`relative flex h-11 items-center gap-3 rounded-xl px-3 text-xs font-semibold ${active ? "bg-white text-indigo-700 shadow-lg" : "text-indigo-100/75 hover:bg-white/10 hover:text-white"}`}><Icon size={17} /><span className="flex-1">{item.label}</span>{item.count ? <span className={`rounded-md px-1.5 py-0.5 text-[9px] ${active ? "bg-indigo-100" : "bg-white/10"}`}>{item.count}</span> : null}</Link>;
                 })}
                 {user.role === "administrator" ? <div className="sm:col-span-2 lg:col-span-3" data-utility-menu><button type="button" onClick={() => setUtilityOpen((open) => !open)} aria-expanded={utilityOpen} aria-haspopup="menu" className={`flex h-11 w-full items-center gap-3 rounded-xl px-3 text-xs font-semibold ${utilityActive ? "bg-white text-indigo-700 shadow-lg" : "text-indigo-100/75 hover:bg-white/10 hover:text-white"}`}><Wrench size={17} /><span className="flex-1 text-left">Utility</span><ChevronDown size={14} className={`transition ${utilityOpen ? "rotate-180" : ""}`} /></button>{utilityOpen ? <div className="mt-1 grid gap-1 rounded-xl bg-white/5 p-1 sm:grid-cols-2">{utilityNavigation.map((item) => { const Icon = item.icon; const active = isNavigationItemActive(pathname, item.href); return <Link key={item.href} href={item.href} onClick={() => { setUtilityOpen(false); setMenuOpen(false); }} className={`flex h-10 items-center gap-3 rounded-lg px-3 text-[11px] font-semibold ${active ? "bg-white text-indigo-700" : "text-indigo-100 hover:bg-white/10"}`}><Icon size={15} />{item.label}</Link>; })}</div> : null}</div> : null}
@@ -608,12 +611,34 @@ export function AppShell({
       </main>
 
       <nav className="mobile-bottom-nav fixed inset-x-0 bottom-0 z-50 px-3 sm:hidden" aria-label="Mobile primary navigation">
+        {internalMenuOpen ? (
+          <div className="fixed bottom-[calc(5.75rem+env(safe-area-inset-bottom))] left-4 z-[60] w-[min(15rem,calc(100vw-2rem))] rounded-2xl border border-indigo-100 bg-white p-2 text-slate-700 shadow-2xl shadow-indigo-950/25" role="menu" data-internal-menu>
+            {navigation.filter((item) => item.children).flatMap((item) => item.children ?? []).map((child) => {
+              const ChildIcon = child.icon;
+              const childActive = isNavigationItemActive(pathname, child.href, true);
+              return <Link key={child.href} href={child.href} onClick={() => setInternalMenuOpen(false)} className={`flex h-11 items-center gap-3 rounded-xl px-3 text-xs font-semibold ${childActive ? "bg-indigo-50 text-indigo-700" : "text-slate-600 hover:bg-indigo-50 hover:text-indigo-700"}`} role="menuitem"><ChildIcon size={16} /><span className="flex-1">{child.label}</span>{child.count ? <span className="rounded-full bg-rose-500 px-1.5 py-0.5 text-[9px] font-bold text-white">{child.count}</span> : null}</Link>;
+            })}
+          </div>
+        ) : null}
         {user.role === "administrator" && utilityOpen ? <div className="fixed bottom-[calc(5.75rem+env(safe-area-inset-bottom))] right-4 z-[60] w-[min(15rem,calc(100vw-2rem))] rounded-2xl border border-indigo-100 bg-white p-2 text-slate-700 shadow-2xl shadow-indigo-950/25" role="menu" data-utility-menu>{utilityNavigation.map((item) => { const Icon = item.icon; const active = isNavigationItemActive(pathname, item.href); return <Link key={item.href} href={item.href} onClick={() => setUtilityOpen(false)} className={`flex h-11 items-center gap-3 rounded-xl px-3 text-xs font-semibold ${active ? "bg-indigo-50 text-indigo-700" : "text-slate-600 hover:bg-indigo-50 hover:text-indigo-700"}`} role="menuitem"><Icon size={16} />{item.label}</Link>; })}</div> : null}
         <div className="mobile-bottom-surface mx-auto max-w-md overflow-hidden border border-white/80 bg-white/95 backdrop-blur-xl">
           <div className="mobile-bottom-track flex min-w-full items-stretch overflow-x-auto overscroll-x-contain px-2">
-            {flatNavigation.map((item) => {
-              const active = isNavigationItemActive(pathname, item.href, item.exact);
+            {navigation.map((item) => {
+              const active = isNavigationItemActive(pathname, item.href);
               const Icon = item.icon;
+              if (item.children) {
+                return (
+                  <div key={item.href} className="mobile-bottom-action" data-internal-menu>
+                    <button type="button" onClick={() => setInternalMenuOpen((open) => !open)} data-active={active} aria-expanded={internalMenuOpen} aria-haspopup="menu" className="mobile-bottom-item">
+                      <span className="mobile-bottom-icon relative grid place-items-center">
+                        <Icon size={19} strokeWidth={active ? 2.5 : 2} />
+                        {item.count ? <span className="absolute -right-1.5 -top-1.5 grid min-w-4 place-items-center rounded-full bg-rose-500 px-1 text-[8px] leading-4 text-white">{item.count > 99 ? "99+" : item.count}</span> : null}
+                      </span>
+                      <span className="mobile-bottom-label">{item.label}</span>
+                    </button>
+                  </div>
+                );
+              }
               return (
                 <Link
                   key={item.href}
