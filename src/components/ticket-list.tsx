@@ -109,6 +109,7 @@ export function TicketList({ initialRecords, canManage, canCreateIssue, useSourc
   const [sourceFilter, setSourceFilter] = useState<"all" | TicketRecord["source"]>("all");
   const [filterStartDate, setFilterStartDate] = useState("");
   const [filterEndDate, setFilterEndDate] = useState("");
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [mode, setMode] = useState<FormMode>(null);
   const [selected, setSelected] = useState<TicketRecord | null>(null);
   const [detailId, setDetailId] = useState<string | null>(null);
@@ -399,6 +400,13 @@ export function TicketList({ initialRecords, canManage, canCreateIssue, useSourc
     );
   }
 
+  const activeFilterCount = [
+    location !== "All Locations",
+    status !== "All Statuses",
+    showServiceDivisionFilter && serviceDivision !== "All Service Divisions",
+    Boolean(filterStartDate || filterEndDate),
+  ].filter(Boolean).length;
+
   function closeStatusChangeDialog() {
     if (pendingStatusChange && updatingStatusId === pendingStatusChange.ticket.id) {
       return;
@@ -411,9 +419,16 @@ export function TicketList({ initialRecords, canManage, canCreateIssue, useSourc
 
   return (
     <>
-      <div className="mb-5 flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-        <div className="flex flex-1 flex-col gap-3 sm:flex-row sm:flex-wrap xl:min-w-0 xl:flex-nowrap">
-          <label className="relative min-w-0 max-w-md flex-1 sm:min-w-64 xl:min-w-52"><Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={16} /><input value={query} onChange={(event) => setQuery(event.target.value)} className="h-10 w-full rounded-xl border border-slate-200 bg-white pl-10 pr-3 text-xs outline-none" placeholder="Search records or requester..." /></label>
+      <div className="mb-4 flex flex-col gap-2.5 sm:mb-5 sm:gap-3 xl:flex-row xl:items-center xl:justify-between">
+        <div className="flex flex-1 flex-col gap-2.5 sm:flex-row sm:flex-wrap sm:gap-3 xl:min-w-0 xl:flex-nowrap">
+          <div className="flex gap-2 sm:contents">
+            <label className="relative min-w-0 max-w-md flex-1 sm:min-w-64 xl:min-w-52"><Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={16} /><input value={query} onChange={(event) => setQuery(event.target.value)} className="h-10 w-full rounded-xl border border-slate-200 bg-white pl-10 pr-3 text-xs outline-none" placeholder="Search records or requester..." /></label>
+            <button type="button" onClick={() => setFiltersOpen((open) => !open)} aria-expanded={filtersOpen} aria-controls="inbox-filters" className={`relative inline-flex h-10 shrink-0 items-center gap-1.5 rounded-xl border px-3 text-xs font-semibold sm:hidden ${filtersOpen ? "border-indigo-300 bg-indigo-50 text-indigo-700" : "border-slate-200 bg-white text-slate-600"}`}>
+              <Filter size={14} /> Filters
+              {activeFilterCount > 0 ? <span className="grid min-w-4 place-items-center rounded-full bg-indigo-600 px-1 text-[9px] font-bold leading-4 text-white">{activeFilterCount}</span> : null}
+            </button>
+          </div>
+          <div id="inbox-filters" className={`${filtersOpen ? "flex" : "hidden"} flex-col gap-3 sm:contents`}>
           <label className="relative"><MapPin className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={15} /><select value={location} onChange={(event) => setLocation(event.target.value)} className="h-10 w-full min-w-40 appearance-none rounded-xl border border-slate-200 bg-white pl-9 pr-8 text-xs text-slate-600 outline-none sm:w-auto"><option>All Locations</option><option>HO</option><option>Factory</option></select></label>
           <label className="relative"><Filter className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={15} /><select value={status} onChange={(event) => setStatus(event.target.value)} className="h-10 w-full min-w-40 appearance-none rounded-xl border border-slate-200 bg-white pl-9 pr-8 text-xs text-slate-600 outline-none sm:w-auto"><option>All Statuses</option><option>New</option><option>In Progress</option><option value="Waiting for Client Approval">Waiting Approval</option><option>Completed</option></select></label>
           {showServiceDivisionFilter ? <label className="relative"><select value={serviceDivision} onChange={(event) => setServiceDivision(event.target.value)} className="h-10 w-full min-w-44 rounded-xl border border-slate-200 bg-white px-3 text-xs text-slate-600 outline-none sm:w-auto" aria-label="Filter destination division"><option>All Service Divisions</option>{serviceDivisionOptions.map((option) => <option key={option}>{option}</option>)}</select></label> : null}
@@ -436,6 +451,7 @@ export function TicketList({ initialRecords, canManage, canCreateIssue, useSourc
             </div>
             {filterStartDate || filterEndDate ? <button type="button" onClick={() => { setFilterStartDate(""); setFilterEndDate(""); }} aria-label="Clear date range" title="Clear date range" className="grid size-10 shrink-0 place-items-center rounded-xl border border-slate-200 bg-white text-slate-500"><X size={14} /></button> : null}
           </div>
+          </div>
         </div>
         {canCreateIssue ? <button onClick={() => openForm("create")} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-[#3157d5] px-4 text-xs font-semibold text-white shadow-lg shadow-blue-600/15 hover:bg-[#2445b5]"><Plus size={16} /> Add Issue</button> : null}
       </div>
@@ -453,31 +469,26 @@ export function TicketList({ initialRecords, canManage, canCreateIssue, useSourc
       ) : null}
 
       <Card className="table-card overflow-hidden">
-        <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-4 py-3.5 sm:px-5"><div><p className="text-xs font-bold text-slate-800">Service Inbox</p><p className="mt-1 text-[10px] text-slate-400">Internal service requests for Head Office and Factory</p></div><span className="shrink-0 rounded-lg bg-blue-50 px-2.5 py-1 text-[10px] font-semibold text-blue-700">{filtered.length} records</span></div>
+        <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-4 py-2.5 sm:px-5 sm:py-3.5"><div><p className="text-xs font-bold text-slate-800">Service Inbox</p><p className="mt-1 hidden text-[10px] text-slate-400 sm:block">Internal service requests for Head Office and Factory</p></div><span className="shrink-0 rounded-lg bg-blue-50 px-2.5 py-1 text-[10px] font-semibold text-blue-700">{filtered.length} records</span></div>
         {(isBasicServiceViewer || useSourceAwareActions) && statusUpdateError ? <div className="flex items-center justify-between gap-3 border-b border-rose-100 bg-rose-50 px-4 py-2.5 text-[10px] font-semibold text-rose-700 sm:px-5" role="alert"><span>{statusUpdateError}</span><button type="button" onClick={() => setStatusUpdateError("")} className="rounded-md p-1 text-rose-500 transition hover:bg-rose-100" aria-label="Close status update error"><X size={13} /></button></div> : null}
 
         <div className="divide-y divide-slate-100 md:hidden">
           {filtered.map((ticket) => {
             const ticketProfile = getServiceInboxProfile(ticket.inboxProfileKey);
             const statusOnlyActions = usesStatusOnlyActions(ticket);
-            return <article key={ticket.id} className="p-4">
-              <div className="flex items-start justify-between gap-3"><div className="min-w-0"><h3 className="text-sm font-bold leading-5 text-slate-800">{ticket.title}</h3><p className="mt-1 font-mono text-[9px] text-slate-400">{ticket.id} · {ticket.category}</p></div><StatusBadge tone={ticket.status === "Completed" ? "green" : ticket.status === "In Progress" ? "blue" : ticket.status === "New" ? "green" : "amber"} attention={ticket.status === "New"}>{ticketStatusLabel(ticket)}</StatusBadge></div>
-              <div className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 rounded-xl bg-slate-50 p-3">
-                <div className="min-w-0"><p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Requester</p><p className="mt-1 break-words text-[11px] font-medium text-slate-700">{ticket.requester}</p></div>
-                <div className="min-w-0"><p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Location</p><p className="mt-1 break-words text-[11px] font-medium text-slate-700">{ticket.location}</p></div>
-                <div className="min-w-0"><p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Division</p><p className="mt-1 break-words text-[11px] font-medium text-slate-700">{ticket.division}</p></div>
-                {showServiceDivisionFilter ? <div><p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Service Target</p><p className="mt-1 text-[11px] font-medium text-slate-700">{ticket.serviceDivision}</p></div> : null}
-                <div className="min-w-0"><p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Request Date</p><p className="mt-1 break-words text-[11px] font-medium text-slate-700">{ticket.reportedAt}</p></div>
-              </div>
-              {ticketProfile.features.workPhoto || showCompletionTime ? <div className="mt-4 flex flex-wrap items-center gap-3">{ticketProfile.features.workPhoto ? <span className={`inline-flex items-center gap-1 text-[10px] font-semibold ${ticket.hasWorkPhoto ? "text-emerald-600" : "text-slate-400"}`}>{ticket.hasWorkPhoto ? <CheckCircle2 size={12} /> : <Camera size={12} />}{ticket.hasWorkPhoto ? "Photo available" : "No photo"}</span> : null}{showCompletionTime ? <span className={`${ticketProfile.features.workPhoto ? "ml-auto" : ""} text-[10px] font-semibold ${ticket.completedDays === null ? "text-slate-400" : "text-emerald-600"}`}>{completionLabel(ticket.completedDays)}</span> : null}</div> : null}
+            return <article key={ticket.id} className="px-4 py-3">
+              <div className="flex items-start justify-between gap-3"><div className="min-w-0"><h3 className="text-sm font-bold leading-5 text-slate-800">{ticket.title}</h3><p className="mt-0.5 font-mono text-[9px] text-slate-400">{ticket.id} · {ticket.category}</p></div><StatusBadge tone={ticket.status === "Completed" ? "green" : ticket.status === "In Progress" ? "blue" : ticket.status === "New" ? "green" : "amber"} attention={ticket.status === "New"}>{ticketStatusLabel(ticket)}</StatusBadge></div>
+              <p className="mt-1.5 break-words text-[11px] text-slate-600"><span className="font-semibold text-slate-800">{ticket.requester}</span> · {ticket.division}</p>
+              <p className="mt-0.5 break-words text-[10px] text-slate-400">{ticket.location} · {ticket.reportedAt}{showServiceDivisionFilter && ticket.serviceDivision ? ` · to ${ticket.serviceDivision}` : ""}</p>
+              {ticketProfile.features.workPhoto || showCompletionTime ? <div className="mt-2 flex flex-wrap items-center gap-3">{ticketProfile.features.workPhoto ? <span className={`inline-flex items-center gap-1 text-[10px] font-semibold ${ticket.hasWorkPhoto ? "text-emerald-600" : "text-slate-400"}`}>{ticket.hasWorkPhoto ? <CheckCircle2 size={12} /> : <Camera size={12} />}{ticket.hasWorkPhoto ? "Photo available" : "No photo"}</span> : null}{showCompletionTime ? <span className={`${ticketProfile.features.workPhoto ? "ml-auto" : ""} text-[10px] font-semibold ${ticket.completedDays === null ? "text-slate-400" : "text-emerald-600"}`}>{completionLabel(ticket.completedDays)}</span> : null}</div> : null}
               {statusOnlyActions ? (
-                <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-4">
+                <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3">
                   {canManage ? <InlineStatusSelect recordId={ticket.id} value={updatingStatusId === ticket.id ? statusDrafts[ticket.id] ?? ticket.status : ticket.status} options={statusOptionsFor(ticket)} saving={updatingStatusId === ticket.id} onChange={(nextStatus) => updateInlineStatus(ticket, nextStatus)} /> : null}
                   {canManage && useSourceAwareActions && ticket.source === "division_request" && ticketProfile.features.workPhoto ? <button type="button" onClick={() => openForm("evidence", ticket)} className="grid size-9 place-items-center rounded-lg bg-cyan-600 text-white shadow-sm transition hover:bg-cyan-700" aria-label={`Update work photo ${ticket.id}`} title="Work Photo"><Camera size={14} /></button> : null}
                   <button type="button" onClick={() => setDetailId(ticket.id)} className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-[#3157d5] px-3 text-[10px] font-semibold text-white" aria-label={`View details ${ticket.id}`}><Eye size={13} /> View</button>
                   {canManage && useSourceAwareActions && ticketProfile.features.approvalQr ? <button disabled={!canRequestApproval(ticket)} onClick={() => setApprovalRecord(ticket)} className="grid size-9 place-items-center rounded-lg bg-violet-600 text-white shadow-sm transition hover:bg-violet-700 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400" aria-label={`Request client signature ${ticket.id}`} title={approvalActionTitle(ticket)}><QrCode size={14} /></button> : null}
                 </div>
-              ) : <div className={`mt-4 gap-2 border-t border-slate-100 pt-4 ${canManage ? "grid grid-cols-2" : "flex"}`}><button onClick={() => setDetailId(ticket.id)} className="inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-lg bg-[#3157d5] px-2 text-[10px] font-semibold text-white" aria-label={`View details ${ticket.id}`}><Eye size={13} /> View</button>{canManage ? <>{ticketProfile.features.approvalQr ? <button disabled={!canRequestApproval(ticket)} onClick={() => setApprovalRecord(ticket)} className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-violet-600 px-2 text-[10px] font-semibold text-white disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400" aria-label={`Request client signature ${ticket.id}`} title={approvalActionTitle(ticket)}><QrCode size={13} /> QR Signature</button> : null}<button onClick={() => openForm("edit", ticket)} className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-amber-500 px-2 text-[10px] font-semibold text-white" aria-label={`Edit ${ticket.id}`}><Pencil size={13} /> Edit</button><button onClick={() => setPendingDelete(ticket)} className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-rose-600 px-2 text-[10px] font-semibold text-white" aria-label={`Delete ${ticket.id}`}><Trash2 size={13} /> Delete</button></> : null}</div>}
+              ) : <div className="mt-3 flex items-center gap-2 border-t border-slate-100 pt-3"><button onClick={() => setDetailId(ticket.id)} className="inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-lg bg-[#3157d5] px-2 text-[10px] font-semibold text-white" aria-label={`View details ${ticket.id}`}><Eye size={13} /> View</button>{canManage ? <>{ticketProfile.features.approvalQr ? <button disabled={!canRequestApproval(ticket)} onClick={() => setApprovalRecord(ticket)} className="grid size-9 shrink-0 place-items-center rounded-lg bg-violet-600 text-white disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400" aria-label={`Request client signature ${ticket.id}`} title={approvalActionTitle(ticket)}><QrCode size={14} /></button> : null}<button onClick={() => openForm("edit", ticket)} className="grid size-9 shrink-0 place-items-center rounded-lg bg-amber-500 text-white" aria-label={`Edit ${ticket.id}`} title="Edit"><Pencil size={14} /></button><button onClick={() => setPendingDelete(ticket)} className="grid size-9 shrink-0 place-items-center rounded-lg bg-rose-600 text-white" aria-label={`Delete ${ticket.id}`} title="Delete"><Trash2 size={14} /></button></> : null}</div>}
             </article>
           })}
         </div>

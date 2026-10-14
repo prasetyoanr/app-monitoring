@@ -66,9 +66,9 @@ export function RequestWorkflowQueue({
 
   return (
     <>
-      <Card className="mb-5 overflow-hidden border-indigo-100 shadow-sm">
+      <Card className="mb-4 overflow-hidden border-indigo-100 shadow-sm sm:mb-5">
         {isReceptionist ? (
-          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-indigo-100 bg-indigo-50/70 px-4 py-3.5 sm:px-5">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-indigo-100 bg-indigo-50/70 px-4 py-2.5 sm:px-5 sm:py-3.5">
             <div className="flex items-center gap-2.5">
               <span className="grid size-8 place-items-center rounded-lg bg-[#3157d5] text-white shadow-sm"><ShieldCheck size={16} /></span>
               <h2 className="text-sm font-bold text-slate-900">GA Inbox</h2>
@@ -178,7 +178,7 @@ export function RequestWorkflowQueue({
                   ? "bg-rose-100 text-rose-800"
                   : "bg-amber-100 text-amber-800";
               return (
-                <div key={ticket.id} role="group" aria-labelledby={`queue-title-${ticket.id}`} className={`px-4 py-4 transition-colors sm:px-5`}>
+                <div key={ticket.id} role="group" aria-labelledby={`queue-title-${ticket.id}`} className="px-4 py-3 transition-colors sm:px-5 sm:py-4">
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
@@ -230,7 +230,7 @@ export function RequestWorkflowQueue({
                     )}
                   </div>
 
-                  <div className="mt-3">
+                  <div className="mt-1 sm:mt-3">
                     <details className="group min-w-0 text-[11px] text-slate-600">
                       <summary className="flex min-h-9 w-fit cursor-pointer list-none items-center gap-1 rounded-md font-semibold text-indigo-600 hover:text-indigo-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 [&::-webkit-details-marker]:hidden">
                         Details <ChevronDown size={14} aria-hidden="true" className="transition-transform group-open:rotate-180" />
