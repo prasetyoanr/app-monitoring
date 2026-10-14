@@ -1,8 +1,9 @@
 "use server";
 
-import { randomBytes } from "node:crypto";
-import { and, count, eq, inArray, isNull, ne, or } from "drizzle-orm";
+import { randomBytes, randomUUID } from "node:crypto";
+import { and, count, eq, gt, inArray, isNull, ne, or } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { cookies, headers } from "next/headers";
 import { after } from "next/server";
 
 import {
@@ -29,6 +30,14 @@ import type {
   SurveyStatus,
 } from "@/data/survey-types";
 import type { ActionResult } from "@/data/types";
+import {
+  SURVEY_FLOOD_WINDOW_MS,
+  surveyClientAddress,
+  surveyDeviceCookieMaxAge,
+  surveyDeviceCookieName,
+  surveyFloodExceeded,
+  surveySubmitterHash,
+} from "@/lib/survey-guard";
 import { recordSensitiveDataAccess } from "@/security/audit";
 
 const choiceTypes = new Set(["multiple_choice", "checkboxes", "dropdown"]);
@@ -511,17 +520,28 @@ export async function submitSurveyAction(input: {
   clientName: string;
   division: string;
   answers: Array<{ questionId: string; value: SurveyAnswerValue }>;
+  // A field people never see. Only scripts fill it in.
+  website?: string;
 }): Promise<ActionResult<{ submissionId: string }>> {
   try {
     if (!/^[A-Za-z0-9_-]{16}$/.test(input.code)) {
       throw new Error("Survey link is invalid.");
     }
+    // A bot filled the hidden field: answer as if it worked, but store nothing.
+    if (input.website) return { ok: true, data: { submissionId: randomUUID() } };
+
+    const cookieStore = await cookies();
+    if (cookieStore.has(surveyDeviceCookieName(input.code))) {
+      throw new Error("This device has already submitted this survey. Thank you for your response.");
+    }
+    const requestHeaders = await headers();
+    const address = surveyClientAddress((name) => requestHeaders.get(name));
     const clientName = cleanText(input.clientName, 120, false) || null;
     const division = cleanText(input.division, 120, false) || null;
     if (input.answers.length > 50) throw new Error("Too many answers.");
     const submittedAt = new Date();
 
-    const { submissionId, analyzableAnswerCount } = await db.transaction(async (tx) => {
+    const { submissionId, analyzableAnswerCount, expiresAt } = await db.transaction(async (tx) => {
       const [survey] = await tx
         .select({
           id: surveyForms.id,
@@ -537,6 +557,20 @@ export async function submitSurveyAction(input: {
         (survey.expiresAt && survey.expiresAt <= submittedAt)
       ) {
         throw new Error("This survey is closed or has expired.");
+      }
+      const submitterHash = surveySubmitterHash(address, survey.id, process.env.SURVEY_HASH_PEPPER ?? "");
+      const [{ recent }] = await tx
+        .select({ recent: count() })
+        .from(surveySubmissions)
+        .where(
+          and(
+            eq(surveySubmissions.surveyId, survey.id),
+            eq(surveySubmissions.submitterHash, submitterHash),
+            gt(surveySubmissions.submittedAt, new Date(submittedAt.getTime() - SURVEY_FLOOD_WINDOW_MS)),
+          ),
+        );
+      if (surveyFloodExceeded(recent)) {
+        throw new Error("Too many responses were sent from this network. Please try again later.");
       }
       const questions = await tx
         .select({
@@ -563,7 +597,7 @@ export async function submitSurveyAction(input: {
 
       const [submission] = await tx
         .insert(surveySubmissions)
-        .values({ surveyId: survey.id, clientName, division, submittedAt })
+        .values({ surveyId: survey.id, clientName, division, submitterHash, submittedAt })
         .returning({ id: surveySubmissions.id });
       let analyzableAnswerCount = 0;
       if (answers.length) {
@@ -607,7 +641,15 @@ export async function submitSurveyAction(input: {
         entityId: survey.id,
         metadata: { submissionId: submission.id, division },
       });
-      return { submissionId: submission.id, analyzableAnswerCount };
+      return { submissionId: submission.id, analyzableAnswerCount, expiresAt: survey.expiresAt };
+    });
+    // One response per device: remember it until the survey closes.
+    cookieStore.set(surveyDeviceCookieName(input.code), "1", {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+      path: "/",
+      maxAge: surveyDeviceCookieMaxAge(expiresAt),
     });
     if (analyzableAnswerCount) {
       after(() => analyzeSurveySubmission(submissionId));

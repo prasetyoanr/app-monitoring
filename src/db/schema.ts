@@ -723,6 +723,8 @@ export const surveySubmissions = pgTable(
       .references(() => surveyForms.id, { onDelete: "cascade" }),
     clientName: varchar("client_name", { length: 120 }),
     division: varchar("division", { length: 120 }),
+    // Hash of the sender's network address (never the address), used to stop floods.
+    submitterHash: varchar("submitter_hash", { length: 64 }),
     submittedAt: timestamp("submitted_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -730,6 +732,11 @@ export const surveySubmissions = pgTable(
   (table) => [
     index("survey_submissions_survey_submitted_idx").on(
       table.surveyId,
+      table.submittedAt,
+    ),
+    index("survey_submissions_submitter_idx").on(
+      table.surveyId,
+      table.submitterHash,
       table.submittedAt,
     ),
   ],

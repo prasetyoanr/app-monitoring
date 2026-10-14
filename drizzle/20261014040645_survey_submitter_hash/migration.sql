@@ -1,0 +1,2 @@
+ALTER TABLE "survey_submissions" ADD COLUMN "submitter_hash" varchar(64);--> statement-breakpoint
+CREATE INDEX "survey_submissions_submitter_idx" ON "survey_submissions" ("survey_id","submitter_hash","submitted_at");

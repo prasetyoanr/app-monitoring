@@ -53,6 +53,7 @@ export function ClientSurveyForm({
   const [clientName, setClientName] = useState("");
   const [divisionSelection, setDivisionSelection] = useState("");
   const [customDivision, setCustomDivision] = useState("");
+  const [website, setWebsite] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState("");
@@ -78,6 +79,7 @@ export function ClientSurveyForm({
       clientName,
       division: divisionSelection === "Other" ? customDivision : divisionSelection,
       answers: Object.entries(answers).map(([questionId, value]) => ({ questionId, value })),
+      website,
     });
     setSubmitting(false);
     if (!result.ok) {
@@ -108,6 +110,9 @@ export function ClientSurveyForm({
 
       <div className="mx-auto -mt-6 max-w-2xl px-4">
         <form onSubmit={handleSubmit} className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-xl shadow-slate-200/60">
+          <div aria-hidden="true" className="absolute -left-[9999px] h-0 w-0 overflow-hidden">
+            <label>Leave this field empty<input type="text" name="ref_code" tabIndex={-1} autoComplete="off" value={website} onChange={(event) => setWebsite(event.target.value)} /></label>
+          </div>
           <section className="border-b border-slate-100 p-5 sm:p-6">
             <h2 className="text-sm font-bold text-slate-900">Client Information</h2>
             <p className="mt-1 text-[10px] text-slate-500">Complete the information below before answering the survey.</p>
