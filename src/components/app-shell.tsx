@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
+  Activity,
   CheckCheck,
   ChevronLeft,
   Bell,
@@ -153,6 +154,9 @@ export function AppShell({
     normalizedDivision === "it" ||
     normalizedDivision.includes("information technology") ||
     normalizedDivision.startsWith("it");
+  // IT staff keep the original IT Activity Log branding; GA, requesters and the
+  // administrator (who works across divisions) see GA Management.
+  const isItStaff = isIT && user.role !== "administrator";
   const isITRole =
     user.role !== "administrator" &&
     ["service_agent", "approver"].includes(user.role) &&
@@ -400,10 +404,16 @@ export function AppShell({
       <header className="app-navbar sticky top-0 z-40 border-b border-white/10 bg-indigo-950 text-white">
         <div className="mx-auto flex h-[72px] max-w-[1600px] items-center gap-4 px-4 sm:px-6 xl:px-8">
           <Link href="/" className="flex shrink-0 items-center gap-2.5" onClick={() => setMenuOpen(false)}>
-            <Image src="/logo.png" alt="" aria-hidden="true" priority width={40} height={40} className="size-10 rounded-full" />
+            {isItStaff ? (
+              <span className="brand-mark grid size-10 place-items-center rounded-2xl text-white" aria-hidden="true">
+                <Activity size={19} strokeWidth={2.5} />
+              </span>
+            ) : (
+              <Image src="/logo.png" alt="" aria-hidden="true" priority width={40} height={40} className="size-10 rounded-full" />
+            )}
             <span className="min-w-0">
-              <span className="block text-[13px] font-extrabold leading-4 tracking-tight text-white">GA Management</span>
-              <span className="block text-[8px] font-semibold uppercase tracking-[0.12em] text-cyan-200/70 sm:text-[9px] sm:tracking-[0.16em]">GA Services and Activities</span>
+              <span className="block text-[13px] font-extrabold leading-4 tracking-tight text-white">{isItStaff ? "IT Activity Log" : "GA Management"}</span>
+              <span className="block text-[8px] font-semibold uppercase tracking-[0.12em] text-cyan-200/70 sm:text-[9px] sm:tracking-[0.16em]">{isItStaff ? "Internal Workspace" : "GA Services and Activities"}</span>
             </span>
           </Link>
 
