@@ -336,7 +336,6 @@ export function AppShell({
     ...notifications.inbox.map((notification) => ({ ...notification, source: "Inbox" as const })),
     ...visibleRequestNotifications.map((notification) => ({ ...notification, source: "Request" as const })),
   ];
-  const isItStaff = isIT && user.role !== "administrator";
   const navigation = navigationBase
     .filter((item) => item.href !== "/activities" || (user.role === "administrator" || (!isIT && (["approver", "final_approver"].includes(user.role) || (user.role === "receptionist" && isGaDivisionSlug(user.divisionSlug)) || (user.role === "service_agent" && user.isGaUnit)))))
     .filter((item) => item.href !== "/inbox" || user.role !== "requester")
@@ -360,10 +359,6 @@ export function AppShell({
             { label: "Inbox", flatLabel: "Internal Inbox", mobileLabel: "Int. Inbox", href: "/internal/inbox", icon: Inbox, count: waiting || undefined },
           ],
         };
-      }
-      // IT staff keep the page's original name; everyone else sees "Inbox".
-      if (item.href === "/inbox" && isItStaff) {
-        return { ...item, label: "Troubleshooting", mobileLabel: "Trouble" };
       }
       return {
         ...item,
@@ -515,7 +510,7 @@ export function AppShell({
                         <p className="text-xs font-bold text-slate-800" title={isAdministrator ? "Alerts that need your action, then the latest requests" : "Latest incoming requests and status changes"}>Notifications</p>
                         {visibleWorkflowNotifications.length + visibleInternalNotifications.length > 0 ? <button type="button" onClick={() => markAllTaskAlertsRead()} className="inline-flex h-6 items-center gap-1 rounded-md px-1.5 text-[10px] font-semibold text-indigo-600 transition hover:bg-indigo-50 hover:text-indigo-800 active:scale-95" title="Mark all task alerts as read" aria-label="Mark all task alerts as read"><CheckCheck size={13} aria-hidden="true" /> Read all</button> : null}
                       </div>
-                      {combinedNotifications.length > 0 ? <div className="max-h-[calc(100dvh-10rem)] divide-y divide-slate-100 overflow-y-auto sm:max-h-80">{combinedNotifications.map((notification) => <Link key={`${notification.source}-${notification.id}`} href={notification.href} onClick={() => { setNotificationOpen(false); if (notification.source === "Workflow") markWorkflowRead(notification.id); if (notification.source === "Internal") markInternalRead(notification.id); }} className={`block px-4 py-3 transition ${notification.source === "Internal" ? "border-l-[3px] border-l-teal-500 bg-teal-50/50 hover:bg-teal-50" : "hover:bg-indigo-50"}`}><span className="flex items-center gap-2"><span className="min-w-0 flex-1 truncate text-[11px] font-semibold text-slate-800">{notification.title}</span><span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wide ${notification.source === "Alert" ? ("severity" in notification && notification.severity === "critical" ? "bg-rose-50 text-rose-600" : "bg-amber-50 text-amber-700") : notification.source === "Inbox" ? "bg-blue-50 text-blue-600" : notification.source === "Workflow" ? "bg-amber-50 text-amber-700" : notification.source === "Internal" ? "bg-teal-100 text-teal-800" : "bg-violet-50 text-violet-600"}`}>{notification.source === "Internal" ? "Internal GA" : notification.source === "Inbox" && isItStaff ? "Troubleshooting" : notification.source}</span></span><span className="mt-1 block text-[10px] leading-4 text-slate-500">{notification.description}</span><span className="mt-1 block text-[9px] text-slate-400">{notification.reportedAt}</span></Link>)}</div> : <div className="px-4 py-7 text-center text-[11px] text-slate-400">No new notifications.</div>}
+                      {combinedNotifications.length > 0 ? <div className="max-h-[calc(100dvh-10rem)] divide-y divide-slate-100 overflow-y-auto sm:max-h-80">{combinedNotifications.map((notification) => <Link key={`${notification.source}-${notification.id}`} href={notification.href} onClick={() => { setNotificationOpen(false); if (notification.source === "Workflow") markWorkflowRead(notification.id); if (notification.source === "Internal") markInternalRead(notification.id); }} className={`block px-4 py-3 transition ${notification.source === "Internal" ? "border-l-[3px] border-l-teal-500 bg-teal-50/50 hover:bg-teal-50" : "hover:bg-indigo-50"}`}><span className="flex items-center gap-2"><span className="min-w-0 flex-1 truncate text-[11px] font-semibold text-slate-800">{notification.title}</span><span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wide ${notification.source === "Alert" ? ("severity" in notification && notification.severity === "critical" ? "bg-rose-50 text-rose-600" : "bg-amber-50 text-amber-700") : notification.source === "Inbox" ? "bg-blue-50 text-blue-600" : notification.source === "Workflow" ? "bg-amber-50 text-amber-700" : notification.source === "Internal" ? "bg-teal-100 text-teal-800" : "bg-violet-50 text-violet-600"}`}>{notification.source === "Internal" ? "Internal GA" : notification.source}</span></span><span className="mt-1 block text-[10px] leading-4 text-slate-500">{notification.description}</span><span className="mt-1 block text-[9px] text-slate-400">{notification.reportedAt}</span></Link>)}</div> : <div className="px-4 py-7 text-center text-[11px] text-slate-400">No new notifications.</div>}
                     </div>
                 ) : null}
             </div>

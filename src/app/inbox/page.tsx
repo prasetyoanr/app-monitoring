@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { getCurrentUser, isITDivisionName, isITTeamUser, requireAuthenticatedUser } from "@/auth/session";
+import { isITDivisionName, isITTeamUser, requireAuthenticatedUser } from "@/auth/session";
 import { TicketList } from "@/components/ticket-list";
 import { RequestWorkflowQueue } from "@/components/request-workflow-queue";
 import { Card } from "@/components/ui";
@@ -8,11 +8,7 @@ import { filterStalledTicketRecords, getAssignableServiceAgents, getTicketRecord
 import { getMasterDataRecords } from "@/data/master-data";
 import type { RequestWorkflowStatus } from "@/data/types";
 
-export async function generateMetadata(): Promise<Metadata> {
-  const currentUser = await getCurrentUser();
-  const isItStaff = Boolean(currentUser) && currentUser?.role !== "administrator" && isITTeamUser(currentUser);
-  return { title: isItStaff ? "Troubleshooting" : "Service Inbox" };
-}
+export const metadata: Metadata = { title: "Service Inbox" };
 
 function single(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] ?? "" : value ?? "";
