@@ -243,10 +243,15 @@ export function SurveyCenter({
   }), [surveys]);
 
   const ratingMetrics = useMemo(() => {
-    if (!responseData) return calculateSurveyRatingMetrics([]);
+    if (!responseData) return { ...calculateSurveyRatingMetrics([]), respondents: 0 };
     const scaleIds = new Set(responseData.questions.filter((question) => question.type === "linear_scale").map((question) => question.id));
-    const ratings = responseData.submissions.flatMap((submission) => submission.answers.filter((answer) => scaleIds.has(answer.questionId) && typeof answer.value === "number").map((answer) => answer.value as number));
-    return calculateSurveyRatingMetrics(ratings);
+    let respondents = 0;
+    const ratings = responseData.submissions.flatMap((submission) => {
+      const own = submission.answers.filter((answer) => scaleIds.has(answer.questionId) && typeof answer.value === "number").map((answer) => answer.value);
+      if (own.length) respondents += 1;
+      return own;
+    });
+    return { ...calculateSurveyRatingMetrics(ratings), respondents };
   }, [responseData]);
 
   const kpiMetrics = useMemo(() => {
@@ -265,12 +270,15 @@ export function SurveyCenter({
           .map((question) => question.id),
       );
       if (!questionIds.size) return [];
-      const values = responseData.submissions.flatMap((submission) =>
-        submission.answers
+      let respondents = 0;
+      const values = responseData.submissions.flatMap((submission) => {
+        const own = submission.answers
           .filter((answer) => questionIds.has(answer.questionId))
-          .map((answer) => answer.value),
-      );
-      return [{ category, definition, metrics: calculateSurveyRatingMetrics(values) }];
+          .map((answer) => answer.value);
+        if (own.length) respondents += 1;
+        return own;
+      });
+      return [{ category, definition, metrics: { ...calculateSurveyRatingMetrics(values), respondents } }];
     });
   }, [responseData]);
 
@@ -473,11 +481,11 @@ export function SurveyCenter({
               ) : null}
               <div className="mt-3 grid grid-cols-2 gap-2 sm:mt-4 sm:gap-3 xl:grid-cols-4">
                 <MetricCard compactOnMobile label="Total Responses" value={String(responseData.submissions.length)} icon={Users} detail="Responses for the selected survey" />
-                <MetricCard compactOnMobile label="Average Rating" value={ratingMetrics.responseCount ? ratingMetrics.averageRating.toFixed(1) : "—"} icon={Star} tone="amber" detail={<span className="inline-flex items-center gap-2"><span className="inline-flex items-center gap-1">{[1, 2, 3, 4, 5].map((score) => <Star key={score} size={12} className={score <= Math.round(ratingMetrics.averageRating) ? "fill-amber-400 text-amber-400" : "text-slate-200"} />)}</span>{ratingMetrics.responseCount ? <span className="text-slate-400">n = {ratingMetrics.responseCount}</span> : null}</span>} />
-                <MetricCard compactOnMobile label="Satisfaction Score" value={ratingMetrics.responseCount ? `${Math.round(ratingMetrics.satisfactionScore)}%` : "—"} icon={CircleCheckBig} tone="green" detail={ratingMetrics.responseCount ? `Ratings 4–5 · n = ${ratingMetrics.responseCount} · target ${SURVEY_SATISFACTION_TARGET}% · achievement ${Math.round(ratingMetrics.targetAchievement)}%` : "No rating answers"} />
+                <MetricCard compactOnMobile label="Average Rating" value={ratingMetrics.responseCount ? ratingMetrics.averageRating.toFixed(1) : "—"} icon={Star} tone="amber" detail={<span className="inline-flex items-center gap-2"><span className="inline-flex items-center gap-1">{[1, 2, 3, 4, 5].map((score) => <Star key={score} size={12} className={score <= Math.round(ratingMetrics.averageRating) ? "fill-amber-400 text-amber-400" : "text-slate-200"} />)}</span>{ratingMetrics.responseCount ? <span className="text-slate-400">n = {ratingMetrics.respondents}</span> : null}</span>} />
+                <MetricCard compactOnMobile label="Satisfaction Score" value={ratingMetrics.responseCount ? `${Math.round(ratingMetrics.satisfactionScore)}%` : "—"} icon={CircleCheckBig} tone="green" detail={ratingMetrics.responseCount ? `Ratings 4–5 · n = ${ratingMetrics.respondents} respondent${ratingMetrics.respondents === 1 ? "" : "s"} · target ${SURVEY_SATISFACTION_TARGET}% · achievement ${Math.round(ratingMetrics.targetAchievement)}%` : "No rating answers"} />
                 <MetricCard compactOnMobile label="AI Sentiment Assessment" value={aiMetrics.applicable ? `${aiMetrics.positivePercent}%` : aiMetrics.completed ? "N/A" : "—"} icon={MessageSquareText} tone="green" detail={aiMetricDetail} />
               </div>
-              {kpiMetrics.length ? <div className="mt-2 grid grid-cols-2 gap-2 sm:mt-4 sm:gap-3">{kpiMetrics.map(({ category, definition, metrics }) => <MetricCard compactOnMobile key={category} label={`${definition.code} · ${definition.label}`} value={metrics.responseCount ? `${Math.round(metrics.satisfactionScore)}%` : "—"} icon={category === "installation" ? Network : Wrench} tone={category === "installation" ? "blue" : "amber"} detail={metrics.responseCount ? `Average ${metrics.averageRating.toFixed(1)} / 5 · ${metrics.responseCount} rating answers${isSmallSurveySample(metrics.responseCount) ? " (small sample)" : ""} · target ${SURVEY_SATISFACTION_TARGET}%` : "No rating answers yet"} />)}</div> : null}
+              {kpiMetrics.length ? <div className="mt-2 grid grid-cols-2 gap-2 sm:mt-4 sm:gap-3">{kpiMetrics.map(({ category, definition, metrics }) => <MetricCard compactOnMobile key={category} label={`${definition.code} · ${definition.label}`} value={metrics.responseCount ? `${Math.round(metrics.satisfactionScore)}%` : "—"} icon={category === "installation" ? Network : Wrench} tone={category === "installation" ? "blue" : "amber"} detail={metrics.responseCount ? `Average ${metrics.averageRating.toFixed(1)} / 5 · ${metrics.respondents} respondent${metrics.respondents === 1 ? "" : "s"}${isSmallSurveySample(metrics.respondents) ? " (small sample)" : ""} · target ${SURVEY_SATISFACTION_TARGET}%` : "No rating answers yet"} />)}</div> : null}
               <div className="mt-4 grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
                 <div className="space-y-4">{responseData.questions.map((question, index) => <Card key={question.id} className="p-4 sm:p-5"><div className="flex flex-wrap items-center justify-between gap-2"><p className="text-[9px] font-bold uppercase tracking-wider text-indigo-500">Question {index + 1}</p>{question.kpiCategory ? <span className="rounded-lg bg-indigo-50 px-2 py-1 text-[9px] font-bold text-indigo-700">{SURVEY_KPI_CATEGORIES[question.kpiCategory].code} · {SURVEY_KPI_CATEGORIES[question.kpiCategory].label}</span> : null}</div><h3 className="mt-1 text-sm font-bold text-slate-800">{question.title}</h3><QuestionSummary question={question} submissions={responseData.submissions} /></Card>)}</div>
                 <Card className="h-fit overflow-hidden"><div className="flex items-start justify-between gap-3 border-b border-slate-100 px-4 py-4"><div><h2 className="text-sm font-bold text-slate-800">Individual Responses</h2><p className="mt-1 text-[10px] text-slate-500">Text feedback is evaluated by Gemini AI</p></div>{aiStatus.total ? <span className={`inline-flex shrink-0 items-center gap-1.5 rounded-lg px-2 py-1 text-[9px] font-bold ${aiStatus.pending ? "bg-blue-50 text-blue-700" : aiStatus.failed || aiStatus.missing ? "bg-rose-50 text-rose-700" : "bg-emerald-50 text-emerald-700"}`}>{aiStatus.pending ? <LoaderCircle size={12} className="animate-spin" /> : aiStatus.failed || aiStatus.missing ? <CircleAlert size={12} /> : <CircleCheckBig size={12} />}{aiStatus.pending ? `Gemini AI analyzing ${aiStatus.pending}` : aiStatus.failed || aiStatus.missing ? `${aiStatus.failed + aiStatus.missing} need retry` : "Gemini AI complete"}</span> : <span className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-slate-100 px-2 py-1 text-[9px] font-bold text-slate-500"><MessageSquareText size={12} /> No text feedback</span>}</div><div className="divide-y divide-slate-100">{responseData.submissions.map((submission) => <button key={submission.id} type="button" onClick={() => setSelectedResponse(submission)} className="flex w-full items-center gap-3 p-4 text-left"><span className="grid size-9 shrink-0 place-items-center rounded-full bg-indigo-50 text-[10px] font-black text-indigo-600">{submission.clientName.slice(0, 2).toUpperCase()}</span><span className="min-w-0 flex-1"><span className="block truncate text-[11px] font-bold text-slate-800">{submission.clientName}</span><span className="mt-0.5 block truncate text-[9px] text-slate-400">{submission.division} · {submission.submittedAt}</span></span><Eye size={14} className="text-indigo-500" /></button>)}</div>{responseData.submissions.length === 0 ? <div className="p-8 text-center"><MessageSquareText className="mx-auto text-slate-300" size={25} /><p className="mt-3 text-[11px] text-slate-500">No client responses yet.</p></div> : null}</Card>
