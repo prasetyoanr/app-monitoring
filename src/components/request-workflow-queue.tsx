@@ -20,6 +20,11 @@ import {
 import { requestWorkflowLabel, workflowCommands } from "@/lib/request-workflow";
 import { filterAndSortRequestQueue, formatQueueReportedAt, type QueueDateOrder } from "@/lib/request-queue";
 
+// An Admin outside the Asset lane keeps Asset requests as read-only history (Completed tab).
+function isForwardedAway(role: AccountRole, userLane: ServiceLane | null, record: TicketRecord) {
+  return role === "receptionist" && record.serviceLane === "asset" && userLane !== "asset";
+}
+
 function queueStatuses(role: AccountRole) {
   if (role === "receptionist") return new Set(["submitted", "needs_revision"]);
   if (role === "approver") return new Set(["waiting_approver", "ready_for_assignment"]);
@@ -55,10 +60,10 @@ export function RequestWorkflowQueue({
     (record) => record.source === "division_request" && record.workflowEnabled,
   ), [records]);
   const queue = useMemo(() => workflowRecords.filter((record) => isReceptionist
-    ? requestBelongsToCsInboxTab(record.workflowStatus, csTab)
+    ? isForwardedAway(role, userLane, record) ? csTab === "processed" : requestBelongsToCsInboxTab(record.workflowStatus, csTab)
     : visibleStatuses.has(record.workflowStatus)
-      && (role !== "service_agent" || workflowCommands(role, record.workflowStatus, record.approvalRequired, { lane: record.serviceLane, isAssignee: record.assignedTechnicianId === userId }).length > 0)),
-  [workflowRecords, isReceptionist, csTab, visibleStatuses, role, userId]);
+      && (role !== "service_agent" || workflowCommands(role, record.workflowStatus, record.approvalRequired, { lane: record.serviceLane, userLane, isAssignee: record.assignedTechnicianId === userId }).length > 0)),
+  [workflowRecords, isReceptionist, csTab, visibleStatuses, role, userId, userLane]);
   const visibleQueue = useMemo(() => isReceptionist
     ? filterAndSortRequestQueue(queue, fromDate, toDate, dateOrder)
     : queue,
@@ -173,7 +178,7 @@ export function RequestWorkflowQueue({
         <div className="divide-y divide-slate-100">
           {visibleQueue.map((ticket) => {
             const options = ticket.source === "division_request" && ticket.workflowEnabled
-              ? workflowCommands(role, ticket.workflowStatus, ticket.approvalRequired, { lane: ticket.serviceLane, isAssignee: ticket.assignedTechnicianId === userId }).filter((value: string) => value !== "resolve" || Boolean(ticket.receivingDivisionId))
+              ? workflowCommands(role, ticket.workflowStatus, ticket.approvalRequired, { lane: ticket.serviceLane, userLane, isAssignee: ticket.assignedTechnicianId === userId }).filter((value: string) => value !== "resolve" || Boolean(ticket.receivingDivisionId))
               : [];
             const hasOptions = options.length > 0;
 
@@ -211,7 +216,7 @@ export function RequestWorkflowQueue({
                     {showTrackingSummary ? (
                       <div className="flex w-full flex-wrap items-center gap-2 sm:ml-auto sm:w-auto sm:max-w-[30rem] sm:shrink-0 sm:justify-end" aria-label="Request status and destination">
                         <span className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-bold ${statusTone}`}>
-                          {requestWorkflowLabel(ticket.workflowStatus)}
+                          {isForwardedAway(role, userLane, ticket) && ticket.workflowStatus === "submitted" ? "Forwarded to Asset" : requestWorkflowLabel(ticket.workflowStatus)}
                         </span>
                         <span className="inline-flex min-w-0 items-center gap-1.5 rounded-lg bg-slate-100 px-2.5 py-1.5 text-[11px]">
                           <span className="max-w-24 truncate text-slate-500" title={ticket.division}>{ticket.division}</span>

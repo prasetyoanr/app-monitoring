@@ -15,11 +15,7 @@ export function serviceInboxScope(user: AuthenticatedUser, options: { teamIt?: b
   const teamItTroubleshooting = options.teamIt && (user.role === "approver" || user.role === "final_approver")
     ? and(eq(issues.source, "manual"), itServiceDivision)
     : undefined;
-  if (user.role === "receptionist") return and(
-    eq(issues.source, "division_request"),
-    // Asset requests are visible to Asset-lane Admins only.
-    user.serviceLane === "asset" ? undefined : sql`${issues.serviceLane} is distinct from 'asset'`,
-  );
+  if (user.role === "receptionist") return eq(issues.source, "division_request");
   if (user.role === "final_approver") return or(and(
     eq(issues.source, "division_request"),
     eq(issues.workflowEnabled, true),

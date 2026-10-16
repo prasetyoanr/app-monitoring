@@ -16,14 +16,6 @@ export const genericServiceRequestTemplate: ServiceRequestTemplate = {
   description: "Submit a service request to GA. The Admin will select the responsible unit and staff.",
   fields: [
     {
-      key: "serviceLane",
-      label: "Service type",
-      type: "select",
-      options: ["General", "Asset"],
-      helpText: "Choose Asset for asset requests. Everything else, including ATK, is General.",
-      ticketField: "serviceLane",
-    },
-    {
       key: "title",
       label: "Request title",
       type: "text",

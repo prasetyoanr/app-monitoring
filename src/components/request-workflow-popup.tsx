@@ -18,7 +18,7 @@ const MOVE_LANE = "move_lane" as const;
 
 type CommandOption = { value: RequestWorkflowCommand; label: string };
 
-function commandOptions(role: AccountRole, ticket: TicketRecord, userId: string): CommandOption[] {
+function commandOptions(role: AccountRole, ticket: TicketRecord, userId: string, userLane: ServiceLane | null): CommandOption[] {
   if (ticket.source !== "division_request" || !ticket.workflowEnabled) return [];
   const labels: Record<RequestWorkflowCommand, string> = {
     resolve: "Resolve Without Assignment",
@@ -30,7 +30,7 @@ function commandOptions(role: AccountRole, ticket: TicketRecord, userId: string)
     reject: "Reject",
     assign: "Assign Staff",
   };
-  return workflowCommands(role, ticket.workflowStatus, ticket.approvalRequired, { lane: ticket.serviceLane, isAssignee: ticket.assignedTechnicianId === userId }).filter((value) => value !== "resolve" || Boolean(ticket.receivingDivisionId)).map((value) => ({ value, label: labels[value] }));
+  return workflowCommands(role, ticket.workflowStatus, ticket.approvalRequired, { lane: ticket.serviceLane, userLane, isAssignee: ticket.assignedTechnicianId === userId }).filter((value) => value !== "resolve" || Boolean(ticket.receivingDivisionId)).map((value) => ({ value, label: labels[value] }));
 }
 
 export function RequestWorkflowPopup({
@@ -62,11 +62,13 @@ export function RequestWorkflowPopup({
     ? { ...record, workflowStatus: workflowStatusOverride }
     : record;
 
-  const options = commandOptions(role, activeRecord, userId);
-  const canMoveLane = (role === "administrator" || (role === "receptionist" && userLane === "asset"))
+  const options = commandOptions(role, activeRecord, userId, userLane);
+  // Any Admin can forward a request to Asset; moving it back is for Asset Admins.
+  const canMoveLane = (role === "administrator" || role === "receptionist")
+    && (record.serviceLane !== "asset" || role === "administrator" || userLane === "asset")
     && record.source === "division_request"
     && ["submitted", "needs_revision"].includes(activeRecord.workflowStatus);
-  const moveLaneLabel = record.serviceLane === "asset" ? "Move to General" : "Move to Asset";
+  const moveLaneLabel = record.serviceLane === "asset" ? "Move to General" : "Forward to Asset";
   const needsAssignee = command === "direct_assign" || command === "assign";
   const eligibleAgents = serviceAgents.filter(
     (agent) => (record.receivingDivisionId ? agent.isGaUnit : agent.division === record.serviceDivision)
@@ -216,7 +218,7 @@ export function RequestWorkflowPopup({
                 onChange={(e) => { setNote(e.target.value); setError(""); }}
                 maxLength={1000}
                 rows={3}
-                placeholder={command === MOVE_LANE ? "Why this request belongs to another lane" : command === "direct_assign" && record.serviceLane !== "asset" ? "Why First Approval is not needed" : isReceptionist ? "Add context for the approver" : "Optional; required for return/reject"}
+                placeholder={command === MOVE_LANE ? "Why this request goes to another lane" : command === "direct_assign" && record.serviceLane !== "asset" ? "Why First Approval is not needed" : isReceptionist ? "Add context for the approver" : "Optional; required for return/reject"}
                 className={`w-full resize-y rounded-xl border border-slate-200 px-3 py-2 ${controlTextClass} outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 ${isReceptionist ? "bg-white" : ""}`}
               />
             </label>

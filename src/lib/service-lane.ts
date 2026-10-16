@@ -1,8 +1,9 @@
 import type { ServiceLane } from "@/data/types";
 
-// Asset requests are managed by Asset-lane accounts only. An Admin tied to the Asset lane
-// still receives every general request; Admins without it simply never see Asset requests.
-export function laneAllowsViewer(userLane: ServiceLane | null | undefined, issueLane: ServiceLane | null | undefined) {
+// Asset requests are worked on by Asset-lane accounts only. Every Admin can still SEE them
+// (read-only history, so the one who forwarded a request can follow it); only Asset-lane
+// Admins may act on them.
+export function laneAllowsActor(userLane: ServiceLane | null | undefined, issueLane: ServiceLane | null | undefined) {
   return issueLane !== "asset" || userLane === "asset";
 }
 

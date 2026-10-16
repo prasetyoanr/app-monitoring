@@ -2,7 +2,7 @@ import { and, eq, inArray } from "drizzle-orm";
 
 import { db } from "@/db";
 import { technicians, troubleshootingIssues, workflowNotifications } from "@/db/schema";
-import { laneAllowsViewer } from "@/lib/service-lane";
+import { laneAllowsActor } from "@/lib/service-lane";
 import {
   workflowNotificationPlan,
   type WorkflowNotificationInput,
@@ -48,7 +48,7 @@ export async function recordWorkflowNotifications(
     for (const row of rows) {
       if (row.role !== "receptionist" && row.role !== "approver" && row.role !== "final_approver") continue;
       // An Admin tied to a lane is only notified about requests of that lane.
-      if (row.role === "receptionist" && !laneAllowsViewer(row.serviceLane, issue?.serviceLane)) continue;
+      if (row.role === "receptionist" && !laneAllowsActor(row.serviceLane, issue?.serviceLane)) continue;
       (pools[row.role] ??= []).push(row.id);
     }
   }

@@ -11,6 +11,8 @@ export function ticketStatusLabel(ticket: Pick<TicketRecord, "status" | "workflo
 // staff member it is assigned to may still decline it. Other lanes keep the standard flow.
 export interface WorkflowLaneContext {
   lane?: ServiceLane | null;
+  // The viewer's own lane: only Asset-lane Admins may act on Asset requests.
+  userLane?: ServiceLane | null;
   isAssignee?: boolean;
 }
 
@@ -35,7 +37,7 @@ export function workflowCommands(
 ): RequestWorkflowCommand[] {
   const administrator = role === "administrator";
   if (context.lane === "asset") {
-    if ((administrator || role === "receptionist") && (status === "submitted" || status === "needs_revision")) {
+    if ((administrator || (role === "receptionist" && context.userLane === "asset")) && (status === "submitted" || status === "needs_revision")) {
       return ["direct_assign", "resolve", "reject"];
     }
     if (role === "service_agent" && status === "assigned" && context.isAssignee) return ["reject"];

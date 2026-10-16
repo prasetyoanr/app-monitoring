@@ -1,8 +1,7 @@
 import "server-only";
 
 import { isITDivisionName, type AuthenticatedUser } from "@/auth/session";
-import type { IssueSource, RequestWorkflowStatus, ServiceLane } from "@/data/types";
-import { laneAllowsViewer } from "@/lib/service-lane";
+import type { IssueSource, RequestWorkflowStatus } from "@/data/types";
 
 // `assigned` is passed only by the actions that let an assignee do the work. An Admin
 // (Receptionist) manages a request only when a GA request was assigned to them.
@@ -36,7 +35,6 @@ export function canViewServiceIssue(
     serviceDivisionId: string;
     serviceDivisionName?: string | null;
     source: IssueSource;
-    serviceLane?: ServiceLane | null;
     workflowEnabled: boolean;
     workflowStatus: RequestWorkflowStatus;
     assignedTechnicianId: string | null;
@@ -53,7 +51,7 @@ export function canViewServiceIssue(
   ) {
     return true;
   }
-  if (user.role === "receptionist") return issue.source === "division_request" && laneAllowsViewer(user.serviceLane, issue.serviceLane);
+  if (user.role === "receptionist") return issue.source === "division_request";
   // First / Final Approval may view the IT team's Troubleshooting records (read-only).
   if (
     (user.role === "approver" || user.role === "final_approver") &&

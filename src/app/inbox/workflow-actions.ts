@@ -22,7 +22,7 @@ import { workflowNoteError, workflowTransition } from "@/lib/request-workflow";
 import { issueChangeQuery } from "@/lib/issue-event-query";
 import { recordWorkflowNotifications } from "@/lib/workflow-notification-writer";
 import { canAssignRequestToUnit } from "@/lib/ga-assignment";
-import { laneAllowsAssignee, laneAllowsViewer } from "@/lib/service-lane";
+import { laneAllowsActor, laneAllowsAssignee } from "@/lib/service-lane";
 import { assigneeAccountFilter } from "@/data/assignee-filter";
 import { recordAuthorizationDenied } from "@/security/audit";
 
@@ -76,7 +76,7 @@ export async function updateRequestWorkflowAction(
     const noteError = workflowNoteError(input.command, note, issue.serviceLane);
     if (noteError) throw new Error(noteError);
     // Asset requests are handled by Asset-lane accounts only.
-    if (currentUser.role === "receptionist" && !laneAllowsViewer(currentUser.serviceLane, issue.serviceLane)) {
+    if (currentUser.role === "receptionist" && !laneAllowsActor(currentUser.serviceLane, issue.serviceLane)) {
       await recordAuthorizationDenied(currentUser, `request.workflow.${input.command}`, { reason: "different_lane", issueId });
       throw new Error("This request belongs to the Asset lane.");
     }
@@ -99,6 +99,7 @@ export async function updateRequestWorkflowAction(
     }
     const transition = workflowTransition(currentUser.role, issue.workflowStatus, issue.approvalRequired, input.command, {
       lane: issue.serviceLane,
+      userLane: currentUser.serviceLane,
       isAssignee: issue.assignedTechnicianId === currentUser.id,
     });
     if (!transition) {
@@ -237,9 +238,9 @@ export async function updateRequestWorkflowAction(
   }
 }
 
-// Moves a request that is still waiting for the Admin between the Asset lane and General, for
-// requesters who picked the wrong service type. Only Asset-lane Admins (and Administrators) may
-// do it, with a note, and the change is audited. Asset requests skip First Approval.
+// Lets an Admin forward a request that is still waiting for the Admin to the Asset lane (and an
+// Asset Admin move it back to General). A note is required and the change is audited. Asset
+// requests skip First Approval.
 export async function changeRequestLaneAction(input: {
   issueId: string;
   note: string;
@@ -251,8 +252,7 @@ export async function changeRequestLaneAction(input: {
     if (!issueIdPattern.test(issueId)) throw new Error("Invalid issue ID.");
     if (note.length < 5) throw new Error("Explain the service lane change in at least 5 characters.");
     if (note.length > 1_000) throw new Error("The note must not exceed 1000 characters.");
-    const allowed = currentUser.role === "administrator" || (currentUser.role === "receptionist" && currentUser.serviceLane === "asset");
-    if (!allowed) {
+    if (currentUser.role !== "administrator" && currentUser.role !== "receptionist") {
       await recordAuthorizationDenied(currentUser, "request.lane.change", { issueId });
       throw new Error("Your role cannot change the service lane.");
     }
@@ -274,6 +274,11 @@ export async function changeRequestLaneAction(input: {
       throw new Error("The service lane can only change while the request is waiting for the Admin.");
     }
     const next = issue.serviceLane === "asset" ? null : ("asset" as const);
+    // Any Admin may forward a request to Asset; taking it back is for Asset-lane Admins.
+    if (next === null && currentUser.role === "receptionist" && currentUser.serviceLane !== "asset") {
+      await recordAuthorizationDenied(currentUser, "request.lane.change", { issueId, reason: "asset_only" });
+      throw new Error("Only Asset Admins can move an Asset request back to General.");
+    }
 
     await db.transaction(async (tx) => {
       await tx.execute(issueChangeQuery(issueId));

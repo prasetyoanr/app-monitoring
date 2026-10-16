@@ -1,14 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { laneAllowsAssignee, laneAllowsViewer } from "./service-lane";
+import { laneAllowsAssignee, laneAllowsActor } from "./service-lane";
 
-test("only Asset-lane accounts see Asset requests; general requests are visible to everyone", () => {
-  assert.equal(laneAllowsViewer("asset", "asset"), true);
-  assert.equal(laneAllowsViewer(null, "asset"), false);
-  assert.equal(laneAllowsViewer(undefined, "asset"), false);
-  assert.equal(laneAllowsViewer("asset", null), true);
-  assert.equal(laneAllowsViewer(null, null), true);
-  assert.equal(laneAllowsViewer(null, undefined), true);
+test("only Asset-lane accounts act on Asset requests; general requests are open to everyone", () => {
+  assert.equal(laneAllowsActor("asset", "asset"), true);
+  assert.equal(laneAllowsActor(null, "asset"), false);
+  assert.equal(laneAllowsActor(undefined, "asset"), false);
+  assert.equal(laneAllowsActor("asset", null), true);
+  assert.equal(laneAllowsActor(null, null), true);
+  assert.equal(laneAllowsActor(null, undefined), true);
 });
 
 test("asset requests are assignable to Asset accounts only", () => {
@@ -25,7 +25,7 @@ test("general requests are never assigned to Asset staff, but Asset Admins can t
   assert.equal(laneAllowsAssignee(null, { role: "receptionist", serviceLane: null }), true);
 });
 
-test("realtime changes for Asset requests reach Asset Admins only", async () => {
+test("every Admin follows realtime changes of Asset requests as read-only history", async () => {
   const { canReceiveIssueChange } = await import("./issue-events");
   const audience = {
     division: "Finance", serviceDivisionId: "d", source: "division_request" as const, workflowEnabled: true,
@@ -33,7 +33,6 @@ test("realtime changes for Asset requests reach Asset Admins only", async () => 
   };
   const admin = (serviceLane: "asset" | null) => ({ id: "u", role: "receptionist" as const, serviceLane, divisionId: null, divisionName: null });
   assert.equal(canReceiveIssueChange(admin("asset"), { ...audience, serviceLane: "asset" }), true);
-  assert.equal(canReceiveIssueChange(admin(null), { ...audience, serviceLane: "asset" }), false);
-  assert.equal(canReceiveIssueChange(admin("asset"), audience), true);
+  assert.equal(canReceiveIssueChange(admin(null), { ...audience, serviceLane: "asset" }), true);
   assert.equal(canReceiveIssueChange(admin(null), audience), true);
 });
