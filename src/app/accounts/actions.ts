@@ -42,7 +42,7 @@ function optionalUuid(value: string) {
 function validatedServiceLane(role: AccountRole, rawValue: string): ServiceLane | null {
   if (!accountRoleAllowsLane(role)) return null;
   if (rawValue === "") return null;
-  if (rawValue !== "asset" && rawValue !== "atk_rtk") throw new Error("Service lane is invalid.");
+  if (rawValue !== "asset") throw new Error("Service lane is invalid.");
   return rawValue;
 }
 

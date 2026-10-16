@@ -22,7 +22,7 @@ import { workflowNoteError, workflowTransition } from "@/lib/request-workflow";
 import { issueChangeQuery } from "@/lib/issue-event-query";
 import { recordWorkflowNotifications } from "@/lib/workflow-notification-writer";
 import { canAssignRequestToUnit } from "@/lib/ga-assignment";
-import { laneAllowsAssignee } from "@/lib/service-lane";
+import { laneAllowsAssignee, laneAllowsViewer } from "@/lib/service-lane";
 import { assigneeAccountFilter } from "@/data/assignee-filter";
 import { recordAuthorizationDenied } from "@/security/audit";
 
@@ -75,14 +75,10 @@ export async function updateRequestWorkflowAction(
     }
     const noteError = workflowNoteError(input.command, note, issue.serviceLane);
     if (noteError) throw new Error(noteError);
-    // An Admin or staff account tied to a lane only acts on requests of that lane.
-    if (
-      currentUser.serviceLane &&
-      (currentUser.role === "receptionist" || currentUser.role === "service_agent") &&
-      issue.serviceLane !== currentUser.serviceLane
-    ) {
+    // Asset requests are handled by Asset-lane accounts only.
+    if (currentUser.role === "receptionist" && !laneAllowsViewer(currentUser.serviceLane, issue.serviceLane)) {
       await recordAuthorizationDenied(currentUser, `request.workflow.${input.command}`, { reason: "different_lane", issueId });
-      throw new Error("This request belongs to a different service lane.");
+      throw new Error("This request belongs to the Asset lane.");
     }
     if (currentUser.role === "service_agent" && issue.serviceLane !== "asset") {
       await recordAuthorizationDenied(currentUser, `request.workflow.${input.command}`, { reason: "staff_not_allowed", issueId });
@@ -126,7 +122,7 @@ export async function updateRequestWorkflowAction(
     if (needsAssignee) {
       if (!uuidPattern.test(assigneeId)) throw new Error("Select a service agent.");
       const [assignee] = await db
-        .select({ id: technicians.id, divisionId: masterDivisions.id, division: masterDivisions.name, isGaUnit: masterDivisions.isGaUnit, serviceLane: technicians.serviceLane })
+        .select({ id: technicians.id, divisionId: masterDivisions.id, division: masterDivisions.name, isGaUnit: masterDivisions.isGaUnit, serviceLane: technicians.serviceLane, role: technicians.role })
         .from(technicians)
         .innerJoin(masterDivisions, eq(technicians.divisionId, masterDivisions.id))
         .where(
@@ -140,7 +136,7 @@ export async function updateRequestWorkflowAction(
       if (!assignee || !canAssignRequestToUnit(issue.receivingDivisionId, issue.serviceDivisionId, { id: assignee.divisionId, isGaUnit: assignee.isGaUnit })) {
         throw new Error("Select active staff from an enabled GA unit. Historical requests must retain their destination unit.");
       }
-      if (!laneAllowsAssignee(issue.serviceLane, assignee.serviceLane)) {
+      if (!laneAllowsAssignee(issue.serviceLane, assignee)) {
         throw new Error("Select staff who handle the service lane of this request.");
       }
       validatedAssigneeId = assignee.id;
@@ -238,5 +234,87 @@ export async function updateRequestWorkflowAction(
       ok: false,
       error: error instanceof Error ? error.message : "Unable to update request workflow.",
     };
+  }
+}
+
+// Moves a request that is still waiting for the Admin between the Asset lane and General, for
+// requesters who picked the wrong service type. Only Asset-lane Admins (and Administrators) may
+// do it, with a note, and the change is audited. Asset requests skip First Approval.
+export async function changeRequestLaneAction(input: {
+  issueId: string;
+  note: string;
+}): Promise<ActionResult<{ id: string; serviceLane: "asset" | null }>> {
+  const currentUser = await requireAuthenticatedUser();
+  try {
+    const issueId = input.issueId.trim();
+    const note = input.note.trim();
+    if (!issueIdPattern.test(issueId)) throw new Error("Invalid issue ID.");
+    if (note.length < 5) throw new Error("Explain the service lane change in at least 5 characters.");
+    if (note.length > 1_000) throw new Error("The note must not exceed 1000 characters.");
+    const allowed = currentUser.role === "administrator" || (currentUser.role === "receptionist" && currentUser.serviceLane === "asset");
+    if (!allowed) {
+      await recordAuthorizationDenied(currentUser, "request.lane.change", { issueId });
+      throw new Error("Your role cannot change the service lane.");
+    }
+
+    const [issue] = await db
+      .select({
+        source: troubleshootingIssues.source,
+        workflowEnabled: troubleshootingIssues.workflowEnabled,
+        workflowStatus: troubleshootingIssues.workflowStatus,
+        serviceLane: troubleshootingIssues.serviceLane,
+        requesterId: troubleshootingIssues.requesterId,
+        updatedAt: troubleshootingIssues.updatedAt,
+      })
+      .from(troubleshootingIssues)
+      .where(eq(troubleshootingIssues.id, issueId))
+      .limit(1);
+    if (!issue || issue.source !== "division_request" || !issue.workflowEnabled) throw new Error("The division request was not found.");
+    if (issue.workflowStatus !== "submitted" && issue.workflowStatus !== "needs_revision") {
+      throw new Error("The service lane can only change while the request is waiting for the Admin.");
+    }
+    const next = issue.serviceLane === "asset" ? null : ("asset" as const);
+
+    await db.transaction(async (tx) => {
+      await tx.execute(issueChangeQuery(issueId));
+      const [updated] = await tx
+        .update(troubleshootingIssues)
+        .set({ serviceLane: next, approvalRequired: next === "asset" ? false : null, updatedAt: new Date() })
+        .where(
+          and(
+            eq(troubleshootingIssues.id, issueId),
+            eq(troubleshootingIssues.workflowStatus, issue.workflowStatus),
+            sql`date_trunc('milliseconds', ${troubleshootingIssues.updatedAt}) = ${issue.updatedAt.toISOString()}::timestamptz`,
+          ),
+        )
+        .returning({ id: troubleshootingIssues.id });
+      if (!updated) throw new Error("The request changed. Refresh the page and try again.");
+      // The accounts that now handle the request are told it is waiting for them.
+      await recordWorkflowNotifications(tx, issueId, {
+        event: "submitted",
+        actorId: currentUser.id,
+        previousStatus: issue.workflowStatus,
+        requesterId: issue.requesterId,
+        approverId: null,
+        assigneeId: null,
+      });
+      await tx.insert(auditLogs).values({
+        actorType: "technician",
+        actorId: currentUser.id,
+        action: "request.lane.changed",
+        entityType: "troubleshooting_issue",
+        entityId: issueId,
+        metadata: { from: issue.serviceLane, to: next, note },
+      });
+      await tx.execute(issueChangeQuery(issueId));
+    });
+
+    revalidatePath("/");
+    revalidatePath("/inbox");
+    revalidatePath("/requests");
+    return { ok: true, data: { id: issueId, serviceLane: next } };
+  } catch (error) {
+    console.error("Unable to change the request service lane.", error);
+    return { ok: false, error: error instanceof Error ? error.message : "Unable to change the service lane." };
   }
 }

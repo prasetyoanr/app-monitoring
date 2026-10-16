@@ -3,15 +3,18 @@
 import { CheckCircle2, ChevronDown, LoaderCircle, Route, X } from "lucide-react";
 import { useState, useTransition } from "react";
 
-import { updateRequestWorkflowAction } from "@/app/inbox/workflow-actions";
+import { changeRequestLaneAction, updateRequestWorkflowAction } from "@/app/inbox/workflow-actions";
 import type {
   AccountRole,
   RequestWorkflowCommand,
   ServiceAgentOption,
+  ServiceLane,
   TicketRecord,
 } from "@/data/types";
 import { laneAllowsAssignee } from "@/lib/service-lane";
 import { requestWorkflowLabel, workflowCommands, workflowNoteError } from "@/lib/request-workflow";
+
+const MOVE_LANE = "move_lane" as const;
 
 type CommandOption = { value: RequestWorkflowCommand; label: string };
 
@@ -34,6 +37,7 @@ export function RequestWorkflowPopup({
   record,
   role,
   userId,
+  userLane,
   serviceAgents,
   onAction,
   onClose,
@@ -41,12 +45,13 @@ export function RequestWorkflowPopup({
   record: TicketRecord;
   role: AccountRole;
   userId: string;
+  userLane: ServiceLane | null;
   serviceAgents: ServiceAgentOption[];
   onAction: (command: RequestWorkflowCommand) => void;
   onClose: () => void;
 }) {
   const isReceptionist = role === "receptionist";
-  const [command, setCommand] = useState<RequestWorkflowCommand | "">("");
+  const [command, setCommand] = useState<RequestWorkflowCommand | typeof MOVE_LANE | "">("");
   const [note, setNote] = useState("");
   const [assignee, setAssignee] = useState("");
   const [isPending, startTransition] = useTransition();
@@ -58,10 +63,14 @@ export function RequestWorkflowPopup({
     : record;
 
   const options = commandOptions(role, activeRecord, userId);
+  const canMoveLane = (role === "administrator" || (role === "receptionist" && userLane === "asset"))
+    && record.source === "division_request"
+    && ["submitted", "needs_revision"].includes(activeRecord.workflowStatus);
+  const moveLaneLabel = record.serviceLane === "asset" ? "Move to General" : "Move to Asset";
   const needsAssignee = command === "direct_assign" || command === "assign";
   const eligibleAgents = serviceAgents.filter(
     (agent) => (record.receivingDivisionId ? agent.isGaUnit : agent.division === record.serviceDivision)
-      && laneAllowsAssignee(record.serviceLane, agent.serviceLane),
+      && laneAllowsAssignee(record.serviceLane, agent),
   );
   // One flat list of everyone in scope, grouped by unit when more than one unit is eligible.
   const agentGroups = [...eligibleAgents.reduce((groups, agent) => {
@@ -73,6 +82,26 @@ export function RequestWorkflowPopup({
   function handleApply() {
     if (!command) {
       setError("Select a workflow action first.");
+      return;
+    }
+    if (command === MOVE_LANE) {
+      if (note.trim().length < 5) {
+        setError("Explain the service lane change in at least 5 characters.");
+        return;
+      }
+      setError("");
+      startTransition(async () => {
+        try {
+          const result = await changeRequestLaneAction({ issueId: record.id, note: note.trim() });
+          if (!result.ok) {
+            setError(result.error);
+            return;
+          }
+          onAction("direct_assign");
+        } catch {
+          setError("The server could not be reached. Please try again.");
+        }
+      });
       return;
     }
     const noteError = workflowNoteError(command, note.trim(), record.serviceLane);
@@ -144,11 +173,12 @@ export function RequestWorkflowPopup({
               <select
                 disabled={isPending}
                 value={command}
-                onChange={(e) => { setCommand(e.target.value as RequestWorkflowCommand); setError(""); }}
+                onChange={(e) => { setCommand(e.target.value as RequestWorkflowCommand | typeof MOVE_LANE); setError(""); }}
                 className={`h-10 w-full appearance-none rounded-xl border border-slate-200 bg-white px-3 pr-8 ${controlTextClass} font-semibold text-slate-700 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100`}
               >
                 <option value="">Select action</option>
                 {options.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+                {canMoveLane ? <option value={MOVE_LANE}>{moveLaneLabel}</option> : null}
               </select>
               <ChevronDown className="pointer-events-none absolute bottom-3 right-3 text-slate-400" size={14} aria-hidden="true" />
             </label>
@@ -179,14 +209,14 @@ export function RequestWorkflowPopup({
           ) : null}
           {!needsAssignee || command === "direct_assign" ? (
             <label className="block">
-              <span className={fieldLabelClass}>{command === "resolve" ? "Resolution Details (required)" : command === "direct_assign" ? "Reason (required)" : isReceptionist ? "Note (optional)" : "Note"}</span>
+              <span className={fieldLabelClass}>{command === "resolve" ? "Resolution Details (required)" : command === MOVE_LANE ? "Reason (required)" : command === "direct_assign" ? (record.serviceLane === "asset" ? "Note (optional)" : "Reason (required)") : isReceptionist ? "Note (optional)" : "Note"}</span>
               <textarea
                 disabled={isPending}
                 value={note}
                 onChange={(e) => { setNote(e.target.value); setError(""); }}
                 maxLength={1000}
                 rows={3}
-                placeholder={command === "direct_assign" ? "Why First Approval is not needed" : isReceptionist ? "Add context for the approver" : "Optional; required for return/reject"}
+                placeholder={command === MOVE_LANE ? "Why this request belongs to another lane" : command === "direct_assign" && record.serviceLane !== "asset" ? "Why First Approval is not needed" : isReceptionist ? "Add context for the approver" : "Optional; required for return/reject"}
                 className={`w-full resize-y rounded-xl border border-slate-200 px-3 py-2 ${controlTextClass} outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 ${isReceptionist ? "bg-white" : ""}`}
               />
             </label>

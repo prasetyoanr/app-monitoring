@@ -576,7 +576,7 @@ export async function createRequesterTicketAction(
       } else if (formField.ticketField === "description") {
         description = rawValue;
       } else if (formField.ticketField === "serviceLane") {
-        serviceLane = rawValue === "Asset" ? "asset" : rawValue === "ATK-RTK" ? "atk_rtk" : null;
+        serviceLane = rawValue === "Asset" ? "asset" : null;
       }
     }
 

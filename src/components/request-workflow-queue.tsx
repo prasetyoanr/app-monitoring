@@ -8,6 +8,7 @@ import { Card } from "@/components/ui";
 import type {
   AccountRole,
   ServiceAgentOption,
+  ServiceLane,
   TicketRecord,
 } from "@/data/types";
 import {
@@ -33,11 +34,13 @@ export function RequestWorkflowQueue({
   records,
   role,
   userId,
+  userLane,
   serviceAgents,
 }: {
   records: TicketRecord[];
   role: AccountRole;
   userId: string;
+  userLane: ServiceLane | null;
   serviceAgents: ServiceAgentOption[];
 }) {
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -295,6 +298,7 @@ export function RequestWorkflowQueue({
           record={records.find((r) => r.id === popupTicketId)!}
           role={role}
           userId={userId}
+          userLane={userLane}
           serviceAgents={serviceAgents}
           onAction={handlePopupAction}
           onClose={() => setPopupTicketId(null)}

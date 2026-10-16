@@ -1,13 +1,17 @@
 import type { ServiceLane } from "@/data/types";
 
-// An account without a lane works across every lane; a lane account only sees its own.
+// Asset requests are managed by Asset-lane accounts only. An Admin tied to the Asset lane
+// still receives every general request; Admins without it simply never see Asset requests.
 export function laneAllowsViewer(userLane: ServiceLane | null | undefined, issueLane: ServiceLane | null | undefined) {
-  return !userLane || userLane === (issueLane ?? null);
+  return issueLane !== "asset" || userLane === "asset";
 }
 
-// Asset requests go only to Asset staff. Other requests may go to anyone not tied to a
-// different lane, so a lane-limited account is never handed work from another lane.
-export function laneAllowsAssignee(requestLane: ServiceLane | null | undefined, agentLane: ServiceLane | null | undefined) {
-  if (requestLane === "asset") return agentLane === "asset";
-  return !agentLane || agentLane === (requestLane ?? null);
+// Asset requests go only to Asset accounts. General requests may go to anyone except Asset
+// staff, whose job is limited to Asset requests.
+export function laneAllowsAssignee(
+  requestLane: ServiceLane | null | undefined,
+  agent: { role?: string; serviceLane?: ServiceLane | null },
+) {
+  if (requestLane === "asset") return agent.serviceLane === "asset";
+  return !(agent.role === "service_agent" && agent.serviceLane === "asset");
 }

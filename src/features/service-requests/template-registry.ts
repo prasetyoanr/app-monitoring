@@ -19,8 +19,8 @@ export const genericServiceRequestTemplate: ServiceRequestTemplate = {
       key: "serviceLane",
       label: "Service type",
       type: "select",
-      options: ["General", "Asset", "ATK-RTK"],
-      helpText: "Asset requests go straight to the Asset team. Choose General if unsure.",
+      options: ["General", "Asset"],
+      helpText: "Choose Asset for asset requests. Everything else, including ATK, is General.",
       ticketField: "serviceLane",
     },
     {

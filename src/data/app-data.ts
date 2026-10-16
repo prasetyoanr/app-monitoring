@@ -406,7 +406,7 @@ export async function getNavigationCounts() {
       ? and(
           eq(troubleshootingIssues.workflowEnabled, true),
           inArray(troubleshootingIssues.workflowStatus, ["submitted", "needs_revision"]),
-          currentUser.serviceLane ? eq(troubleshootingIssues.serviceLane, currentUser.serviceLane) : undefined,
+          currentUser.serviceLane === "asset" ? undefined : sql`${troubleshootingIssues.serviceLane} is distinct from 'asset'`,
         )
       : currentUser.role === "approver"
         ? and(
