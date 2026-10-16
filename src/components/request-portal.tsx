@@ -141,13 +141,13 @@ export function RequestPortal({
       </section>
 
       <Card className="overflow-hidden">
-        <div className="space-y-4 border-b border-slate-100 p-4 sm:p-5">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div><h2 className="text-sm font-bold text-slate-900">Request history</h2><p className="mt-1 text-[11px] text-slate-500">Track current requests and revisit previous submissions.</p></div>
-            <label className="relative block w-full sm:w-72"><span className="sr-only">Search requests</span><Search size={15} className="pointer-events-none absolute left-3 top-3.5 text-slate-400" /><input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search ID, title or location..." className={`h-11 w-full rounded-xl border border-slate-200 bg-slate-50/70 pl-9 pr-3 text-xs outline-none transition focus:bg-white focus:ring-2 ${t.focus}`} /></label>
+        <div className="space-y-3 border-b border-slate-100 p-3 sm:p-5">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div><h2 className="text-sm font-bold text-slate-900">Request history</h2><p className="mt-1 hidden text-[11px] text-slate-500 sm:block">Track current requests and revisit previous submissions.</p></div>
+            <label className="relative block w-full sm:w-72"><span className="sr-only">Search requests</span><Search size={15} className="pointer-events-none absolute left-3 top-3 text-slate-400" /><input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search ID, title or location..." className={`h-10 w-full rounded-xl border border-slate-200 bg-slate-50/70 pl-9 pr-3 text-xs outline-none transition focus:bg-white focus:ring-2 ${t.focus}`} /></label>
           </div>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4" role="group" aria-label="Filter requests by status">
-            {historyFilters.map(({ key, label, icon: Icon }) => <button key={key} type="button" aria-pressed={filter === key} onClick={() => setFilter(key)} className={`flex min-h-11 items-center gap-2 rounded-xl border px-3 py-2 text-left text-[11px] font-semibold transition focus-visible:outline-2 focus-visible:outline-offset-2 ${t.outline} ${filter === key ? t.filterOn : "border-slate-100 bg-white text-slate-500 hover:border-slate-200 hover:bg-slate-50"}`}><Icon size={15} className="shrink-0" /><span className="flex-1">{label}</span><span className={`rounded-md px-2 py-0.5 tabular-nums ${filter === key ? `bg-white ${t.countOn}` : "bg-slate-100 text-slate-600"}`}>{counts[key]}</span></button>)}
+          <div className="grid grid-cols-4 gap-1.5 sm:gap-2" role="group" aria-label="Filter requests by status">
+            {historyFilters.map(({ key, label, icon: Icon }) => <button key={key} type="button" aria-pressed={filter === key} onClick={() => setFilter(key)} className={`flex min-h-11 flex-col items-center justify-center gap-0.5 rounded-xl border px-1 py-1 text-center text-[11px] font-semibold leading-tight transition focus-visible:outline-2 focus-visible:outline-offset-2 sm:min-h-10 sm:flex-row sm:justify-start sm:gap-1.5 sm:px-3 sm:py-1.5 sm:text-left ${t.outline} ${filter === key ? t.filterOn : "border-slate-100 bg-white text-slate-500 hover:border-slate-200 hover:bg-slate-50"}`}><Icon size={15} className="hidden shrink-0 sm:block" /><span className="sm:flex-1">{label}</span><span className={`rounded-md px-1.5 text-[10px] tabular-nums sm:px-2 sm:py-0.5 sm:text-[11px] ${filter === key ? `bg-white ${t.countOn}` : "bg-slate-100 text-slate-600"}`}>{counts[key]}</span></button>)}
           </div>
         </div>
 
@@ -164,17 +164,17 @@ export function RequestPortal({
             {visibleRecords.map((record) => {
               const DestinationIcon = getDivisionIcon(record.serviceDivision || "IT Team");
               return (
-                <article key={record.id} className="px-4 py-4 transition-colors hover:bg-slate-50/70 sm:px-5">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-mono text-[10px] font-bold text-slate-400">#{record.id}</span>
-                    <span className="inline-flex items-center gap-1.5 rounded-md bg-blue-50 px-2 py-1 text-[10px] font-bold text-blue-700"><DestinationIcon size={12} /> {record.receivingDivisionId ? `GA → ${record.serviceDivision}` : record.serviceDivision}</span>
-                    <span className="ml-auto"><StatusBadge tone={record.workflowEnabled && record.workflowStatus !== "assigned" ? record.workflowStatus === "rejected" ? "red" : "amber" : statusTone(record.status)}>{ticketStatusLabel(record)}</StatusBadge></span>
+                <article key={record.id} className="px-3 py-2.5 transition-colors hover:bg-slate-50/70 sm:px-5 sm:py-3.5">
+                  <div className="flex items-start justify-between gap-3">
+                    <h3 className="min-w-0 break-words text-sm font-bold leading-5 text-slate-900"><button type="button" onClick={() => setSelectedDetailId(record.id)} className={`text-left focus-visible:outline-2 ${t.outline} sm:pointer-events-none`}>{record.title}</button></h3>
+                    <span className="shrink-0"><StatusBadge tone={record.workflowEnabled && record.workflowStatus !== "assigned" ? record.workflowStatus === "rejected" ? "red" : "amber" : statusTone(record.status)}>{ticketStatusLabel(record)}</StatusBadge></span>
                   </div>
-                  <h3 className="mt-3 break-words text-sm font-bold leading-5 text-slate-900">{record.title}</h3>
-                  <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 text-[10px] text-slate-500 sm:gap-x-4 sm:text-[11px]">
-                    <span className="inline-flex items-center gap-1.5"><MapPin size={12} className="text-slate-400" /> {record.location}</span>
-                    <span className="inline-flex items-center gap-1.5"><CalendarDays size={12} className="text-slate-400" /> {record.reportedAt}</span>
-                    <button type="button" onClick={() => setSelectedDetailId(record.id)} className={`ml-auto inline-flex min-h-10 items-center gap-1 rounded-lg px-2 text-[11px] font-semibold transition ${t.link} focus-visible:outline-2 ${t.outline}`} aria-label={`View details for ${record.id}`}>Details <ArrowRight size={13} /></button>
+                  <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-slate-500 sm:text-[11px]">
+                    <span className="font-mono font-bold text-slate-400">#{record.id}</span>
+                    <span className="inline-flex items-center gap-1 font-semibold text-blue-700"><DestinationIcon size={12} /> {record.receivingDivisionId ? `GA → ${record.serviceDivision}` : record.serviceDivision}</span>
+                    <span className="inline-flex items-center gap-1"><MapPin size={12} className="text-slate-400" /> {record.location}</span>
+                    <span className="inline-flex items-center gap-1"><CalendarDays size={12} className="text-slate-400" /> {record.reportedAt}</span>
+                    <button type="button" onClick={() => setSelectedDetailId(record.id)} className={`ml-auto hidden min-h-9 items-center gap-1 rounded-lg px-2 text-[11px] font-semibold transition sm:inline-flex ${t.link} focus-visible:outline-2 ${t.outline}`} aria-label={`View details for ${record.id}`}>Details <ArrowRight size={13} /></button>
                   </div>
                 </article>
               );
