@@ -7,6 +7,7 @@ export type AccountRole =
   | "final_approver"
   | "service_agent"
   | "requester";
+export type ServiceLane = "asset" | "atk_rtk";
 export type RequestWorkflowStatus =
   | "submitted"
   | "waiting_approver"
@@ -33,6 +34,7 @@ export interface ServiceAgentOption {
   divisionId: string;
   division: string;
   isGaUnit: boolean;
+  serviceLane: ServiceLane | null;
 }
 export type IssueStatus =
   | "New"
@@ -78,6 +80,7 @@ export interface TicketRecord {
   workflowEnabled: boolean;
   workflowNote: string | null;
   approvalRequired: boolean | null;
+  serviceLane: ServiceLane | null;
   assignedTechnicianId: string | null;
   assignedTechnicianName: string | null;
 }
@@ -102,6 +105,7 @@ export interface AccountRecord {
   name: string;
   username: string;
   role: AccountRole;
+  serviceLane: ServiceLane | null;
   divisionId: string | null;
   division: string | null;
   isActive: boolean;

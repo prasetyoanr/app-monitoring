@@ -89,7 +89,7 @@ export default async function InboxPage({
           <Link href="/inbox" className="inline-flex h-8 items-center justify-center rounded-lg border border-indigo-200 bg-white px-3 text-[10px] font-bold text-indigo-700 hover:bg-indigo-50">Show all</Link>
         </Card>
       ) : null}
-      <RequestWorkflowQueue records={visibleRecords} role={currentUser.role} serviceAgents={serviceAgents} />
+      <RequestWorkflowQueue records={visibleRecords} role={currentUser.role} userId={currentUser.id} serviceAgents={serviceAgents} />
       {currentUser.role !== "receptionist" || ownAssignments.length > 0 ? (
         <TicketList
           initialRecords={currentUser.role === "receptionist" ? ownAssignments : visibleRecords}

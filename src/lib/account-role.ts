@@ -15,6 +15,11 @@ export function accountRoleHasOptionalDivision(role: AccountRole) {
   return role === "receptionist" || role === "approver" || role === "final_approver";
 }
 
+// Only Admin and Staff accounts can be limited to one GA service lane.
+export function accountRoleAllowsLane(role: AccountRole) {
+  return role === "receptionist" || role === "service_agent";
+}
+
 export function accountRoleAllowsDivision(role: AccountRole) {
   return accountRoleRequiresDivision(role) || accountRoleHasOptionalDivision(role);
 }

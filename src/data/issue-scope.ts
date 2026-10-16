@@ -15,7 +15,10 @@ export function serviceInboxScope(user: AuthenticatedUser, options: { teamIt?: b
   const teamItTroubleshooting = options.teamIt && (user.role === "approver" || user.role === "final_approver")
     ? and(eq(issues.source, "manual"), itServiceDivision)
     : undefined;
-  if (user.role === "receptionist") return eq(issues.source, "division_request");
+  if (user.role === "receptionist") return and(
+    eq(issues.source, "division_request"),
+    user.serviceLane ? eq(issues.serviceLane, user.serviceLane) : undefined,
+  );
   if (user.role === "final_approver") return or(and(
     eq(issues.source, "division_request"),
     eq(issues.workflowEnabled, true),

@@ -7,8 +7,8 @@ import { hashPassword } from "@/auth/password";
 import { requireAdministrator } from "@/auth/session";
 import { db } from "@/db";
 import { auditLogs, authSessions, masterDivisions, technicians } from "@/db/schema";
-import type { AccountRole, ActionResult } from "@/data/types";
-import { accountRoleAllowsDivision, accountRoleRequiresDivision } from "@/lib/account-role";
+import type { AccountRole, ActionResult, ServiceLane } from "@/data/types";
+import { accountRoleAllowsDivision, accountRoleAllowsLane, accountRoleRequiresDivision } from "@/lib/account-role";
 import { recordAuthorizationDenied } from "@/security/audit";
 
 const accountRoles: AccountRole[] = [
@@ -37,6 +37,13 @@ function optionalUuid(value: string) {
   if (!normalized) return null;
   if (!validAccountId(normalized)) throw new Error("Division is invalid.");
   return normalized;
+}
+
+function validatedServiceLane(role: AccountRole, rawValue: string): ServiceLane | null {
+  if (!accountRoleAllowsLane(role)) return null;
+  if (rawValue === "") return null;
+  if (rawValue !== "asset" && rawValue !== "atk_rtk") throw new Error("Service lane is invalid.");
+  return rawValue;
 }
 
 async function validatedDivisionId(role: AccountRole, rawValue: string) {
@@ -72,6 +79,7 @@ export async function createAccountAction(
     }
     if (!accountRoles.includes(role)) throw new Error("Account role is invalid.");
     const divisionId = await validatedDivisionId(role, String(formData.get("divisionId") ?? ""));
+    const serviceLane = validatedServiceLane(role, String(formData.get("serviceLane") ?? ""));
 
     const [duplicate] = await db
       .select({ id: technicians.id })
@@ -84,7 +92,7 @@ export async function createAccountAction(
     const [created] = await db.transaction(async (tx) => {
       const accounts = await tx
         .insert(technicians)
-        .values({ name, username, passwordHash, role, divisionId })
+        .values({ name, username, passwordHash, role, divisionId, serviceLane })
         .returning({ id: technicians.id });
       await tx.insert(auditLogs).values({
         actorType: "technician",
@@ -92,7 +100,7 @@ export async function createAccountAction(
         action: "account.created",
         entityType: "technician",
         entityId: accounts[0].id,
-        metadata: { role },
+        metadata: { role, serviceLane },
       });
       return accounts;
     });
@@ -121,6 +129,7 @@ export async function updateAccountAction(
       throw new Error("Your account must remain an administrator.");
     }
     const divisionId = await validatedDivisionId(role, String(formData.get("divisionId") ?? ""));
+    const serviceLane = validatedServiceLane(role, String(formData.get("serviceLane") ?? ""));
     const activeValue = String(formData.get("isActive") ?? "");
     if (activeValue !== "true" && activeValue !== "false") {
       throw new Error("The account status is invalid.");
@@ -134,7 +143,7 @@ export async function updateAccountAction(
     await db.transaction(async (tx) => {
       const [updated] = await tx
         .update(technicians)
-        .set({ role, divisionId, isActive, updatedAt: new Date() })
+        .set({ role, divisionId, serviceLane, isActive, updatedAt: new Date() })
         .where(eq(technicians.id, id))
         .returning({ id: technicians.id });
       if (!updated) throw new Error("Account was not found.");
@@ -145,7 +154,7 @@ export async function updateAccountAction(
         action: "account.updated",
         entityType: "technician",
         entityId: id,
-        metadata: { role, divisionId, isActive },
+        metadata: { role, divisionId, serviceLane, isActive },
       });
     });
     revalidatePath("/");

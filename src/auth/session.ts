@@ -9,7 +9,7 @@ import { cache } from "react";
 import { SESSION_COOKIE_NAME } from "@/auth/constants";
 import { db } from "@/db";
 import { authSessions, masterDivisions, technicians } from "@/db/schema";
-import type { AccountRole } from "@/data/types";
+import type { AccountRole, ServiceLane } from "@/data/types";
 import { HEARTBEAT_WRITE_INTERVAL_MS, SESSION_TOUCH_INTERVAL_MS } from "@/lib/presence";
 import { recordAuthorizationDenied } from "@/security/audit";
 
@@ -20,6 +20,7 @@ export interface AuthenticatedUser {
   name: string;
   username: string;
   role: AccountRole;
+  serviceLane: ServiceLane | null;
   divisionId: string | null;
   divisionName: string | null;
   divisionSlug?: string | null;
@@ -154,6 +155,7 @@ export async function findUserBySessionToken(
         name: technicians.name,
         username: technicians.username,
         role: technicians.role,
+        serviceLane: technicians.serviceLane,
         divisionId: technicians.divisionId,
         divisionName: masterDivisions.name,
         divisionSlug: masterDivisions.slug,
@@ -184,6 +186,7 @@ export async function findUserBySessionToken(
       name: row.name,
       username: row.username,
       role: row.role,
+      serviceLane: row.serviceLane,
       divisionId: row.divisionId,
       divisionName: row.divisionName,
       divisionSlug: row.divisionSlug,

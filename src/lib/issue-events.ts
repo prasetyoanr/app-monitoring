@@ -1,5 +1,6 @@
 import { z } from "zod";
-import type { AccountRole } from "@/data/types";
+import type { AccountRole, ServiceLane } from "@/data/types";
+import { laneAllowsViewer } from "@/lib/service-lane";
 
 export const ISSUE_EVENT_CHANNEL = "ga_management_issue_changed";
 
@@ -8,6 +9,7 @@ export const issueAudienceSchema = z.object({
   division: z.string(),
   serviceDivisionId: z.string().nullable(),
   source: z.enum(["manual", "division_request"]),
+  serviceLane: z.enum(["asset", "atk_rtk"]).nullable().optional(),
   workflowEnabled: z.boolean(),
   workflowStatus: z.string(),
   approverId: z.string().nullable(),
@@ -16,7 +18,7 @@ export const issueAudienceSchema = z.object({
 });
 
 export type IssueAudience = z.infer<typeof issueAudienceSchema>;
-type Viewer = { id: string; role: AccountRole; divisionId: string | null; divisionName: string | null };
+type Viewer = { id: string; role: AccountRole; serviceLane?: ServiceLane | null; divisionId: string | null; divisionName: string | null };
 
 export function canReceiveIssueChange(user: Viewer, issue: IssueAudience): boolean {
   if (user.role === "administrator") return true;
@@ -26,7 +28,7 @@ export function canReceiveIssueChange(user: Viewer, issue: IssueAudience): boole
     user.divisionName &&
     user.divisionName === issue.division
   ) return true;
-  if (user.role === "receptionist") return issue.source === "division_request";
+  if (user.role === "receptionist") return issue.source === "division_request" && laneAllowsViewer(user.serviceLane, issue.serviceLane);
   if (user.role === "approver") {
     if (issue.source !== "division_request" || !issue.workflowEnabled) return false;
     if (issue.workflowStatus === "waiting_approver") {

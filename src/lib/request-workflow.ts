@@ -1,4 +1,4 @@
-import type { AccountRole, RequestWorkflowCommand, RequestWorkflowStatus, TicketRecord } from "@/data/types";
+import type { AccountRole, RequestWorkflowCommand, RequestWorkflowStatus, ServiceLane, TicketRecord } from "@/data/types";
 import { issueStatusLabel } from "./issue-status";
 
 export function ticketStatusLabel(ticket: Pick<TicketRecord, "status" | "workflowEnabled" | "workflowStatus">) {
@@ -7,11 +7,18 @@ export function ticketStatusLabel(ticket: Pick<TicketRecord, "status" | "workflo
     : issueStatusLabel(ticket.status);
 }
 
-export function workflowNoteError(command: RequestWorkflowCommand, note: string): string | null {
+// Asset requests skip First Approval: the Admin routes or acts directly, and the Asset
+// staff member it is assigned to may still decline it. Other lanes keep the standard flow.
+export interface WorkflowLaneContext {
+  lane?: ServiceLane | null;
+  isAssignee?: boolean;
+}
+
+export function workflowNoteError(command: RequestWorkflowCommand, note: string, lane?: ServiceLane | null): string | null {
   const length = note.trim().length;
   if (command === "resolve" && length < 5) return "Describe the administrative resolution in at least 5 characters.";
   if (length > 1_000) return "The note must not exceed 1000 characters.";
-  if (command === "direct_assign" && length < 5) {
+  if (command === "direct_assign" && lane !== "asset" && length < 5) {
     return "Direct assignment requires a reason of at least 5 characters explaining why First Approval is not needed.";
   }
   if ((command === "return" || command === "reject") && length < 5) {
@@ -20,8 +27,20 @@ export function workflowNoteError(command: RequestWorkflowCommand, note: string)
   return null;
 }
 
-export function workflowCommands(role: AccountRole, status: RequestWorkflowStatus, approvalRequired: boolean | null): RequestWorkflowCommand[] {
+export function workflowCommands(
+  role: AccountRole,
+  status: RequestWorkflowStatus,
+  approvalRequired: boolean | null,
+  context: WorkflowLaneContext = {},
+): RequestWorkflowCommand[] {
   const administrator = role === "administrator";
+  if (context.lane === "asset") {
+    if ((administrator || role === "receptionist") && (status === "submitted" || status === "needs_revision")) {
+      return ["direct_assign", "resolve", "reject"];
+    }
+    if (role === "service_agent" && status === "assigned" && context.isAssignee) return ["reject"];
+    return [];
+  }
   if ((administrator || role === "receptionist") && (status === "submitted" || status === "needs_revision")) {
     return approvalRequired ? ["send_for_approval"] : ["send_for_approval", "direct_assign", "resolve"];
   }
@@ -40,8 +59,9 @@ export function workflowTransition(
   current: RequestWorkflowStatus,
   approvalRequired: boolean | null,
   command: RequestWorkflowCommand,
+  context: WorkflowLaneContext = {},
 ): { status: RequestWorkflowStatus; action: "sent_for_approval" | "routed_directly" | "approved" | "escalated" | "final_approved" | "returned" | "rejected" | "assigned" | "resolved" } | null {
-  if (!workflowCommands(role, current, approvalRequired).includes(command)) return null;
+  if (!workflowCommands(role, current, approvalRequired, context).includes(command)) return null;
   switch (command) {
     case "resolve": return { status: "resolved", action: "resolved" };
     case "send_for_approval": return { status: "waiting_approver", action: "sent_for_approval" };

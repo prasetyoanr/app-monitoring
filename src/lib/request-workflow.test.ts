@@ -101,3 +101,32 @@ test("UI command options and server transitions agree for every role and state",
     }
   }
 });
+
+test("asset requests skip First Approval and are decided by Admin or the assigned staff", () => {
+  for (const role of ["receptionist", "administrator"] as AccountRole[]) {
+    for (const status of ["submitted", "needs_revision"] as RequestWorkflowStatus[]) {
+      assert.deepEqual(workflowCommands(role, status, false, { lane: "asset" }), ["direct_assign", "resolve", "reject"]);
+      assert.equal(workflowTransition(role, status, false, "send_for_approval", { lane: "asset" }), null);
+      assert.deepEqual(workflowTransition(role, status, false, "direct_assign", { lane: "asset" }), { status: "assigned", action: "routed_directly" });
+      assert.deepEqual(workflowTransition(role, status, false, "reject", { lane: "asset" }), { status: "rejected", action: "rejected" });
+    }
+  }
+  // Without a lane (or with ATK-RTK) the standard approval flow is unchanged.
+  assert.deepEqual(workflowCommands("receptionist", "submitted", null), ["send_for_approval", "direct_assign", "resolve"]);
+  assert.deepEqual(workflowCommands("receptionist", "submitted", null, { lane: "atk_rtk" }), ["send_for_approval", "direct_assign", "resolve"]);
+});
+
+test("only the assigned staff member may decline an assigned asset request", () => {
+  assert.deepEqual(workflowCommands("service_agent", "assigned", false, { lane: "asset", isAssignee: true }), ["reject"]);
+  assert.deepEqual(workflowCommands("service_agent", "assigned", false, { lane: "asset", isAssignee: false }), []);
+  assert.deepEqual(workflowCommands("service_agent", "assigned", false, { lane: "atk_rtk", isAssignee: true }), []);
+  assert.deepEqual(workflowCommands("service_agent", "assigned", false, { isAssignee: true }), []);
+  assert.deepEqual(workflowCommands("service_agent", "submitted", false, { lane: "asset", isAssignee: true }), []);
+});
+
+test("asset direct assignment needs no First Approval justification", () => {
+  assert.equal(workflowNoteError("direct_assign", "", "asset"), null);
+  assert.match(workflowNoteError("direct_assign", "", null) ?? "", /Direct assignment requires a reason/);
+  assert.match(workflowNoteError("direct_assign", "", "atk_rtk") ?? "", /Direct assignment requires a reason/);
+  assert.match(workflowNoteError("reject", "abcd", "asset") ?? "", /require a note/);
+});

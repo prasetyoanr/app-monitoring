@@ -28,6 +28,7 @@ export async function GET(
       requesterId: troubleshootingIssues.requesterId,
       requesterDivision: troubleshootingIssues.division,
       source: troubleshootingIssues.source,
+      serviceLane: troubleshootingIssues.serviceLane,
       workflowEnabled: troubleshootingIssues.workflowEnabled,
       workflowStatus: troubleshootingIssues.workflowStatus,
       assignedTechnicianId: troubleshootingIssues.assignedTechnicianId,

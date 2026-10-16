@@ -10,11 +10,12 @@ import type {
   ServiceAgentOption,
   TicketRecord,
 } from "@/data/types";
+import { laneAllowsAssignee } from "@/lib/service-lane";
 import { requestWorkflowLabel, workflowCommands, workflowNoteError } from "@/lib/request-workflow";
 
 type CommandOption = { value: RequestWorkflowCommand; label: string };
 
-function commandOptions(role: AccountRole, ticket: TicketRecord): CommandOption[] {
+function commandOptions(role: AccountRole, ticket: TicketRecord, userId: string): CommandOption[] {
   if (ticket.source !== "division_request" || !ticket.workflowEnabled) return [];
   const labels: Record<RequestWorkflowCommand, string> = {
     resolve: "Resolve Without Assignment",
@@ -26,18 +27,20 @@ function commandOptions(role: AccountRole, ticket: TicketRecord): CommandOption[
     reject: "Reject",
     assign: "Assign Staff",
   };
-  return workflowCommands(role, ticket.workflowStatus, ticket.approvalRequired).filter((value) => value !== "resolve" || Boolean(ticket.receivingDivisionId)).map((value) => ({ value, label: labels[value] }));
+  return workflowCommands(role, ticket.workflowStatus, ticket.approvalRequired, { lane: ticket.serviceLane, isAssignee: ticket.assignedTechnicianId === userId }).filter((value) => value !== "resolve" || Boolean(ticket.receivingDivisionId)).map((value) => ({ value, label: labels[value] }));
 }
 
 export function RequestWorkflowPopup({
   record,
   role,
+  userId,
   serviceAgents,
   onAction,
   onClose,
 }: {
   record: TicketRecord;
   role: AccountRole;
+  userId: string;
   serviceAgents: ServiceAgentOption[];
   onAction: (command: RequestWorkflowCommand) => void;
   onClose: () => void;
@@ -54,10 +57,11 @@ export function RequestWorkflowPopup({
     ? { ...record, workflowStatus: workflowStatusOverride }
     : record;
 
-  const options = commandOptions(role, activeRecord);
+  const options = commandOptions(role, activeRecord, userId);
   const needsAssignee = command === "direct_assign" || command === "assign";
   const eligibleAgents = serviceAgents.filter(
-    (agent) => record.receivingDivisionId ? agent.isGaUnit : agent.division === record.serviceDivision,
+    (agent) => (record.receivingDivisionId ? agent.isGaUnit : agent.division === record.serviceDivision)
+      && laneAllowsAssignee(record.serviceLane, agent.serviceLane),
   );
   // One flat list of everyone in scope, grouped by unit when more than one unit is eligible.
   const agentGroups = [...eligibleAgents.reduce((groups, agent) => {
@@ -71,7 +75,7 @@ export function RequestWorkflowPopup({
       setError("Select a workflow action first.");
       return;
     }
-    const noteError = workflowNoteError(command, note.trim());
+    const noteError = workflowNoteError(command, note.trim(), record.serviceLane);
     if (noteError) {
       setError(noteError);
       return;

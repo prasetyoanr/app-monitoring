@@ -9,6 +9,7 @@ export function issueChangeQuery(issueId: string, channel = ISSUE_EVENT_CHANNEL)
     'division', ${issues.division},
     'serviceDivisionId', ${issues.serviceDivisionId},
     'source', ${issues.source},
+    'serviceLane', ${issues.serviceLane},
     'workflowEnabled', ${issues.workflowEnabled},
     'workflowStatus', ${issues.workflowStatus},
     'approverId', ${issues.approverId},

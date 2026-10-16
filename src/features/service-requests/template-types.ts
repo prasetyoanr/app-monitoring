@@ -7,7 +7,7 @@ export type ServiceRequestFieldType =
   | "master-category"
   | "photo";
 
-export type TicketField = "title" | "category" | "description";
+export type TicketField = "title" | "category" | "description" | "serviceLane";
 
 export interface ServiceRequestField {
   key: string;

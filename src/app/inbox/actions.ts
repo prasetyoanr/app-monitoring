@@ -21,6 +21,7 @@ import type {
   ActionResult,
   IssuePriority,
   IssueStatus,
+  ServiceLane,
 } from "@/data/types";
 import {
   genericServiceRequestTemplate,
@@ -535,6 +536,7 @@ export async function createRequesterTicketAction(
     const requestData: Record<string, string> = {};
     let title = "";
     let category = template.label;
+    let serviceLane: ServiceLane | null = null;
     const location = field(formData, "location", 160);
     let description = "";
     let requesterPhotoData: Buffer | null = null;
@@ -573,6 +575,8 @@ export async function createRequesterTicketAction(
         category = rawValue;
       } else if (formField.ticketField === "description") {
         description = rawValue;
+      } else if (formField.ticketField === "serviceLane") {
+        serviceLane = rawValue === "Asset" ? "asset" : rawValue === "ATK-RTK" ? "atk_rtk" : null;
       }
     }
 
@@ -630,6 +634,9 @@ export async function createRequesterTicketAction(
         priority,
         status: "New",
         workflowStatus: "submitted",
+        serviceLane,
+        // Asset requests skip First Approval; every other lane keeps the standard flow.
+        approvalRequired: serviceLane === "asset" ? false : undefined,
         completedDays: null,
         description,
         resolution: "",

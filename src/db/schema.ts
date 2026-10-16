@@ -25,6 +25,10 @@ export const accountRoleEnum = pgEnum("account_role", [
   "requester",
 ]);
 
+// GA request lanes. Asset requests skip First Approval and are decided by the Asset team;
+// ATK-RTK requests keep the standard approval workflow.
+export const serviceLaneEnum = pgEnum("service_lane", ["asset", "atk_rtk"]);
+
 export const requestWorkflowStatusEnum = pgEnum("request_workflow_status", [
   "resolved",
   "submitted",
@@ -204,6 +208,8 @@ export const technicians = pgTable(
     username: varchar("username", { length: 80 }),
     passwordHash: text("password_hash"),
     role: accountRoleEnum("role").notNull().default("requester"),
+    // Limits an Admin or staff account to one GA lane. Null means every lane.
+    serviceLane: serviceLaneEnum("service_lane"),
     divisionId: uuid("division_id").references(() => masterDivisions.id, {
       onDelete: "set null",
     }),
@@ -321,6 +327,7 @@ export const troubleshootingIssues = pgTable(
       .notNull()
       .references(() => masterDivisions.id, { onDelete: "restrict" }),
     receivingDivisionId: uuid("receiving_division_id").references(() => masterDivisions.id, { onDelete: "restrict" }),
+    serviceLane: serviceLaneEnum("service_lane"),
     requestFormKey: varchar("request_form_key", { length: 80 })
       .notNull()
       .default("it-support"),

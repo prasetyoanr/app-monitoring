@@ -1,7 +1,8 @@
 import { and, eq, inArray } from "drizzle-orm";
 
 import { db } from "@/db";
-import { technicians, workflowNotifications } from "@/db/schema";
+import { technicians, troubleshootingIssues, workflowNotifications } from "@/db/schema";
+import { laneAllowsViewer } from "@/lib/service-lane";
 import {
   workflowNotificationPlan,
   type WorkflowNotificationInput,
@@ -35,12 +36,19 @@ export async function recordWorkflowNotifications(
 
   const pools: WorkflowNotificationInput["pools"] = {};
   if (needed.length) {
+    const [issue] = await tx
+      .select({ serviceLane: troubleshootingIssues.serviceLane })
+      .from(troubleshootingIssues)
+      .where(eq(troubleshootingIssues.id, issueId))
+      .limit(1);
     const rows = await tx
-      .select({ id: technicians.id, role: technicians.role })
+      .select({ id: technicians.id, role: technicians.role, serviceLane: technicians.serviceLane })
       .from(technicians)
       .where(and(eq(technicians.isActive, true), inArray(technicians.role, [...needed])));
     for (const row of rows) {
       if (row.role !== "receptionist" && row.role !== "approver" && row.role !== "final_approver") continue;
+      // An Admin tied to a lane is only notified about requests of that lane.
+      if (row.role === "receptionist" && !laneAllowsViewer(row.serviceLane, issue?.serviceLane)) continue;
       (pools[row.role] ??= []).push(row.id);
     }
   }

@@ -23,6 +23,8 @@ function queueStatuses(role: AccountRole) {
   if (role === "receptionist") return new Set(["submitted", "needs_revision"]);
   if (role === "approver") return new Set(["waiting_approver", "ready_for_assignment"]);
   if (role === "final_approver") return new Set(["waiting_final_approver"]);
+  // Staff only see requests they may still decline (Asset requests assigned to them).
+  if (role === "service_agent") return new Set(["assigned"]);
   if (role === "administrator") return new Set(["submitted", "needs_revision", "waiting_approver", "waiting_final_approver", "ready_for_assignment"]);
   return new Set<string>();
 }
@@ -30,10 +32,12 @@ function queueStatuses(role: AccountRole) {
 export function RequestWorkflowQueue({
   records,
   role,
+  userId,
   serviceAgents,
 }: {
   records: TicketRecord[];
   role: AccountRole;
+  userId: string;
   serviceAgents: ServiceAgentOption[];
 }) {
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -49,8 +53,9 @@ export function RequestWorkflowQueue({
   ), [records]);
   const queue = useMemo(() => workflowRecords.filter((record) => isReceptionist
     ? requestBelongsToCsInboxTab(record.workflowStatus, csTab)
-    : visibleStatuses.has(record.workflowStatus)),
-  [workflowRecords, isReceptionist, csTab, visibleStatuses]);
+    : visibleStatuses.has(record.workflowStatus)
+      && (role !== "service_agent" || workflowCommands(role, record.workflowStatus, record.approvalRequired, { lane: record.serviceLane, isAssignee: record.assignedTechnicianId === userId }).length > 0)),
+  [workflowRecords, isReceptionist, csTab, visibleStatuses, role, userId]);
   const visibleQueue = useMemo(() => isReceptionist
     ? filterAndSortRequestQueue(queue, fromDate, toDate, dateOrder)
     : queue,
@@ -165,7 +170,7 @@ export function RequestWorkflowQueue({
         <div className="divide-y divide-slate-100">
           {visibleQueue.map((ticket) => {
             const options = ticket.source === "division_request" && ticket.workflowEnabled
-              ? workflowCommands(role, ticket.workflowStatus, ticket.approvalRequired).filter((value: string) => value !== "resolve" || Boolean(ticket.receivingDivisionId))
+              ? workflowCommands(role, ticket.workflowStatus, ticket.approvalRequired, { lane: ticket.serviceLane, isAssignee: ticket.assignedTechnicianId === userId }).filter((value: string) => value !== "resolve" || Boolean(ticket.receivingDivisionId))
               : [];
             const hasOptions = options.length > 0;
 
@@ -224,7 +229,7 @@ export function RequestWorkflowQueue({
                           className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-[10px] font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
                         >
                           <Route size={14} />
-                          {ticket.workflowStatus === "submitted" ? "Request Approval" : "Take Action"}
+                          {ticket.workflowStatus === "submitted" && ticket.serviceLane !== "asset" ? "Request Approval" : "Take Action"}
                         </button>
                       </div>
                     )}
@@ -289,6 +294,7 @@ export function RequestWorkflowQueue({
         <RequestWorkflowPopup
           record={records.find((r) => r.id === popupTicketId)!}
           role={role}
+          userId={userId}
           serviceAgents={serviceAgents}
           onAction={handlePopupAction}
           onClose={() => setPopupTicketId(null)}

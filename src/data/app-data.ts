@@ -97,6 +97,7 @@ function toTicketRecord(
     | "workflowStatus"
     | "workflowEnabled"
     | "approvalRequired"
+    | "serviceLane"
     | "assignedTechnicianId"
   > & { requesterUsername?: string | null },
   hasWorkPhoto: boolean,
@@ -140,6 +141,7 @@ function toTicketRecord(
     workflowEnabled: row.workflowEnabled,
     workflowNote: null,
     approvalRequired: row.approvalRequired,
+    serviceLane: row.serviceLane,
     assignedTechnicianId: row.assignedTechnicianId,
     assignedTechnicianName,
   };
@@ -178,6 +180,7 @@ export async function getTicketRecords(options: { teamIt?: boolean } = {}): Prom
       workflowStatus: troubleshootingIssues.workflowStatus,
       workflowEnabled: troubleshootingIssues.workflowEnabled,
       approvalRequired: troubleshootingIssues.approvalRequired,
+      serviceLane: troubleshootingIssues.serviceLane,
       assignedTechnicianId: troubleshootingIssues.assignedTechnicianId,
       assignedTechnicianName: assignedTechnicians.name,
       hasWorkPhoto: sql<boolean>`${troubleshootingIssues.workPhotoData} is not null`,
@@ -259,6 +262,7 @@ export async function getAssignableServiceAgents(): Promise<ServiceAgentOption[]
       divisionId: technicians.divisionId,
       division: masterDivisions.name,
       isGaUnit: masterDivisions.isGaUnit,
+      serviceLane: technicians.serviceLane,
     })
     .from(technicians)
     .innerJoin(masterDivisions, eq(technicians.divisionId, masterDivisions.id))
@@ -271,6 +275,7 @@ export async function getAssignableServiceAgents(): Promise<ServiceAgentOption[]
     divisionId: row.divisionId!,
     division: row.division,
     isGaUnit: row.isGaUnit,
+    serviceLane: row.serviceLane,
   }));
 }
 
@@ -302,6 +307,7 @@ export async function getDivisionRequestRecords(): Promise<TicketRecord[]> {
       workflowStatus: troubleshootingIssues.workflowStatus,
       workflowEnabled: troubleshootingIssues.workflowEnabled,
       approvalRequired: troubleshootingIssues.approvalRequired,
+      serviceLane: troubleshootingIssues.serviceLane,
       assignedTechnicianId: troubleshootingIssues.assignedTechnicianId,
       assignedTechnicianName: assignedTechnicians.name,
       hasWorkPhoto: sql<boolean>`${troubleshootingIssues.workPhotoData} is not null`,
@@ -397,7 +403,11 @@ export async function getNavigationCounts() {
   const serviceDivisionFilter = currentUser.role === "administrator"
     ? isNotNull(troubleshootingIssues.requesterId)
     : currentUser.role === "receptionist"
-      ? and(eq(troubleshootingIssues.workflowEnabled, true), inArray(troubleshootingIssues.workflowStatus, ["submitted", "needs_revision"]))
+      ? and(
+          eq(troubleshootingIssues.workflowEnabled, true),
+          inArray(troubleshootingIssues.workflowStatus, ["submitted", "needs_revision"]),
+          currentUser.serviceLane ? eq(troubleshootingIssues.serviceLane, currentUser.serviceLane) : undefined,
+        )
       : currentUser.role === "approver"
         ? and(
             eq(troubleshootingIssues.workflowEnabled, true),

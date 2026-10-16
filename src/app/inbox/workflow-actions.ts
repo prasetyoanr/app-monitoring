@@ -22,6 +22,7 @@ import { workflowNoteError, workflowTransition } from "@/lib/request-workflow";
 import { issueChangeQuery } from "@/lib/issue-event-query";
 import { recordWorkflowNotifications } from "@/lib/workflow-notification-writer";
 import { canAssignRequestToUnit } from "@/lib/ga-assignment";
+import { laneAllowsAssignee } from "@/lib/service-lane";
 import { assigneeAccountFilter } from "@/data/assignee-filter";
 import { recordAuthorizationDenied } from "@/security/audit";
 
@@ -44,9 +45,8 @@ export async function updateRequestWorkflowAction(
     const note = input.note?.trim() ?? "";
     const assigneeId = input.assigneeId?.trim() ?? "";
     if (!issueIdPattern.test(issueId)) throw new Error("Invalid issue ID.");
-    const noteError = workflowNoteError(input.command, note);
-    if (noteError) throw new Error(noteError);
-    if (!["administrator", "receptionist", "approver", "final_approver"].includes(currentUser.role)) {
+    // Staff may only decline an Asset request assigned to them; the lane rules below enforce it.
+    if (!["administrator", "receptionist", "approver", "final_approver", "service_agent"].includes(currentUser.role)) {
       await recordAuthorizationDenied(currentUser, `request.workflow.${input.command}`);
       throw new Error("Your role cannot perform this workflow action.");
     }
@@ -62,6 +62,8 @@ export async function updateRequestWorkflowAction(
         workflowStatus: troubleshootingIssues.workflowStatus,
         workflowEnabled: troubleshootingIssues.workflowEnabled,
         approvalRequired: troubleshootingIssues.approvalRequired,
+        serviceLane: troubleshootingIssues.serviceLane,
+        assignedTechnicianId: troubleshootingIssues.assignedTechnicianId,
         approverId: troubleshootingIssues.approverId,
         updatedAt: troubleshootingIssues.updatedAt,
       })
@@ -70,6 +72,21 @@ export async function updateRequestWorkflowAction(
       .limit(1);
     if (!issue || issue.source !== "division_request" || !issue.workflowEnabled) {
       throw new Error("The division request was not found.");
+    }
+    const noteError = workflowNoteError(input.command, note, issue.serviceLane);
+    if (noteError) throw new Error(noteError);
+    // An Admin or staff account tied to a lane only acts on requests of that lane.
+    if (
+      currentUser.serviceLane &&
+      (currentUser.role === "receptionist" || currentUser.role === "service_agent") &&
+      issue.serviceLane !== currentUser.serviceLane
+    ) {
+      await recordAuthorizationDenied(currentUser, `request.workflow.${input.command}`, { reason: "different_lane", issueId });
+      throw new Error("This request belongs to a different service lane.");
+    }
+    if (currentUser.role === "service_agent" && issue.serviceLane !== "asset") {
+      await recordAuthorizationDenied(currentUser, `request.workflow.${input.command}`, { reason: "staff_not_allowed", issueId });
+      throw new Error("Your role cannot perform this workflow action.");
     }
     if (input.command === "resolve" && !issue.receivingDivisionId) throw new Error("Administrative resolution is only available for GA requests.");
     if (currentUser.role === "approver" && issue.approverId && issue.approverId !== currentUser.id && issue.workflowStatus !== "ready_for_assignment") {
@@ -84,7 +101,10 @@ export async function updateRequestWorkflowAction(
       await recordAuthorizationDenied(currentUser, `request.workflow.${input.command}`, { reason: "same_approver", issueId });
       throw new Error("The final decision must be made by a different approver.");
     }
-    const transition = workflowTransition(currentUser.role, issue.workflowStatus, issue.approvalRequired, input.command);
+    const transition = workflowTransition(currentUser.role, issue.workflowStatus, issue.approvalRequired, input.command, {
+      lane: issue.serviceLane,
+      isAssignee: issue.assignedTechnicianId === currentUser.id,
+    });
     if (!transition) {
       throw new Error("This action is no longer valid for the current workflow status.");
     }
@@ -106,7 +126,7 @@ export async function updateRequestWorkflowAction(
     if (needsAssignee) {
       if (!uuidPattern.test(assigneeId)) throw new Error("Select a service agent.");
       const [assignee] = await db
-        .select({ id: technicians.id, divisionId: masterDivisions.id, division: masterDivisions.name, isGaUnit: masterDivisions.isGaUnit })
+        .select({ id: technicians.id, divisionId: masterDivisions.id, division: masterDivisions.name, isGaUnit: masterDivisions.isGaUnit, serviceLane: technicians.serviceLane })
         .from(technicians)
         .innerJoin(masterDivisions, eq(technicians.divisionId, masterDivisions.id))
         .where(
@@ -119,6 +139,9 @@ export async function updateRequestWorkflowAction(
         .limit(1);
       if (!assignee || !canAssignRequestToUnit(issue.receivingDivisionId, issue.serviceDivisionId, { id: assignee.divisionId, isGaUnit: assignee.isGaUnit })) {
         throw new Error("Select active staff from an enabled GA unit. Historical requests must retain their destination unit.");
+      }
+      if (!laneAllowsAssignee(issue.serviceLane, assignee.serviceLane)) {
+        throw new Error("Select staff who handle the service lane of this request.");
       }
       validatedAssigneeId = assignee.id;
       executionUnit = { id: assignee.divisionId, name: assignee.division };
