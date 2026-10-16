@@ -191,9 +191,9 @@ export default async function DashboardPage() {
 
   return (
     <>
-      <header className={`mb-5 overflow-hidden rounded-3xl ${solid} p-5 text-white shadow-[0_20px_50px_-20px_rgba(15,23,42,0.5)] sm:mb-6 sm:p-7`}>
+      <header className={`overflow-hidden rounded-3xl ${solid} text-white shadow-[0_20px_50px_-20px_rgba(15,23,42,0.5)] ${isRequester ? "mb-4 p-4 sm:p-5" : "mb-5 p-5 sm:mb-6 sm:p-7"}`}>
         <span aria-hidden="true" className={`block h-1 w-16 rounded-full ${accentBar}`} />
-        <div className="mt-4 flex min-w-0 flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+        <div className={`${isRequester ? "mt-3 gap-3 sm:flex-row sm:items-center sm:justify-between" : "mt-4 gap-5 lg:flex-row lg:items-end lg:justify-between"} flex min-w-0 flex-col`}>
           <div className="min-w-0">
             <p className={`inline-flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.18em] ${mutedOnSolid}`}>
               Overview · {isAdmin ? "Administrator" : isRequester ? "Requester" : "Support Team"}
@@ -202,22 +202,22 @@ export default async function DashboardPage() {
                 <span className="sm:hidden">{compactDateLabel} · {timeLabel}</span><span className="hidden sm:inline">{todayLabel} · {timeLabel} WIB</span>
               </span>
             </p>
-            <h1 className="mt-2.5 truncate text-2xl font-black tracking-[-0.03em] sm:text-[32px]">Welcome back, {currentUser.name.split(" ")[0]}</h1>
-            <p className={`mt-1.5 text-[13px] leading-6 ${bodyOnSolid}`}>Here&apos;s what needs your eyes today — active work, completions, and priorities.</p>
-            <div className="mt-4 flex flex-wrap items-center gap-2">
+            <h1 className={`truncate font-black tracking-[-0.03em] ${isRequester ? "mt-2 text-xl sm:text-2xl" : "mt-2.5 text-2xl sm:text-[32px]"}`}>Welcome back, {currentUser.name.split(" ")[0]}</h1>
+            {isRequester ? null : <p className={`mt-1.5 text-[13px] leading-6 ${bodyOnSolid}`}>Here&apos;s what needs your eyes today — active work, completions, and priorities.</p>}
+            <div className={`mt-4 flex-wrap items-center gap-2 ${isRequester ? "hidden" : "flex"}`}>
               <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 text-[11px] font-bold text-white"><span className={`size-1.5 rounded-full ${isGaTheme ? "bg-emerald-300" : "bg-indigo-300"}`} />{activeIssues} active</span>
               <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 text-[11px] font-bold text-white"><span className="size-1.5 rounded-full bg-emerald-300" />{completionRate}% completed</span>
               {canAccessBackups ? <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 text-[11px] font-bold text-white"><span className="size-1.5 rounded-full bg-amber-300" />Backup {backupRate}%</span> : null}
             </div>
           </div>
-          <div className="flex shrink-0 flex-col gap-2 sm:flex-row lg:flex-col">
+          <div className={`flex shrink-0 gap-2 ${isRequester ? "flex-row" : "flex-col sm:flex-row lg:flex-col"}`}>
             {quickActions.map((action) => (
               <Link
                 key={action.href + action.label}
                 href={action.href}
                 className={action.primary
-                  ? `inline-flex h-11 items-center justify-center gap-2 rounded-xl px-5 text-xs font-bold transition active:scale-[0.98] ${primaryBtn}`
-                  : "inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-white/10 px-5 text-xs font-bold text-white ring-1 ring-inset ring-white/20 transition hover:bg-white/20 active:scale-[0.98]"}
+                  ? `inline-flex items-center justify-center gap-2 rounded-xl px-5 text-xs font-bold transition active:scale-[0.98] ${primaryBtn} ${isRequester ? "h-10 flex-1 sm:flex-none" : "h-11"}`
+                  : `inline-flex items-center justify-center gap-2 rounded-xl bg-white/10 px-5 text-xs font-bold text-white ring-1 ring-inset ring-white/20 transition hover:bg-white/20 active:scale-[0.98] ${isRequester ? "h-10 flex-1 sm:flex-none" : "h-11"}`}
               >
                 <action.icon size={15} />{action.label}
               </Link>
@@ -240,7 +240,7 @@ export default async function DashboardPage() {
         ) : null}
       </div>
 
-      <Card className="mt-5 overflow-hidden">
+      {isRequester ? null : <Card className="mt-5 overflow-hidden">
         <SectionTitle
           title="Needs attention"
           subtitle="Follow-up priorities — tap to open"
@@ -265,7 +265,7 @@ export default async function DashboardPage() {
             <div><p className="text-xs font-bold text-slate-800">All clear</p><p className="mt-0.5 text-[11px] text-slate-500">No queues or anomalies need action right now.</p></div>
           </div>
         )}
-      </Card>
+      </Card>}
 
       {adminControl ? (
         <Card className="mt-5 overflow-hidden">
@@ -341,7 +341,7 @@ export default async function DashboardPage() {
         </Card>
       ) : null}
 
-      <div className="mt-5">
+      <div className={isRequester ? "mt-3 sm:mt-4" : "mt-5"}>
         <Card className="table-card overflow-hidden">
           <SectionTitle title="Latest Issues" subtitle="Recent service request activity — tap a row for details" action={<Link href={inboxHref} className={`inline-flex shrink-0 items-center gap-1 rounded-lg ${solid} px-2.5 py-1.5 text-[11px] font-semibold text-white transition ${solidHover}`}>{isRequester ? "My Requests" : "All records"} <ArrowRight size={13} /></Link>} />
           {tickets.length ? (
