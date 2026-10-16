@@ -239,7 +239,7 @@ export async function updateRequestWorkflowAction(
 }
 
 // Lets an Admin forward a request that is still waiting for the Admin to the Asset lane (and an
-// Asset Admin move it back to General). A note is required and the change is audited. Asset
+// Asset Admin move it back to General). A reason is optional when forwarding and required when moving back; the change is audited. Asset
 // requests skip First Approval.
 export async function changeRequestLaneAction(input: {
   issueId: string;
@@ -250,7 +250,6 @@ export async function changeRequestLaneAction(input: {
     const issueId = input.issueId.trim();
     const note = input.note.trim();
     if (!issueIdPattern.test(issueId)) throw new Error("Invalid issue ID.");
-    if (note.length < 5) throw new Error("Explain the service lane change in at least 5 characters.");
     if (note.length > 1_000) throw new Error("The note must not exceed 1000 characters.");
     if (currentUser.role !== "administrator" && currentUser.role !== "receptionist") {
       await recordAuthorizationDenied(currentUser, "request.lane.change", { issueId });
@@ -274,6 +273,8 @@ export async function changeRequestLaneAction(input: {
       throw new Error("The service lane can only change while the request is waiting for the Admin.");
     }
     const next = issue.serviceLane === "asset" ? null : ("asset" as const);
+    // Forwarding to Asset needs no reason; taking a request back to General does.
+    if (next === null && note.length < 5) throw new Error("Explain why the request moves back to General in at least 5 characters.");
     // Any Admin may forward a request to Asset; taking it back is for Asset-lane Admins.
     if (next === null && currentUser.role === "receptionist" && currentUser.serviceLane !== "asset") {
       await recordAuthorizationDenied(currentUser, "request.lane.change", { issueId, reason: "asset_only" });
@@ -309,7 +310,7 @@ export async function changeRequestLaneAction(input: {
         action: "request.lane.changed",
         entityType: "troubleshooting_issue",
         entityId: issueId,
-        metadata: { from: issue.serviceLane, to: next, note },
+        metadata: { from: issue.serviceLane, to: next, note: note || null },
       });
       await tx.execute(issueChangeQuery(issueId));
     });

@@ -87,8 +87,8 @@ export function RequestWorkflowPopup({
       return;
     }
     if (command === MOVE_LANE) {
-      if (note.trim().length < 5) {
-        setError("Explain the service lane change in at least 5 characters.");
+      if (record.serviceLane === "asset" && note.trim().length < 5) {
+        setError("Explain why the request moves back to General in at least 5 characters.");
         return;
       }
       setError("");
@@ -211,14 +211,14 @@ export function RequestWorkflowPopup({
           ) : null}
           {!needsAssignee || command === "direct_assign" ? (
             <label className="block">
-              <span className={fieldLabelClass}>{command === "resolve" ? "Resolution Details (required)" : command === MOVE_LANE ? "Reason (required)" : command === "direct_assign" ? (record.serviceLane === "asset" ? "Note (optional)" : "Reason (required)") : isReceptionist ? "Note (optional)" : "Note"}</span>
+              <span className={fieldLabelClass}>{command === "resolve" ? "Resolution Details (required)" : command === MOVE_LANE ? (record.serviceLane === "asset" ? "Reason (required)" : "Reason (optional)") : command === "direct_assign" ? (record.serviceLane === "asset" ? "Note (optional)" : "Reason (required)") : isReceptionist ? "Note (optional)" : "Note"}</span>
               <textarea
                 disabled={isPending}
                 value={note}
                 onChange={(e) => { setNote(e.target.value); setError(""); }}
                 maxLength={1000}
                 rows={3}
-                placeholder={command === MOVE_LANE ? "Why this request goes to another lane" : command === "direct_assign" && record.serviceLane !== "asset" ? "Why First Approval is not needed" : isReceptionist ? "Add context for the approver" : "Optional; required for return/reject"}
+                placeholder={command === MOVE_LANE ? (record.serviceLane === "asset" ? "Why this request goes back to General" : "Optional context for the Asset team") : command === "direct_assign" && record.serviceLane !== "asset" ? "Why First Approval is not needed" : isReceptionist ? "Add context for the approver" : "Optional; required for return/reject"}
                 className={`w-full resize-y rounded-xl border border-slate-200 px-3 py-2 ${controlTextClass} outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 ${isReceptionist ? "bg-white" : ""}`}
               />
             </label>
