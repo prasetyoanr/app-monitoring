@@ -242,17 +242,25 @@ export function TicketList({ initialRecords, canManage, canCreateIssue, useSourc
             <span className="flex-1">{formatCompactDate(completionDate)}</span>
             <CalendarDays size={15} className="text-slate-400" />
           </button>
-          <input ref={completionDateInputRef} type="date" value={completionDate} min={requestDate} max={today} onChange={(event) => setCompletionDate(event.target.value)} className="absolute bottom-0 left-0 h-px w-px opacity-0" tabIndex={-1} aria-hidden="true" />
+          <input ref={completionDateInputRef} type="date" value={completionDate} min={requestDate} max={today} onChange={(event) => setCompletionDate(event.target.value)} onClick={showNativePicker} aria-label="Completion date" className="absolute inset-0 h-full w-full cursor-pointer opacity-0" />
         </div>
         <p className="mt-1 text-[10px] font-normal leading-4 text-slate-500">Completion time counts from the request date up to this date. Defaults to today.</p>
       </div>
     );
   }
 
+  // The date input sits transparently over its button so a tap lands on the real control; iOS
+  // Safari only opens its picker for a direct tap, not for showPicker()/click() on a hidden input.
+  function showNativePicker(event: React.MouseEvent<HTMLInputElement>) {
+    try { event.currentTarget.showPicker?.(); } catch { /* the native tap already opened it */ }
+  }
+
   function openDatePicker(input: HTMLInputElement | null) {
     if (!input) return;
-    if (typeof input.showPicker === "function") input.showPicker();
-    else { input.focus(); input.click(); }
+    try {
+      if (typeof input.showPicker === "function") input.showPicker();
+      else input.focus();
+    } catch { input.focus(); }
   }
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -439,14 +447,14 @@ export function TicketList({ initialRecords, canManage, canCreateIssue, useSourc
                   <CalendarDays className="shrink-0 text-slate-400" size={15} />
                   <span className="min-w-0"><span className="block text-[8px] font-bold uppercase tracking-wide text-slate-400">From Date</span><span className={`block truncate text-[10px] ${filterStartDate ? "font-semibold text-slate-600" : "text-slate-400"}`}>{formatCompactDate(filterStartDate)}</span></span>
                 </button>
-                <input ref={filterStartDateInputRef} type="date" value={filterStartDate} max={filterEndDate || undefined} onChange={(event) => setFilterStartDate(event.target.value)} className="absolute bottom-0 left-0 h-px w-px opacity-0" tabIndex={-1} aria-hidden="true" />
+                <input ref={filterStartDateInputRef} type="date" value={filterStartDate} max={filterEndDate || undefined} onChange={(event) => setFilterStartDate(event.target.value)} onClick={showNativePicker} aria-label="From date" className="absolute inset-0 h-full w-full cursor-pointer opacity-0" />
               </div>
               <div className="relative h-10 min-w-0">
                 <button type="button" onClick={() => openDatePicker(filterEndDateInputRef.current)} aria-label="Select end request date" className="flex h-full w-full min-w-0 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-left outline-none">
                   <CalendarDays className="shrink-0 text-slate-400" size={15} />
                   <span className="min-w-0"><span className="block text-[8px] font-bold uppercase tracking-wide text-slate-400">To Date</span><span className={`block truncate text-[10px] ${filterEndDate ? "font-semibold text-slate-600" : "text-slate-400"}`}>{formatCompactDate(filterEndDate)}</span></span>
                 </button>
-                <input ref={filterEndDateInputRef} type="date" value={filterEndDate} min={filterStartDate || undefined} onChange={(event) => setFilterEndDate(event.target.value)} className="absolute bottom-0 left-0 h-px w-px opacity-0" tabIndex={-1} aria-hidden="true" />
+                <input ref={filterEndDateInputRef} type="date" value={filterEndDate} min={filterStartDate || undefined} onChange={(event) => setFilterEndDate(event.target.value)} onClick={showNativePicker} aria-label="To date" className="absolute inset-0 h-full w-full cursor-pointer opacity-0" />
               </div>
             </div>
             {filterStartDate || filterEndDate ? <button type="button" onClick={() => { setFilterStartDate(""); setFilterEndDate(""); }} aria-label="Clear date range" title="Clear date range" className="grid size-10 shrink-0 place-items-center rounded-xl border border-slate-200 bg-white text-slate-500"><X size={14} /></button> : null}
@@ -683,7 +691,7 @@ export function TicketList({ initialRecords, canManage, canCreateIssue, useSourc
                 <label className="block text-[11px] font-semibold text-slate-600">Status<select name="status" defaultValue={selected?.status ?? "New"} className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-xs outline-none">{optionsWithCurrent([...activeFormProfile.editableStatuses], selected?.status).map((option) => <option key={option} value={option}>{issueStatusLabel(option as IssueStatus)}</option>)}</select></label>
               </> : <>
               <label className="block text-[11px] font-semibold text-slate-600">Issue Title<input name="title" required defaultValue={selected?.title} className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 px-3 text-xs outline-none" /></label>
-              <div className="grid gap-4 sm:grid-cols-2"><label className="block text-[11px] font-semibold text-slate-600">Location<select name="location" required defaultValue={selected?.location ?? defaultLocation} className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 px-3 text-xs outline-none">{optionsWithCurrent(locationOptions, selected?.location).map((option) => <option key={option} value={option}>{option}</option>)}</select></label><div className="block text-[11px] font-semibold text-slate-600"><span id="request-date-label">Request Date</span><div className="relative mt-1.5"><button type="button" onClick={() => openDatePicker(dateInputRef.current)} aria-labelledby="request-date-label" className="flex h-10 w-full items-center rounded-xl border border-slate-200 bg-white px-3 text-left text-xs font-normal text-slate-700 outline-none"><span className="flex-1">{formatCompactDate(requestDate)}</span><CalendarDays size={15} className="text-slate-400" /></button><input ref={dateInputRef} type="date" value={requestDate} onChange={(event) => setRequestDate(event.target.value)} className="absolute bottom-0 left-0 h-px w-px opacity-0" tabIndex={-1} aria-hidden="true" /></div></div></div>
+              <div className="grid gap-4 sm:grid-cols-2"><label className="block text-[11px] font-semibold text-slate-600">Location<select name="location" required defaultValue={selected?.location ?? defaultLocation} className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 px-3 text-xs outline-none">{optionsWithCurrent(locationOptions, selected?.location).map((option) => <option key={option} value={option}>{option}</option>)}</select></label><div className="block text-[11px] font-semibold text-slate-600"><span id="request-date-label">Request Date</span><div className="relative mt-1.5"><button type="button" onClick={() => openDatePicker(dateInputRef.current)} aria-labelledby="request-date-label" className="flex h-10 w-full items-center rounded-xl border border-slate-200 bg-white px-3 text-left text-xs font-normal text-slate-700 outline-none"><span className="flex-1">{formatCompactDate(requestDate)}</span><CalendarDays size={15} className="text-slate-400" /></button><input ref={dateInputRef} type="date" value={requestDate} onChange={(event) => setRequestDate(event.target.value)} onClick={showNativePicker} aria-label="Request date" className="absolute inset-0 h-full w-full cursor-pointer opacity-0" /></div></div></div>
               <div className="grid gap-4 sm:grid-cols-2"><label className="block text-[11px] font-semibold text-slate-600">Requester Name<input name="requester" required defaultValue={selected?.requester} className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 px-3 text-xs outline-none" /></label><label className="block text-[11px] font-semibold text-slate-600">Division<select name="division" required defaultValue={selected?.division ?? divisionOptions[0]} className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-xs outline-none">{optionsWithCurrent(divisionOptions, selected?.division).map((option) => <option key={option} value={option}>{option}</option>)}</select></label></div>
               <div><label className="block text-[11px] font-semibold text-slate-600">Category<select name="category" required defaultValue={selected?.category ?? defaultCategory} className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-xs outline-none">{optionsWithCurrent(categoryOptions, selected?.category).map((option) => <option key={option} value={option}>{option}</option>)}</select></label></div>
               <div className={`grid gap-4 ${showCompletionTime ? "sm:grid-cols-2" : ""}`}><label className="block text-[11px] font-semibold text-slate-600">Status<select name="status" defaultValue={selected?.status ?? "New"} className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 px-3 text-xs outline-none">{optionsWithCurrent(editableFormStatuses(), selected?.status).map((option) => <option key={option} value={option}>{issueStatusLabel(option as IssueStatus)}</option>)}</select></label>{showCompletionTime ? (activeFormProfile.features.directCompletion ? <div><p className="text-[11px] font-semibold text-slate-600">Completion Time</p><p className="mt-1.5 rounded-xl bg-slate-50 px-3 py-2.5 text-[10px] leading-5 text-slate-500">Calculated automatically when the request is completed.</p></div> : completionDateField()) : null}</div>
