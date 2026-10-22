@@ -385,6 +385,14 @@ export const troubleshootingIssues = pgTable(
     index("troubleshooting_issues_service_division_idx").on(table.serviceDivision),
     index("troubleshooting_issues_service_division_id_idx").on(table.serviceDivisionId),
     index("troubleshooting_issues_receiving_division_id_idx").on(table.receivingDivisionId),
+    // Admin inbox scope and the navigation badge counts filter on source + workflow status.
+    index("troubleshooting_issues_source_workflow_idx").on(table.source, table.workflowStatus),
+    // Only Asset requests carry a lane, so a partial index stays tiny.
+    index("troubleshooting_issues_service_lane_idx")
+      .on(table.serviceLane)
+      .where(sql`${table.serviceLane} is not null`),
+    index("troubleshooting_issues_approver_idx").on(table.approverId),
+    index("troubleshooting_issues_final_approver_idx").on(table.finalApproverId),
     check(
       "troubleshooting_issues_completed_days_check",
       sql`${table.completedDays} is null or ${table.completedDays} >= 0`,
