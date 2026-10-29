@@ -15,7 +15,8 @@ import {
 
 test("requesters have no reports; others get request and inbox; GA scope adds GA activity", () => {
   assert.deepEqual(availableReportTypes({ role: "requester", keepsGaPlan: false }), []);
-  assert.deepEqual(availableReportTypes({ role: "approver", keepsGaPlan: false }), ["request", "inbox", "all"]);
+  assert.deepEqual(availableReportTypes({ role: "approver", keepsGaPlan: false }), ["request", "inbox", "ga_activity", "all"]);
+  assert.deepEqual(availableReportTypes({ role: "final_approver", keepsGaPlan: false }), ["request", "inbox", "all"]);
   assert.deepEqual(availableReportTypes({ role: "service_agent", keepsGaPlan: true }), ["request", "inbox", "ga_activity", "all"]);
   assert.deepEqual(availableReportTypes({ role: "administrator", keepsGaPlan: false }), ["request", "inbox", "ga_activity", "log", "utility", "all"]);
 });
@@ -23,7 +24,8 @@ test("requesters have no reports; others get request and inbox; GA scope adds GA
 test("'all' expands only to what the viewer may export", () => {
   assert.deepEqual(sourcesForType("all", { role: "receptionist", keepsGaPlan: false }), ["request", "inbox"]);
   assert.deepEqual(sourcesForType("all", { role: "final_approver", keepsGaPlan: true }), ["request", "inbox", "ga_activity"]);
-  assert.deepEqual(sourcesForType("ga_activity", { role: "approver", keepsGaPlan: false }), []);
+  assert.deepEqual(sourcesForType("ga_activity", { role: "final_approver", keepsGaPlan: false }), []);
+  assert.deepEqual(sourcesForType("all", { role: "approver", keepsGaPlan: false }), ["request", "inbox", "ga_activity"]);
   assert.deepEqual(sourcesForType("request", { role: "requester", keepsGaPlan: false }), []);
 });
 

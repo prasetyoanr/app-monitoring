@@ -25,6 +25,9 @@ import { requestWorkflowLabel } from "@/lib/request-workflow";
 import {
   REPORT_ROW_LIMIT,
   availableReportTypes,
+  parseReportGroup,
+  reportGroupLabels,
+  reportSeesAllData,
   planStatusLabels,
   planSummary,
   planTone,
@@ -35,6 +38,7 @@ import {
   uniqueSheetName,
   type ReportCell,
   type ReportColumn,
+  type ReportGroup,
   type ReportPeriodInput,
   type ReportSheet,
   type ReportSource,
@@ -95,6 +99,22 @@ function inPeriod(period: { start: string; end: string }) {
   return sql`(${issues.reportedAt} at time zone 'Asia/Jakarta')::date between ${period.start}::date and ${period.end}::date`;
 }
 
+// Ids of the accounts in a group, or null when the report is not narrowed.
+async function groupMemberIds(group: ReportGroup): Promise<string[] | null> {
+  if (group === "all") return null;
+  const accounts = await db
+    .select({ id: technicians.id, role: technicians.role, division: masterDivisions.name })
+    .from(technicians)
+    .leftJoin(masterDivisions, eq(technicians.divisionId, masterDivisions.id));
+  return accounts
+    .filter((account) => (group === "it" ? isITDivisionName(account.division) : account.role === group))
+    .map((account) => account.id);
+}
+
+function inIds(column: Parameters<typeof inArray>[0], ids: string[]) {
+  return ids.length ? inArray(column, ids) : sql`false`;
+}
+
 function guardLimit<T>(rows: T[]): T[] {
   if (rows.length > REPORT_ROW_LIMIT) {
     throw new ReportRequestError(`This report has more than ${REPORT_ROW_LIMIT.toLocaleString("en-US")} rows. Choose a shorter period.`);
@@ -129,13 +149,13 @@ function toneOf(row: { status: string; workflowEnabled: boolean; workflowStatus:
 }
 
 // ---------- Request: what the account submitted (administrator: every division request) ----------
-async function requestSheet(user: AuthenticatedUser, period: { start: string; end: string }, used: Set<string>): Promise<ReportSheet> {
-  const isAdmin = user.role === "administrator";
+async function requestSheet(user: AuthenticatedUser, period: { start: string; end: string }, used: Set<string>, scope: string[] | null, groupLabel: string): Promise<ReportSheet> {
+  const isAdmin = reportSeesAllData(user.role);
   const rows = guardLimit(await db
     .select(ticketCommon)
     .from(issues)
     .where(and(
-      isAdmin ? eq(issues.source, "division_request") : eq(issues.requesterId, user.id),
+      isAdmin ? (scope ? inIds(issues.requesterId, scope) : eq(issues.source, "division_request")) : eq(issues.requesterId, user.id),
       inPeriod(period),
     ))
     .orderBy(desc(issues.reportedAt), desc(issues.id))
@@ -162,7 +182,7 @@ async function requestSheet(user: AuthenticatedUser, period: { start: string; en
   const tones = rows.map(toneOf);
   return {
     name: uniqueSheetName("Request", used),
-    title: isAdmin ? "Request — all requests" : "Request — submitted by you",
+    title: isAdmin ? (scope ? `Request — submitted by ${groupLabel}` : "Request — all requests") : "Request — submitted by you",
     summary: ticketSummary(rows.map((row, index) => ({ tone: tones[index], completedDays: row.completedDays }))),
     columns,
     tones,
@@ -186,13 +206,18 @@ async function requestSheet(user: AuthenticatedUser, period: { start: string; en
 }
 
 // ---------- Inbox: history of what the account handled ----------
-async function inboxSheet(user: AuthenticatedUser, period: { start: string; end: string }, used: Set<string>): Promise<ReportSheet> {
-  const isAdmin = user.role === "administrator";
+async function inboxSheet(user: AuthenticatedUser, period: { start: string; end: string }, used: Set<string>, scope: string[] | null, groupLabel: string): Promise<ReportSheet> {
+  const isAdmin = reportSeesAllData(user.role);
   const isAgent = user.role === "service_agent";
   const assignee = alias(technicians, "report_assignee");
 
   const handled = isAdmin
-    ? undefined
+    ? (scope
+      ? or(
+          inArray(issues.id, db.select({ id: requestWorkflowHistory.issueId }).from(requestWorkflowHistory).where(inIds(requestWorkflowHistory.actorId, scope))),
+          inIds(issues.assignedTechnicianId, scope),
+        )
+      : undefined)
     : isAgent
       ? or(serviceInboxScope(user), eq(issues.assignedTechnicianId, user.id))
       : or(
@@ -243,7 +268,7 @@ async function inboxSheet(user: AuthenticatedUser, period: { start: string; end:
   const tones = rows.map(toneOf);
   return {
     name: uniqueSheetName("Inbox", used),
-    title: isAdmin ? "Inbox — all requests" : "Inbox — handled history",
+    title: isAdmin ? (scope ? `Inbox — handled by ${groupLabel}` : "Inbox — all requests") : "Inbox — handled history",
     summary: ticketSummary(rows.map((row, index) => ({ tone: tones[index], completedDays: row.completedDays }))),
     columns,
     tones,
@@ -280,8 +305,8 @@ const planColumns: ReportColumn[] = [
   { header: "Last updated", key: "updated", width: 17, align: "center" },
 ];
 
-async function gaActivitySheets(user: AuthenticatedUser, period: { start: string; end: string }, used: Set<string>, memberId: string): Promise<ReportSheet[]> {
-  const isAdmin = user.role === "administrator";
+async function gaActivitySheets(user: AuthenticatedUser, period: { start: string; end: string }, used: Set<string>, memberId: string, scope: string[] | null): Promise<ReportSheet[]> {
+  const isAdmin = reportSeesAllData(user.role);
   const rows = guardLimit(await db
     .select({
       memberId: gaWorkPlanItems.memberId,
@@ -299,7 +324,9 @@ async function gaActivitySheets(user: AuthenticatedUser, period: { start: string
     .innerJoin(technicians, eq(gaWorkPlanItems.memberId, technicians.id))
     .innerJoin(masterDivisions, eq(gaWorkPlanItems.divisionId, masterDivisions.id))
     .where(and(
-      isAdmin ? (memberId ? eq(gaWorkPlanItems.memberId, memberId) : undefined) : eq(gaWorkPlanItems.memberId, user.id),
+      isAdmin
+        ? and(memberId ? eq(gaWorkPlanItems.memberId, memberId) : undefined, scope ? inIds(gaWorkPlanItems.memberId, scope) : undefined)
+        : eq(gaWorkPlanItems.memberId, user.id),
       gaWorkPlansForPeriod(period.start, period.end),
     ))
     .orderBy(asc(technicians.name), asc(gaWorkPlanItems.weekStart), asc(gaWorkPlanItems.createdAt))
@@ -371,6 +398,7 @@ export async function buildRoleReport(input: {
   type: RoleReportType;
   period: ReportPeriodInput;
   memberId?: string;
+  group?: string;
 }): Promise<RoleReportBundle> {
   return buildRoleReportForUser(await requireAuthenticatedUser(), input);
 }
@@ -381,6 +409,7 @@ export async function buildRoleReportForUser(user: AuthenticatedUser, input: {
   type: RoleReportType;
   period: ReportPeriodInput;
   memberId?: string;
+  group?: string;
 }): Promise<RoleReportBundle> {
   const viewer = viewerFor(user);
   const sources = sourcesForType(input.type, viewer);
@@ -389,15 +418,19 @@ export async function buildRoleReportForUser(user: AuthenticatedUser, input: {
   const period = resolveReportPeriod(input.period);
   if (!period) throw new ReportRequestError("Choose a valid month or date range.");
 
-  const memberId = user.role === "administrator" ? (input.memberId ?? "").trim() : "";
+  const memberId = reportSeesAllData(user.role) ? (input.memberId ?? "").trim() : "";
   if (memberId && !uuidPattern.test(memberId)) throw new ReportRequestError("Choose a valid GA member.");
+
+  const group = reportSeesAllData(user.role) ? parseReportGroup(input.group) : "all";
+  const scope = await groupMemberIds(group);
+  const groupLabel = reportGroupLabels[group];
 
   const used = new Set<string>(["summary"]);
   const sheets: ReportSheet[] = [];
   const builders: Record<ReportSource, () => Promise<ReportSheet[]>> = {
-    request: async () => [await requestSheet(user, period, used)],
-    inbox: async () => [await inboxSheet(user, period, used)],
-    ga_activity: () => gaActivitySheets(user, period, used, memberId),
+    request: async () => [await requestSheet(user, period, used, scope, groupLabel)],
+    inbox: async () => [await inboxSheet(user, period, used, scope, groupLabel)],
+    ga_activity: () => gaActivitySheets(user, period, used, memberId, scope),
     // Administrator-only; each loader re-checks the administrator role itself.
     log: async () => {
       const result = await getAuditLogExportRecords({
@@ -446,7 +479,7 @@ export async function buildRoleReportForUser(user: AuthenticatedUser, input: {
 
 export async function listReportGaMembers() {
   const user = await requireAuthenticatedUser();
-  if (user.role !== "administrator") return [];
+  if (!reportSeesAllData(user.role)) return [];
   const rows = await db
     .select({ id: technicians.id, name: technicians.name })
     .from(gaWorkPlanItems)

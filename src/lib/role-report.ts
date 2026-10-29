@@ -60,12 +60,39 @@ export const reportTypeDescriptions: Record<RoleReportType, string> = {
   all: "Every report you can access, as tabs in one file.",
 };
 
-// Requesters have no reports. The administrator sees everything; other roles only
-// their own data, and GA Activity only when their division is General Affairs.
+// The administrator and first approval (the GA supervisor) report on every account's
+// data; other roles only see their own.
+export function reportSeesAllData(role: AccountRole) {
+  return role === "administrator" || role === "approver";
+}
+
+// Who a first approval / administrator report is about. "all" has no filter; the others
+// narrow Request (submitted by), Inbox (handled by) and GA Activity (recorded by) to the
+// accounts in that group. "it" is the IT division, whatever the account role is.
+export type ReportGroup = "all" | "it" | "receptionist" | "service_agent" | "approver" | "final_approver";
+
+export const reportGroupLabels: Record<ReportGroup, string> = {
+  all: "All accounts",
+  it: "IT",
+  receptionist: "Admin",
+  service_agent: "Staff",
+  approver: "First Approval",
+  final_approver: "Final Approval",
+};
+
+export const REPORT_GROUPS = Object.keys(reportGroupLabels) as ReportGroup[];
+
+export function parseReportGroup(value: string | null | undefined): ReportGroup {
+  return REPORT_GROUPS.includes(value as ReportGroup) ? (value as ReportGroup) : "all";
+}
+
+// Requesters have no reports. The administrator sees everything and first approval sees
+// every account's Request, Inbox and GA Activity; other roles only their own data, and
+// GA Activity only when their division is General Affairs.
 export function availableReportTypes(viewer: ReportViewer): RoleReportType[] {
   if (viewer.role === "requester") return [];
   const sources: ReportSource[] = ["request", "inbox"];
-  if (viewer.role === "administrator" || viewer.keepsGaPlan) sources.push("ga_activity");
+  if (reportSeesAllData(viewer.role) || viewer.keepsGaPlan) sources.push("ga_activity");
   // Log and Utility are administrator-only.
   if (viewer.role === "administrator") sources.push("log", "utility");
   return [...sources, "all"];

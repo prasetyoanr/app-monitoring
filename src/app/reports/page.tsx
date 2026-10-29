@@ -7,6 +7,7 @@ import { RoleReportsCenter } from "@/components/role-reports-center";
 import { PageHeader } from "@/components/ui";
 import { getBackupRecords, getTicketRecords } from "@/data/app-data";
 import { listReportGaMembers, reportViewerCapabilities } from "@/data/role-reports";
+import { reportSeesAllData } from "@/lib/role-report";
 import { getSurveyReportRecords } from "@/data/survey-data";
 
 export const metadata: Metadata = { title: "Reports" };
@@ -27,7 +28,7 @@ export default async function ReportsPage() {
           title="Reports"
           description="Export your requests, the inbox items you handled, and your GA work plans. Pick a period, check the preview, then download the Excel file."
         />
-        <RoleReportsCenter types={types} members={[]} theme="ga" />
+        <RoleReportsCenter types={types} members={members} canPickGroup={reportSeesAllData(user.role)} theme="ga" />
       </>
     );
   }
@@ -55,13 +56,14 @@ export default async function ReportsPage() {
         canAccessSurveyReport={canAccessSurveyReport}
         hideInboxReport={currentUser.role === "administrator"}
       >
-        {currentUser.role === "administrator" ? (
+        {reportSeesAllData(currentUser.role) ? (
           <div className="border-t border-slate-200 pt-8">
             <RoleReportsCenter
               types={types}
               members={members}
+              canPickGroup
               theme="dark"
-              heading="Administrator · all data"
+              heading={currentUser.role === "administrator" ? "Administrator · all data" : "First Approval · all data"}
             />
           </div>
         ) : null}

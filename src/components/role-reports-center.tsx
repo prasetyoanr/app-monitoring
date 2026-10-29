@@ -10,7 +10,7 @@ import { useReportActionsSlot, useSharedReportPeriod } from "@/components/report
 import { Card } from "@/components/ui";
 import { reportingPeriodStartForDate, shiftDate } from "@/lib/ga-work-plan";
 import { currentJakartaMonth, jakartaDateInput } from "@/lib/jakarta-date";
-import { reportTypeDescriptions, reportTypeLabels, usesStaffDatePicker, type ReportPeriodInput, type ReportTone, type RoleReportType } from "@/lib/role-report";
+import { REPORT_GROUPS, reportGroupLabels, reportTypeDescriptions, reportTypeLabels, usesStaffDatePicker, type ReportGroup, type ReportPeriodInput, type ReportTone, type RoleReportType } from "@/lib/role-report";
 
 const typeIcons: Record<RoleReportType, LucideIcon> = {
   request: ClipboardList,
@@ -41,11 +41,14 @@ const PREVIEW_SHEETS = 3;
 export function RoleReportsCenter({
   types,
   members,
+  canPickGroup = false,
   theme = "ga",
   heading,
 }: {
   types: RoleReportType[];
   members: Array<{ id: string; name: string }>;
+  /** First approval and administrator can narrow the report to one group of accounts. */
+  canPickGroup?: boolean;
   theme?: keyof typeof themes;
   heading?: string;
 }) {
@@ -55,7 +58,8 @@ export function RoleReportsCenter({
   const [month, setMonth] = useState(currentJakartaMonth());
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
-  const [viewBy, setViewBy] = useState<"date" | "period">("period");
+  const [viewBy, setViewBy] = useState<"date" | "period" | "month">("period");
+  const [group, setGroup] = useState<ReportGroup>("all");
   const [refDate, setRefDate] = useState(jakartaDateInput());
   const [member, setMember] = useState("");
   const [monthOpen, setMonthOpen] = useState(false);
@@ -75,20 +79,20 @@ export function RoleReportsCenter({
   const rangeIncomplete = snapshot
     ? false
     : staffPicker
-      ? !refDate
+      ? viewBy !== "month" && !refDate
       : usesSharedPeriod && shared
         ? shared.mode === "range" && (!shared.startDate || !shared.endDate)
         : mode === "range" && (!startDate || !endDate);
   const period = useMemo<ReportPeriodInput>(() => {
     if (snapshot) return { mode: "month", month: currentJakartaMonth() };
-    if (staffPicker) return { mode: viewBy, date: refDate };
+    if (staffPicker) return viewBy === "month" ? { mode: "month", month } : { mode: viewBy, date: refDate };
     if (usesSharedPeriod && shared) return shared;
     return mode === "month" ? { mode: "month", month } : { mode: "range", startDate, endDate };
   }, [snapshot, staffPicker, usesSharedPeriod, shared, viewBy, refDate, mode, month, startDate, endDate]);
   const periodStart = viewBy === "period" ? reportingPeriodStartForDate(refDate) : refDate;
   const step = viewBy === "period" ? 7 : 1;
   // One key per set of choices. The preview is "loading" until a result for the current key arrives.
-  const requestKey = rangeIncomplete ? "" : JSON.stringify([type, period, showMembers ? member : ""]);
+  const requestKey = rangeIncomplete ? "" : JSON.stringify([type, period, showMembers ? member : "", canPickGroup ? group : "all"]);
 
   useEffect(() => {
     if (!requestKey) return;
@@ -98,6 +102,7 @@ export function RoleReportsCenter({
         type,
         period,
         memberId: showMembers ? member : undefined,
+        group: canPickGroup ? group : undefined,
       }).then((response) => {
         if (cancelled) return;
         setResult(response.ok
@@ -111,7 +116,7 @@ export function RoleReportsCenter({
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [requestKey, type, period, member, showMembers]);
+  }, [requestKey, type, period, member, showMembers, canPickGroup, group]);
 
   const current = result && result.key === requestKey ? result : null;
   const loading = Boolean(requestKey) && !current;
@@ -126,7 +131,7 @@ export function RoleReportsCenter({
   const periodCaption = snapshot
     ? "Current snapshot"
     : staffPicker
-      ? (viewBy === "date" ? formatDay(refDate) : `${formatDay(periodStart)} – ${formatDay(periodEnd)}`)
+      ? (viewBy === "month" ? formatMonthLabel(month) : viewBy === "date" ? formatDay(refDate) : `${formatDay(periodStart)} – ${formatDay(periodEnd)}`)
       : period.mode === "month"
         ? formatMonthLabel(period.month)
         : period.mode === "range"
@@ -134,7 +139,7 @@ export function RoleReportsCenter({
           : "";
   const downloadForm = (
     <form method="post" action="/reports/export" className={actionsSlot ? "flex flex-col items-stretch gap-1.5 sm:items-end" : "shrink-0"}>
-    {actionsSlot ? <p className="text-[10px] font-semibold text-slate-500 sm:text-right">{reportTypeLabels[type]} · {periodCaption}</p> : null}
+    {actionsSlot ? <p className="text-[10px] font-semibold text-slate-500 sm:text-right">{reportTypeLabels[type]}{canPickGroup ? ` · ${reportGroupLabels[group]}` : ""} · {periodCaption}</p> : null}
       <input type="hidden" name="type" value={type} />
       <input type="hidden" name="mode" value={period.mode} />
       <input type="hidden" name="date" value={staffPicker ? refDate : ""} />
@@ -142,6 +147,7 @@ export function RoleReportsCenter({
       <input type="hidden" name="startDate" value={period.mode === "range" ? period.startDate : startDate} />
       <input type="hidden" name="endDate" value={period.mode === "range" ? period.endDate : endDate} />
       <input type="hidden" name="member" value={showMembers ? member : ""} />
+      <input type="hidden" name="group" value={canPickGroup ? group : "all"} />
       <button type="submit" disabled={!canDownload} className={`inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl px-5 text-xs font-bold text-white transition disabled:cursor-not-allowed disabled:bg-slate-300 lg:w-auto ${style.button}`}>
         <Download size={15} /> Download Excel
       </button>
@@ -183,16 +189,22 @@ export function RoleReportsCenter({
             <div className="flex flex-1 flex-col gap-3 xl:flex-row xl:items-end">
               <div className="grid grid-cols-2 items-end gap-2 sm:grid-cols-[minmax(0,10rem)_minmax(0,10rem)]">
                 <label className="min-w-0 text-[10px] font-bold uppercase tracking-wide text-slate-400">View by
-                  <select value={viewBy} onChange={(event) => setViewBy(event.target.value as "date" | "period")} className={inputClass}>
+                  <select value={viewBy} onChange={(event) => setViewBy(event.target.value as "date" | "period" | "month")} className={inputClass}>
                     <option value="date">Date</option>
                     <option value="period">Reporting period</option>
+                    <option value="month">Month</option>
                   </select>
                 </label>
-                <label className="min-w-0 text-[10px] font-bold uppercase tracking-wide text-slate-400">Reference date
-                  <input type="date" value={refDate} required aria-label="Choose report reference date" onChange={(event) => setRefDate(event.target.value)} className={inputClass} />
-                </label>
+                {viewBy === "month" ? null : (
+                  <label className="min-w-0 text-[10px] font-bold uppercase tracking-wide text-slate-400">Reference date
+                    <input type="date" value={refDate} required aria-label="Choose report reference date" onChange={(event) => setRefDate(event.target.value)} className={inputClass} />
+                  </label>
+                )}
               </div>
-              <div className="flex items-center gap-1 rounded-2xl border border-slate-200 bg-slate-50/70 p-1.5">
+              {viewBy === "month" ? (
+                <div className="min-w-56"><MonthPicker value={month} onChange={setMonth} onOpenChange={setMonthOpen} /></div>
+              ) : null}
+              <div hidden={viewBy === "month"} className="flex items-center gap-1 rounded-2xl border border-slate-200 bg-slate-50/70 p-1.5">
                 <button type="button" disabled={!refDate} onClick={() => setRefDate(shiftDate(refDate, -step))} aria-label={viewBy === "date" ? "Previous date" : "Previous reporting period"} className="grid size-9 place-items-center rounded-xl border border-slate-200 bg-white text-slate-500 transition hover:border-slate-900 hover:text-slate-900 disabled:opacity-40"><ChevronLeft size={15} /></button>
                 <div className="min-w-44 flex-1 px-1 text-center">
                   <p className="text-[9px] font-bold uppercase tracking-wide text-slate-400">{viewBy === "date" ? "Selected date" : "Friday to Thursday"}</p>
@@ -225,6 +237,13 @@ export function RoleReportsCenter({
               )}
             </div>
           )}
+          {canPickGroup ? (
+            <label className="text-[10px] font-bold uppercase tracking-wide text-slate-400 lg:w-56">Account group
+              <select value={group} onChange={(event) => setGroup(event.target.value as ReportGroup)} className={inputClass}>
+                {REPORT_GROUPS.map((item) => <option key={item} value={item}>{reportGroupLabels[item]}</option>)}
+              </select>
+            </label>
+          ) : null}
           {showMembers ? (
             <label className="text-[10px] font-bold uppercase tracking-wide text-slate-400 lg:w-64">GA member
               <select value={member} onChange={(event) => setMember(event.target.value)} className={inputClass}>

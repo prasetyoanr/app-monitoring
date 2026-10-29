@@ -53,7 +53,7 @@ export async function POST(request: Request) {
       : { mode: "month", month: field(form, "month", 7) };
 
   try {
-    const bundle = await buildRoleReport({ type, period, memberId: field(form, "member", 36) });
+    const bundle = await buildRoleReport({ type, period, memberId: field(form, "member", 36), group: field(form, "group", 20) });
     const stamp = jakartaStamp();
     const file = await buildReportWorkbook(bundle.sheets, {
       periodLabel: bundle.periodLabel.replace("_to_", " to "),
@@ -67,7 +67,7 @@ export async function POST(request: Request) {
       action: "report.exported",
       entityType: "report",
       entityId: type,
-      metadata: { format: "xlsx", period: bundle.periodLabel, recordCount: bundle.totalRows, tabs: bundle.sheets.length },
+      metadata: { format: "xlsx", period: bundle.periodLabel, group: field(form, "group", 20) || "all", recordCount: bundle.totalRows, tabs: bundle.sheets.length },
     });
 
     return new Response(new Uint8Array(file), {

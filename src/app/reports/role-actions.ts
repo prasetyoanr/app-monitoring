@@ -21,6 +21,7 @@ export async function previewRoleReportAction(input: {
   type: RoleReportType;
   period: ReportPeriodInput;
   memberId?: string;
+  group?: string;
 }): Promise<ActionResult<{ sheets: ReportPreviewSheet[]; totalRows: number }>> {
   try {
     const bundle = await buildRoleReport(input);
