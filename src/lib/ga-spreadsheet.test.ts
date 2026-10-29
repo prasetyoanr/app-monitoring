@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 
-import { isGaSpreadsheetEligible, normalizeGoogleSpreadsheetUrl, validateGaSpreadsheetInput } from "./ga-spreadsheet";
+import { canViewGaSpreadsheet, isGaSpreadsheetEligible, normalizeGoogleSpreadsheetUrl, validateGaSpreadsheetInput } from "./ga-spreadsheet";
 
 describe("GA spreadsheet validation", () => {
   test("accepts an HTTPS Google Sheets URL", () => {
@@ -55,5 +55,18 @@ describe("GA spreadsheet eligibility", () => {
   test("inactive and IT accounts never qualify", () => {
     assert.equal(isGaSpreadsheetEligible({ ...base, role: "receptionist", isActive: false }), false);
     assert.equal(isGaSpreadsheetEligible({ ...base, role: "service_agent", isIt: true }), false);
+  });
+});
+
+describe("GA spreadsheet viewing", () => {
+  test("administrator and eligible owner can view", () => {
+    assert.equal(canViewGaSpreadsheet({ role: "administrator", isEligible: false, isOwner: false, hasGrant: false }), true);
+    assert.equal(canViewGaSpreadsheet({ role: "service_agent", isEligible: true, isOwner: true, hasGrant: false }), true);
+  });
+
+  test("another GA account needs an active grant", () => {
+    assert.equal(canViewGaSpreadsheet({ role: "approver", isEligible: true, isOwner: false, hasGrant: true }), true);
+    assert.equal(canViewGaSpreadsheet({ role: "approver", isEligible: true, isOwner: false, hasGrant: false }), false);
+    assert.equal(canViewGaSpreadsheet({ role: "requester", isEligible: false, isOwner: false, hasGrant: true }), false);
   });
 });

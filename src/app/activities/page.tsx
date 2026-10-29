@@ -91,11 +91,9 @@ export default async function ActivitiesPage({
     query: memberQuery,
     page: requestedPage,
   });
-  // Spreadsheet belongs to GA staff and only exists once an administrator enables it
-  // (the administrator always sees it, to manage the permission).
-  const showSpreadsheetTab = Boolean(data.spreadsheet)
-    && Boolean(data.selectedMember)
-    && (data.user.role === "administrator" || Boolean(data.spreadsheet?.enabled));
+  const showSpreadsheetTab = Boolean(data.selectedMember)
+    && (data.user.role === "administrator" || (data.spreadsheetEnabled &&
+      (data.selectedMember?.id === data.user.id || data.spreadsheets.length > 0)));
   const activeTab = single(params.tab) === "spreadsheet" && showSpreadsheetTab ? "spreadsheet" : "plan";
   const selectedMemberId = data.selectedMember?.id ?? "";
   const canEdit = data.user.role !== "requester" && data.user.role !== "administrator" && data.selectedMember?.id === data.user.id;
@@ -118,6 +116,20 @@ export default async function ActivitiesPage({
 
   return (
     <>
+      {data.sharedSpreadsheets.length ? (
+        <Card className="mb-5 p-4 sm:p-5">
+          <h2 className="text-sm font-bold text-slate-900">Shared spreadsheets</h2>
+          <p className="mt-1 text-[11px] text-slate-500">Reports that an Administrator has allowed you to view.</p>
+          <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+            {data.sharedSpreadsheets.map((item) => (
+              <a key={item.reportId} href={`/activities/spreadsheet/open?report=${encodeURIComponent(item.reportId)}`} target="_blank" rel="noopener noreferrer" className="flex min-w-0 items-center justify-between gap-3 rounded-xl border border-slate-200 px-3 py-2.5 text-xs text-slate-700 hover:border-emerald-300 hover:bg-emerald-50">
+                <span className="min-w-0"><strong className="block truncate">{item.title}</strong><span className="block truncate text-[10px] text-slate-500">{item.memberName}</span></span>
+                <ArrowRight size={14} className="shrink-0" />
+              </a>
+            ))}
+          </div>
+        </Card>
+      ) : null}
       {data.canSelectMembers && !data.selectedMember ? <>
         <Card className="mb-5 overflow-hidden p-4 sm:p-5">
           <div className="relative flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
@@ -295,13 +307,15 @@ export default async function ActivitiesPage({
           ) : null}
         </div>
 
-        {activeTab === "spreadsheet" && data.spreadsheet ? (
+        {activeTab === "spreadsheet" ? (
           <GaSpreadsheetCard
             memberId={data.selectedMember.id}
             memberName={data.selectedMember.name}
-            spreadsheet={data.spreadsheet}
+            spreadsheets={data.spreadsheets}
+            enabled={data.spreadsheetEnabled}
             canManagePermission={data.user.role === "administrator"}
-            canEditDetails={canEdit && data.spreadsheet.enabled}
+            canEditDetails={canEdit && data.spreadsheetEnabled}
+            viewerCandidates={data.spreadsheetViewerCandidates}
           />
         ) : (
           <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">

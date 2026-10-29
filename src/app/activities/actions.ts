@@ -1,10 +1,10 @@
 "use server";
 
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { isITDivisionName, isITTeamUser, requireAuthenticatedUser } from "@/auth/session";
 import { db } from "@/db";
-import { auditLogs, gaWorkPlanItems, masterDivisions, technicians, troubleshootingIssues } from "@/db/schema";
+import { auditLogs, gaSpreadsheetReports, gaSpreadsheetReportViewers, gaWorkPlanItems, masterDivisions, technicians, troubleshootingIssues } from "@/db/schema";
 import { getCurrentGaWorkPlanMember } from "@/data/ga-workspace";
 import type { ActionResult } from "@/data/types";
 import { gaWorkPlanStatuses, reportingPeriodStartForDate, shiftDate, workPlanInputError, type GaWorkPlanStatus } from "@/lib/ga-work-plan";
@@ -199,6 +199,147 @@ export async function setGaSpreadsheetPermissionAction(input: {
   }
 }
 
+export async function setGaSpreadsheetViewerAction(input: {
+  reportId: string;
+  viewerId: string;
+  enabled: boolean;
+}): Promise<ActionResult> {
+  const user = await requireAuthenticatedUser();
+  try {
+    if (user.role !== "administrator") {
+      await recordAuthorizationDenied(user, "ga.spreadsheet.viewer_permission", { reportId: input.reportId });
+      throw new Error("Only administrators can manage spreadsheet viewers.");
+    }
+    if (!uuidPattern.test(input.reportId) || !uuidPattern.test(input.viewerId) || typeof input.enabled !== "boolean") {
+      throw new Error("Invalid spreadsheet viewer update.");
+    }
+
+    const [report] = await db.select({ ownerId: gaSpreadsheetReports.ownerId })
+      .from(gaSpreadsheetReports).where(eq(gaSpreadsheetReports.id, input.reportId)).limit(1);
+    if (!report || report.ownerId === input.viewerId) throw new Error("Invalid spreadsheet viewer update.");
+
+    if (input.enabled) {
+      const accounts = await db.select({
+        id: technicians.id,
+        role: technicians.role,
+        isActive: technicians.isActive,
+        divisionName: masterDivisions.name,
+        divisionSlug: masterDivisions.slug,
+        isGaUnit: masterDivisions.isGaUnit,
+      }).from(technicians)
+        .innerJoin(masterDivisions, eq(technicians.divisionId, masterDivisions.id))
+        .where(inArray(technicians.id, [report.ownerId, input.viewerId]));
+      const owner = accounts.find((account) => account.id === report.ownerId);
+      const viewer = accounts.find((account) => account.id === input.viewerId);
+      if (!owner || !viewer ||
+        !isGaSpreadsheetEligible({ ...owner, isIt: isITDivisionName(owner.divisionName) }) ||
+        !isGaSpreadsheetEligible({ ...viewer, isIt: isITDivisionName(viewer.divisionName) })) {
+        throw new Error("Both accounts must be active, non-IT GA accounts eligible for spreadsheets.");
+      }
+    }
+
+    const changed = await db.transaction(async (tx) => {
+      const rows = input.enabled
+        ? await tx.insert(gaSpreadsheetReportViewers).values({
+          reportId: input.reportId, viewerId: input.viewerId, grantedById: user.id,
+        }).onConflictDoNothing().returning({ viewerId: gaSpreadsheetReportViewers.viewerId })
+        : await tx.delete(gaSpreadsheetReportViewers).where(and(
+          eq(gaSpreadsheetReportViewers.reportId, input.reportId),
+          eq(gaSpreadsheetReportViewers.viewerId, input.viewerId),
+        )).returning({ viewerId: gaSpreadsheetReportViewers.viewerId });
+      if (!rows.length) return false;
+      await tx.insert(auditLogs).values({
+        actorType: "technician", actorId: user.id,
+        action: input.enabled ? "ga.spreadsheet.viewer_granted" : "ga.spreadsheet.viewer_revoked",
+        entityType: "ga_spreadsheet_report", entityId: input.reportId,
+        metadata: { viewerId: input.viewerId, ownerId: report.ownerId },
+      });
+      return true;
+    });
+    if (changed) revalidatePath("/activities");
+    return { ok: true, data: undefined };
+  } catch (error) {
+    console.error("Unable to update GA spreadsheet viewer", error);
+    return { ok: false, error: error instanceof Error ? error.message : "Spreadsheet viewer permission could not be updated." };
+  }
+}
+
+// Grants (or removes) one viewer on many reports at once: every report of one member, or
+// every report of every eligible member. Same rules as the single-report action.
+export async function setGaSpreadsheetViewerBulkAction(input: {
+  viewerId: string;
+  enabled: boolean;
+  /** Limit to this member's reports. Omit for every member's reports. */
+  ownerId?: string;
+}): Promise<ActionResult<{ changed: number }>> {
+  const user = await requireAuthenticatedUser();
+  try {
+    if (user.role !== "administrator") {
+      await recordAuthorizationDenied(user, "ga.spreadsheet.viewer_permission_bulk", { viewerId: input.viewerId });
+      throw new Error("Only administrators can manage spreadsheet viewers.");
+    }
+    if (!uuidPattern.test(input.viewerId) || typeof input.enabled !== "boolean" || (input.ownerId !== undefined && !uuidPattern.test(input.ownerId))) {
+      throw new Error("Invalid spreadsheet viewer update.");
+    }
+
+    const [viewer] = await db.select({
+      id: technicians.id,
+      role: technicians.role,
+      isActive: technicians.isActive,
+      divisionName: masterDivisions.name,
+      divisionSlug: masterDivisions.slug,
+      isGaUnit: masterDivisions.isGaUnit,
+    }).from(technicians)
+      .innerJoin(masterDivisions, eq(technicians.divisionId, masterDivisions.id))
+      .where(eq(technicians.id, input.viewerId)).limit(1);
+    if (!viewer || !isGaSpreadsheetEligible({ ...viewer, isIt: isITDivisionName(viewer.divisionName) })) {
+      throw new Error("The viewer must be an active, non-IT GA account eligible for spreadsheets.");
+    }
+
+    const reports = await db.select({
+      id: gaSpreadsheetReports.id,
+      ownerId: gaSpreadsheetReports.ownerId,
+      role: technicians.role,
+      isActive: technicians.isActive,
+      divisionName: masterDivisions.name,
+      divisionSlug: masterDivisions.slug,
+      isGaUnit: masterDivisions.isGaUnit,
+    }).from(gaSpreadsheetReports)
+      .innerJoin(technicians, eq(gaSpreadsheetReports.ownerId, technicians.id))
+      .innerJoin(masterDivisions, eq(technicians.divisionId, masterDivisions.id))
+      .where(input.ownerId ? eq(gaSpreadsheetReports.ownerId, input.ownerId) : undefined);
+    const reportIds = reports
+      .filter((report) => report.ownerId !== input.viewerId &&
+        (!input.enabled || isGaSpreadsheetEligible({ ...report, isIt: isITDivisionName(report.divisionName) })))
+      .map((report) => report.id);
+    if (!reportIds.length) return { ok: true, data: { changed: 0 } };
+
+    const changed = await db.transaction(async (tx) => {
+      const rows = input.enabled
+        ? await tx.insert(gaSpreadsheetReportViewers)
+          .values(reportIds.map((reportId) => ({ reportId, viewerId: input.viewerId, grantedById: user.id })))
+          .onConflictDoNothing().returning({ reportId: gaSpreadsheetReportViewers.reportId })
+        : await tx.delete(gaSpreadsheetReportViewers).where(and(
+          eq(gaSpreadsheetReportViewers.viewerId, input.viewerId),
+          inArray(gaSpreadsheetReportViewers.reportId, reportIds),
+        )).returning({ reportId: gaSpreadsheetReportViewers.reportId });
+      if (!rows.length) return 0;
+      await tx.insert(auditLogs).values({
+        actorType: "technician", actorId: user.id,
+        action: input.enabled ? "ga.spreadsheet.viewer_granted_bulk" : "ga.spreadsheet.viewer_revoked_bulk",
+        entityType: "ga_spreadsheet_viewer", entityId: input.viewerId,
+        metadata: { viewerId: input.viewerId, ownerId: input.ownerId ?? null, scope: input.ownerId ? "member" : "all", reportCount: rows.length },
+      });
+      return rows.length;
+    });
+    if (changed) revalidatePath("/activities");
+    return { ok: true, data: { changed } };
+  } catch (error) {
+    console.error("Unable to update GA spreadsheet viewers in bulk", error);
+    return { ok: false, error: error instanceof Error ? error.message : "Spreadsheet viewer permissions could not be updated." };
+  }
+}
+
 export async function saveGaSpreadsheetAction(form: FormData): Promise<ActionResult> {
   const user = await requireAuthenticatedUser();
   try {
@@ -235,30 +376,30 @@ export async function saveGaSpreadsheetAction(form: FormData): Promise<ActionRes
       url: String(form.get("url") ?? ""),
       description: String(form.get("description") ?? ""),
     });
+    const reportId = String(form.get("reportId") ?? "").trim();
+    if (reportId && !uuidPattern.test(reportId)) throw new Error("Invalid spreadsheet report.");
     const now = new Date();
     await db.transaction(async (tx) => {
-      const rows = await tx
-        .update(technicians)
-        .set({
-          spreadsheetTitle: input.title,
-          spreadsheetUrl: input.url,
-          spreadsheetDescription: input.description,
-          spreadsheetUpdatedAt: now,
-          updatedAt: now,
-        })
-        .where(and(
-          eq(technicians.id, user.id),
-          eq(technicians.spreadsheetEnabled, true),
-        ))
-        .returning({ id: technicians.id });
-      if (!rows[0]) throw new Error("Spreadsheet permission is no longer active.");
+      const [permission] = await tx.select({ id: technicians.id }).from(technicians)
+        .where(and(eq(technicians.id, user.id), eq(technicians.spreadsheetEnabled, true)))
+        .for("update").limit(1);
+      if (!permission) throw new Error("Spreadsheet permission is no longer active.");
+      const rows = reportId
+        ? await tx.update(gaSpreadsheetReports)
+          .set({ title: input.title, url: input.url, description: input.description, updatedAt: now })
+          .where(and(eq(gaSpreadsheetReports.id, reportId), eq(gaSpreadsheetReports.ownerId, user.id)))
+          .returning({ id: gaSpreadsheetReports.id })
+        : await tx.insert(gaSpreadsheetReports).values({
+          ownerId: user.id, title: input.title, url: input.url, description: input.description,
+        }).returning({ id: gaSpreadsheetReports.id });
+      if (!rows[0]) throw new Error("Spreadsheet report was not found or is not yours.");
       await tx.insert(auditLogs).values({
         actorType: "technician",
         actorId: user.id,
-        action: "ga.spreadsheet.details_updated",
-        entityType: "technician",
-        entityId: user.id,
-        metadata: { title: input.title, hasDescription: Boolean(input.description) },
+        action: reportId ? "ga.spreadsheet.details_updated" : "ga.spreadsheet.created",
+        entityType: "ga_spreadsheet_report",
+        entityId: rows[0].id,
+        metadata: { title: input.title, hasDescription: Boolean(input.description), ownerId: user.id },
       });
     });
     revalidatePath("/activities");

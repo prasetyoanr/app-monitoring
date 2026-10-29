@@ -215,6 +215,7 @@ export const technicians = pgTable(
     }),
     isActive: boolean("is_active").notNull().default(true),
     spreadsheetEnabled: boolean("spreadsheet_enabled").notNull().default(false),
+    // Legacy single-report details remain for safe migration and rollback.
     spreadsheetTitle: varchar("spreadsheet_title", { length: 160 }),
     spreadsheetUrl: text("spreadsheet_url"),
     spreadsheetDescription: varchar("spreadsheet_description", { length: 500 }),
@@ -235,6 +236,50 @@ export const technicians = pgTable(
       sql`${table.failedLoginAttempts} >= 0`,
     ),
     index("technicians_division_idx").on(table.divisionId),
+  ],
+);
+
+// Legacy member-level grants are copied to the first report during migration.
+export const gaSpreadsheetViewers = pgTable(
+  "ga_spreadsheet_viewers",
+  {
+    ownerId: uuid("owner_id").notNull().references(() => technicians.id, { onDelete: "cascade" }),
+    viewerId: uuid("viewer_id").notNull().references(() => technicians.id, { onDelete: "cascade" }),
+    grantedById: uuid("granted_by_id").references(() => technicians.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("ga_spreadsheet_viewers_owner_viewer_unique").on(table.ownerId, table.viewerId),
+    index("ga_spreadsheet_viewers_viewer_idx").on(table.viewerId),
+    check("ga_spreadsheet_viewers_distinct_check", sql`${table.ownerId} <> ${table.viewerId}`),
+  ],
+);
+
+export const gaSpreadsheetReports = pgTable(
+  "ga_spreadsheet_reports",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    ownerId: uuid("owner_id").notNull().references(() => technicians.id, { onDelete: "cascade" }),
+    title: varchar("title", { length: 160 }).notNull(),
+    url: text("url").notNull(),
+    description: varchar("description", { length: 500 }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("ga_spreadsheet_reports_owner_idx").on(table.ownerId, table.updatedAt)],
+);
+
+export const gaSpreadsheetReportViewers = pgTable(
+  "ga_spreadsheet_report_viewers",
+  {
+    reportId: uuid("report_id").notNull().references(() => gaSpreadsheetReports.id, { onDelete: "cascade" }),
+    viewerId: uuid("viewer_id").notNull().references(() => technicians.id, { onDelete: "cascade" }),
+    grantedById: uuid("granted_by_id").references(() => technicians.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("ga_spreadsheet_report_viewers_unique").on(table.reportId, table.viewerId),
+    index("ga_spreadsheet_report_viewers_viewer_idx").on(table.viewerId),
   ],
 );
 

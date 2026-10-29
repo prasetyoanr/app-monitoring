@@ -20,6 +20,16 @@ export function isGaSpreadsheetEligible(member: {
   return member.role === "service_agent" ? member.isGaUnit : isGaDivisionSlug(member.divisionSlug);
 }
 
+export function canViewGaSpreadsheet(input: {
+  role: string;
+  isEligible: boolean;
+  isOwner: boolean;
+  hasGrant: boolean;
+}) {
+  return input.role === "administrator" ||
+    (input.isEligible && (input.isOwner || input.hasGrant));
+}
+
 export interface GaSpreadsheetInput {
   title: string;
   url: string;

@@ -60,10 +60,10 @@ export const reportTypeDescriptions: Record<RoleReportType, string> = {
   all: "Every report you can access, as tabs in one file.",
 };
 
-// The administrator and first approval (the GA supervisor) report on every account's
-// data; other roles only see their own.
+// The administrator and first / final approval (the GA supervisors) report on every
+// account's data; other roles only see their own.
 export function reportSeesAllData(role: AccountRole) {
-  return role === "administrator" || role === "approver";
+  return role === "administrator" || role === "approver" || role === "final_approver";
 }
 
 // Who a first approval / administrator report is about. "all" has no filter; the others

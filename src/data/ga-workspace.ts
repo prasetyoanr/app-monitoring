@@ -5,10 +5,11 @@ import { redirect } from "next/navigation";
 
 import { isITDivisionName, requireAuthenticatedUser, type AuthenticatedUser } from "@/auth/session";
 import { db } from "@/db";
-import { gaWorkPlanItems, masterDivisions, technicians, troubleshootingIssues } from "@/db/schema";
+import { gaSpreadsheetReports, gaSpreadsheetReportViewers, gaWorkPlanItems, masterDivisions, technicians, troubleshootingIssues } from "@/db/schema";
 import { gaWorkPlansForPeriod } from "@/data/ga-work-plan-period";
 import { shiftDate, type GaWorkPlanStatus, type GaWorkPlanTargetMode } from "@/lib/ga-work-plan";
 import { GA_DIVISION_SLUGS, isGaDivisionSlug } from "@/lib/request-destination";
+import { isGaSpreadsheetEligible } from "@/lib/ga-spreadsheet";
 
 // Only these roles see the staff name list. Admin (receptionist) does not: like staff,
 // Admin only gets their own workspace.
@@ -65,12 +66,24 @@ export interface GaWorkPlanRecord {
 }
 
 export interface GaSpreadsheetRecord {
-  enabled: boolean;
+  id: string;
   title: string;
   description: string;
   url: string;
-  hasLink: boolean;
-  updatedAt: string | null;
+  updatedAt: string;
+  viewers: GaSpreadsheetViewerOption[];
+}
+
+export interface GaSpreadsheetViewerOption {
+  id: string;
+  name: string;
+  divisionName: string;
+}
+
+export interface SharedGaSpreadsheet {
+  reportId: string;
+  memberName: string;
+  title: string;
 }
 
 function isSupervisor(user: AuthenticatedUser) {
@@ -141,8 +154,42 @@ export async function getGaWorkspaceData(input: {
   if (!["administrator", "receptionist", "approver", "final_approver", "service_agent"].includes(user.role)) redirect("/");
   if (user.role === "service_agent" && isITDivisionName(user.divisionName)) redirect("/inbox");
 
+  const eligibleUser = isGaSpreadsheetEligible({
+    role: user.role,
+    isActive: true,
+    isGaUnit: user.isGaUnit ?? false,
+    divisionSlug: user.divisionSlug,
+    isIt: isITDivisionName(user.divisionName),
+  });
+
   const canSelectMembers = isSupervisor(user);
   const scopeMembers = await activeNonItGaMembers();
+  // First and final approval browse members directly, so they have no "Shared spreadsheets" list.
+  const sharedRows = eligibleUser && user.role !== "approver" && user.role !== "final_approver"
+    ? await db.select({
+      reportId: gaSpreadsheetReports.id,
+      memberName: technicians.name,
+      title: gaSpreadsheetReports.title,
+      enabled: technicians.spreadsheetEnabled,
+      isActive: technicians.isActive,
+      role: technicians.role,
+      divisionName: masterDivisions.name,
+      divisionSlug: masterDivisions.slug,
+      isGaUnit: masterDivisions.isGaUnit,
+    }).from(gaSpreadsheetReportViewers)
+      .innerJoin(gaSpreadsheetReports, eq(gaSpreadsheetReportViewers.reportId, gaSpreadsheetReports.id))
+      .innerJoin(technicians, eq(gaSpreadsheetReports.ownerId, technicians.id))
+      .innerJoin(masterDivisions, eq(technicians.divisionId, masterDivisions.id))
+      .where(eq(gaSpreadsheetReportViewers.viewerId, user.id))
+    : [];
+  const sharedSpreadsheets: SharedGaSpreadsheet[] = sharedRows
+    .filter((row) => row.enabled &&
+      isGaSpreadsheetEligible({ ...row, isIt: isITDivisionName(row.divisionName) }))
+    .map((row) => ({
+      reportId: row.reportId,
+      memberName: row.memberName,
+      title: row.title,
+    }));
   // Supervisors (Administrator, First / Final Approval) browse every GA plan holder: staff
   // plus GA-scope Admin / First / Final Approval; everyone else only has their own.
   const allMembers = canSelectMembers
@@ -229,12 +276,16 @@ export async function getGaWorkspaceData(input: {
       selectedMember: null,
       inbox: [] as GaMemberInboxRecord[],
       workPlans: [] as GaWorkPlanRecord[],
-      spreadsheet: null as GaSpreadsheetRecord | null,
+      spreadsheetEnabled: false,
+      spreadsheets: [] as GaSpreadsheetRecord[],
+      spreadsheetViewerCandidates: [] as GaSpreadsheetViewerOption[],
+      sharedSpreadsheets,
     };
   }
 
-  const canViewSpreadsheet = user.role === "administrator" || user.id === selectedMember.id;
-  const [inboxRows, planRows, spreadsheetRows] = await Promise.all([
+  const isOwner = user.id === selectedMember.id;
+  const isAdmin = user.role === "administrator";
+  const [inboxRows, planRows, ownerRows, reportRows, viewerRows] = await Promise.all([
     db
       .select({
         id: troubleshootingIssues.id,
@@ -274,30 +325,56 @@ export async function getGaWorkspaceData(input: {
         ) : undefined,
       ))
       .orderBy(asc(gaWorkPlanItems.targetDate), desc(gaWorkPlanItems.updatedAt)),
-    canViewSpreadsheet
-      ? db
-        .select({
-          enabled: technicians.spreadsheetEnabled,
-          title: technicians.spreadsheetTitle,
-          url: technicians.spreadsheetUrl,
-          description: technicians.spreadsheetDescription,
-          updatedAt: technicians.spreadsheetUpdatedAt,
-        })
-        .from(technicians)
-        .where(eq(technicians.id, selectedMember.id))
-        .limit(1)
+    db.select({ enabled: technicians.spreadsheetEnabled }).from(technicians)
+      .where(eq(technicians.id, selectedMember.id)).limit(1),
+    isAdmin || isOwner || eligibleUser
+      ? db.select({
+        id: gaSpreadsheetReports.id,
+        title: gaSpreadsheetReports.title,
+        url: gaSpreadsheetReports.url,
+        description: gaSpreadsheetReports.description,
+        updatedAt: gaSpreadsheetReports.updatedAt,
+      }).from(gaSpreadsheetReports)
+        .where(and(
+          eq(gaSpreadsheetReports.ownerId, selectedMember.id),
+          !isAdmin && !isOwner ? inArray(gaSpreadsheetReports.id,
+            db.select({ reportId: gaSpreadsheetReportViewers.reportId }).from(gaSpreadsheetReportViewers)
+              .where(eq(gaSpreadsheetReportViewers.viewerId, user.id))) : undefined,
+        ))
+        .orderBy(desc(gaSpreadsheetReports.updatedAt))
+      : Promise.resolve([]),
+    isAdmin
+      ? db.select({
+        reportId: gaSpreadsheetReportViewers.reportId,
+        viewerId: gaSpreadsheetReportViewers.viewerId,
+        name: technicians.name,
+        divisionName: masterDivisions.name,
+      }).from(gaSpreadsheetReportViewers)
+        .innerJoin(gaSpreadsheetReports, eq(gaSpreadsheetReportViewers.reportId, gaSpreadsheetReports.id))
+        .innerJoin(technicians, eq(gaSpreadsheetReportViewers.viewerId, technicians.id))
+        .leftJoin(masterDivisions, eq(technicians.divisionId, masterDivisions.id))
+        .where(eq(gaSpreadsheetReports.ownerId, selectedMember.id))
       : Promise.resolve([]),
   ]);
 
-  const spreadsheetRow = spreadsheetRows[0];
-  const spreadsheet = spreadsheetRow ? {
-    enabled: spreadsheetRow.enabled,
-    title: spreadsheetRow.title ?? "",
-    description: spreadsheetRow.description ?? "",
-    url: user.id === selectedMember.id ? spreadsheetRow.url ?? "" : "",
-    hasLink: Boolean(spreadsheetRow.url),
-    updatedAt: spreadsheetRow.updatedAt?.toISOString() ?? null,
-  } : null;
+  const spreadsheetEnabled = ownerRows[0]?.enabled ?? false;
+  const spreadsheets: GaSpreadsheetRecord[] = spreadsheetEnabled || isAdmin
+    ? reportRows.map((row) => ({
+      id: row.id,
+      title: row.title,
+      description: row.description ?? "",
+      url: isOwner ? row.url : "",
+      updatedAt: row.updatedAt.toISOString(),
+      viewers: viewerRows.filter((viewer) => viewer.reportId === row.id).map((viewer) => ({
+        id: viewer.viewerId, name: viewer.name, divisionName: viewer.divisionName ?? "No division",
+      })),
+    }))
+    : [];
+  const viewerCandidates = isAdmin
+    ? scopeMembers.filter((member) => member.id !== selectedMember.id).map((member) => ({
+      id: member.id, name: member.name, divisionName: member.divisionName,
+    }))
+    : [];
 
   return {
     user,
@@ -317,6 +394,9 @@ export async function getGaWorkspaceData(input: {
       ...row,
       updatedAt: row.updatedAt.toISOString(),
     })),
-    spreadsheet,
+    spreadsheetEnabled,
+    spreadsheets,
+    spreadsheetViewerCandidates: viewerCandidates,
+    sharedSpreadsheets,
   };
 }
