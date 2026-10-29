@@ -33,11 +33,29 @@ function jakartaStamp() {
   return { file: `${part("year")}${part("month")}${part("day")}-${part("hour")}${part("minute")}`, label: `${part("day")}/${part("month")}/${part("year")} ${part("hour")}:${part("minute")} WIB` };
 }
 
+// Behind a reverse proxy request.url can carry the internal host, so the Origin header is
+// compared with the host the browser actually used (Host / X-Forwarded-Host) as well.
+function sameOrigin(request: Request) {
+  const origin = request.headers.get("origin");
+  if (!origin) return true;
+  let originHost: string;
+  try {
+    originHost = new URL(origin).host;
+  } catch {
+    return false;
+  }
+  const hosts = [
+    new URL(request.url).host,
+    request.headers.get("host"),
+    request.headers.get("x-forwarded-host")?.split(",")[0]?.trim(),
+  ];
+  return hosts.some((host) => host && host === originHost);
+}
+
 // POST only, same-origin: the download is built on the server and limited to what the
 // signed-in account may see. Scope is decided in buildRoleReport, never by form fields.
 export async function POST(request: Request) {
-  const origin = request.headers.get("origin");
-  if (origin && new URL(origin).host !== new URL(request.url).host) return problem("Forbidden.", 403);
+  if (!sameOrigin(request)) return problem("Forbidden.", 403);
 
   const user = await getCurrentUser();
   if (!user) return problem("Please sign in again.", 401);

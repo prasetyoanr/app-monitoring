@@ -36,7 +36,7 @@ const themes = {
   dark: { selected: "border-indigo-600 bg-indigo-50", icon: "bg-indigo-950 text-white", button: "bg-indigo-950 hover:bg-indigo-900", focus: "focus:border-indigo-500 focus:ring-indigo-100" },
 } as const;
 
-const PREVIEW_SHEETS = 3;
+const PREVIEW_SHEETS = 6;
 
 export function RoleReportsCenter({
   types,
