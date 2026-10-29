@@ -423,13 +423,23 @@ export async function buildRoleReportForUser(user: AuthenticatedUser, input: {
 
   const group = reportSeesAllData(user.role) ? parseReportGroup(input.group) : "all";
   const scope = await groupMemberIds(group);
-  const groupLabel = reportGroupLabels[group];
+  let groupLabel = reportGroupLabels[group];
+
+  // A chosen member narrows every report, not only GA Activity, and still has to belong
+  // to the chosen group.
+  let requestScope = scope;
+  if (memberId) {
+    requestScope = scope ? scope.filter((id) => id === memberId) : [memberId];
+    const [member] = await db.select({ name: technicians.name }).from(technicians).where(eq(technicians.id, memberId)).limit(1);
+    if (!member) throw new ReportRequestError("Choose a valid GA member.");
+    groupLabel = member.name;
+  }
 
   const used = new Set<string>(["summary"]);
   const sheets: ReportSheet[] = [];
   const builders: Record<ReportSource, () => Promise<ReportSheet[]>> = {
-    request: async () => [await requestSheet(user, period, used, scope, groupLabel)],
-    inbox: async () => [await inboxSheet(user, period, used, scope, groupLabel)],
+    request: async () => [await requestSheet(user, period, used, requestScope, groupLabel)],
+    inbox: async () => [await inboxSheet(user, period, used, requestScope, groupLabel)],
     ga_activity: () => gaActivitySheets(user, period, used, memberId, scope),
     // Administrator-only; each loader re-checks the administrator role itself.
     log: async () => {
