@@ -82,6 +82,12 @@ export const reportGroupLabels: Record<ReportGroup, string> = {
 
 export const REPORT_GROUPS = Object.keys(reportGroupLabels) as ReportGroup[];
 
+// "it" is the IT division whatever the role; the other groups match the account role.
+export function accountInReportGroup(account: { role: string; isIt: boolean }, group: ReportGroup) {
+  if (group === "all") return true;
+  return group === "it" ? account.isIt : account.role === group;
+}
+
 export function parseReportGroup(value: string | null | undefined): ReportGroup {
   return REPORT_GROUPS.includes(value as ReportGroup) ? (value as ReportGroup) : "all";
 }

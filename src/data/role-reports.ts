@@ -25,6 +25,7 @@ import { requestWorkflowLabel } from "@/lib/request-workflow";
 import {
   REPORT_ROW_LIMIT,
   availableReportTypes,
+  accountInReportGroup,
   parseReportGroup,
   reportGroupLabels,
   reportSeesAllData,
@@ -107,7 +108,7 @@ async function groupMemberIds(group: ReportGroup): Promise<string[] | null> {
     .from(technicians)
     .leftJoin(masterDivisions, eq(technicians.divisionId, masterDivisions.id));
   return accounts
-    .filter((account) => (group === "it" ? isITDivisionName(account.division) : account.role === group))
+    .filter((account) => accountInReportGroup({ role: account.role, isIt: isITDivisionName(account.division) }, group))
     .map((account) => account.id);
 }
 
@@ -491,12 +492,13 @@ export async function listReportGaMembers() {
   const user = await requireAuthenticatedUser();
   if (!reportSeesAllData(user.role)) return [];
   const rows = await db
-    .select({ id: technicians.id, name: technicians.name })
+    .select({ id: technicians.id, name: technicians.name, role: technicians.role, division: masterDivisions.name })
     .from(gaWorkPlanItems)
     .innerJoin(technicians, eq(gaWorkPlanItems.memberId, technicians.id))
-    .groupBy(technicians.id, technicians.name)
+    .leftJoin(masterDivisions, eq(technicians.divisionId, masterDivisions.id))
+    .groupBy(technicians.id, technicians.name, technicians.role, masterDivisions.name)
     .orderBy(asc(technicians.name));
-  return rows;
+  return rows.map((row) => ({ id: row.id, name: row.name, role: row.role, isIt: isITDivisionName(row.division) }));
 }
 
 export async function reportViewerCapabilities() {

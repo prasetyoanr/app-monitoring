@@ -10,7 +10,7 @@ import { useReportActionsSlot, useSharedReportPeriod } from "@/components/report
 import { Card } from "@/components/ui";
 import { reportingPeriodStartForDate, shiftDate } from "@/lib/ga-work-plan";
 import { currentJakartaMonth, jakartaDateInput } from "@/lib/jakarta-date";
-import { REPORT_GROUPS, reportGroupLabels, reportTypeDescriptions, reportTypeLabels, usesStaffDatePicker, type ReportGroup, type ReportPeriodInput, type ReportTone, type RoleReportType } from "@/lib/role-report";
+import { REPORT_GROUPS, accountInReportGroup, reportGroupLabels, reportTypeDescriptions, reportTypeLabels, usesStaffDatePicker, type ReportGroup, type ReportPeriodInput, type ReportTone, type RoleReportType } from "@/lib/role-report";
 
 const typeIcons: Record<RoleReportType, LucideIcon> = {
   request: ClipboardList,
@@ -46,7 +46,7 @@ export function RoleReportsCenter({
   heading,
 }: {
   types: RoleReportType[];
-  members: Array<{ id: string; name: string }>;
+  members: Array<{ id: string; name: string; role: string; isIt: boolean }>;
   /** First approval and administrator can narrow the report to one group of accounts. */
   canPickGroup?: boolean;
   theme?: keyof typeof themes;
@@ -65,6 +65,8 @@ export function RoleReportsCenter({
   const [monthOpen, setMonthOpen] = useState(false);
   const [result, setResult] = useState<{ key: string; sheets: ReportPreviewSheet[]; totalRows: number; error: string } | null>(null);
 
+  // Only members of the chosen group can be picked, so the two filters never clash.
+  const groupMembers = useMemo(() => members.filter((item) => accountInReportGroup(item, canPickGroup ? group : "all")), [members, canPickGroup, group]);
   const showMembers = members.length > 0 && (type === "ga_activity" || type === "all");
   // GA Activity and All use the same date picker as the staff workspace; Utility is a
   // snapshot and needs no period; the others keep month / date range.
@@ -239,7 +241,7 @@ export function RoleReportsCenter({
           )}
           {canPickGroup ? (
             <label className="text-[10px] font-bold uppercase tracking-wide text-slate-400 lg:w-56">Account group
-              <select value={group} onChange={(event) => setGroup(event.target.value as ReportGroup)} className={inputClass}>
+              <select value={group} onChange={(event) => { const next = event.target.value as ReportGroup; setGroup(next); const chosen = members.find((item) => item.id === member); if (chosen && !accountInReportGroup(chosen, next)) setMember(""); }} className={inputClass}>
                 {REPORT_GROUPS.map((item) => <option key={item} value={item}>{reportGroupLabels[item]}</option>)}
               </select>
             </label>
@@ -248,7 +250,7 @@ export function RoleReportsCenter({
             <label className="text-[10px] font-bold uppercase tracking-wide text-slate-400 lg:w-64">GA member
               <select value={member} onChange={(event) => setMember(event.target.value)} className={inputClass}>
                 <option value="">All members (one tab each)</option>
-                {members.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+                {groupMembers.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
               </select>
             </label>
           ) : null}
