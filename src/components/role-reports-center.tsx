@@ -36,7 +36,8 @@ const themes = {
   dark: { selected: "border-indigo-600 bg-indigo-50", icon: "bg-indigo-950 text-white", button: "bg-indigo-950 hover:bg-indigo-900", focus: "focus:border-indigo-500 focus:ring-indigo-100" },
 } as const;
 
-const PREVIEW_SHEETS = 6;
+// Preview dropdown value that lists every tab instead of one.
+const ALL_TABS = "__all__";
 
 export function RoleReportsCenter({
   types,
@@ -63,6 +64,7 @@ export function RoleReportsCenter({
   const [refDate, setRefDate] = useState(jakartaDateInput());
   const [member, setMember] = useState("");
   const [monthOpen, setMonthOpen] = useState(false);
+  const [previewTab, setPreviewTab] = useState("");
   const [result, setResult] = useState<{ key: string; sheets: ReportPreviewSheet[]; totalRows: number; error: string } | null>(null);
 
   // Only members of the chosen group can be picked, so the two filters never clash.
@@ -125,6 +127,9 @@ export function RoleReportsCenter({
   const error = rangeIncomplete ? (usesSharedPeriod ? "Choose both dates in Report Period above to see the report." : "Choose both dates to see the report.") : current?.error ?? "";
   const sheets = current?.sheets ?? [];
   const totalRows = current?.totalRows ?? 0;
+  // One tab is shown at a time; the first one when the chosen tab is not in this report.
+  const showAllTabs = previewTab === ALL_TABS && sheets.length > 1;
+  const shownSheets = showAllTabs ? sheets : sheets.filter((sheet, index) => sheet.name === previewTab || (index === 0 && !sheets.some((item) => item.name === previewTab)));
 
   const canDownload = !loading && !error && totalRows > 0;
   const inputClass = `mt-1 h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-xs text-slate-700 outline-none focus:ring-2 ${style.focus}`;
@@ -271,55 +276,62 @@ export function RoleReportsCenter({
               The file will have <strong className="font-semibold text-slate-700">{sheets.length} {sheets.length === 1 ? "tab" : "tabs"}</strong>
               {sheets.length > 1 ? `: ${sheets.map((sheet) => sheet.name).join(" · ")}` : ""} and <strong className="font-semibold text-slate-700">{totalRows.toLocaleString("en-US")} records</strong>.
             </p>
-            {sheets.slice(0, PREVIEW_SHEETS).map((sheet) => (
-              <Card key={sheet.name} className="overflow-hidden">
-                <div className="border-b border-slate-100 p-4 sm:px-5">
-                  <div className="flex flex-wrap items-baseline justify-between gap-2">
-                    <h3 className="text-sm font-bold text-slate-900">{sheet.title}</h3>
-                    <span className="text-[10px] font-semibold text-slate-400">Tab “{sheet.name}” · {sheet.totalRows.toLocaleString("en-US")} rows</span>
-                  </div>
-                  {sheet.summary.length ? (
-                    <dl className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
-                      {sheet.summary.map((item) => (
-                        <div key={item.label} className="rounded-xl bg-slate-50 px-3 py-2">
-                          <dt className="text-[10px] font-semibold text-slate-400">{item.label}</dt>
-                          <dd className="mt-0.5 text-base font-bold tabular-nums text-slate-900">{item.value}</dd>
-                        </div>
-                      ))}
-                    </dl>
-                  ) : null}
+            {sheets.length > 1 ? (
+              <label className="block text-[10px] font-bold uppercase tracking-wide text-slate-400">Preview tab
+                <select value={showAllTabs ? ALL_TABS : shownSheets[0]?.name ?? ""} onChange={(event) => setPreviewTab(event.target.value)} className={inputClass}>
+                  <option value={ALL_TABS}>All tabs · {sheets.length} tabs</option>
+                  {sheets.map((sheet) => <option key={sheet.name} value={sheet.name}>{sheet.name} · {sheet.totalRows.toLocaleString("en-US")} {sheet.totalRows === 1 ? "row" : "rows"}</option>)}
+                </select>
+              </label>
+            ) : null}
+            {shownSheets.map((shownSheet) => (
+            <Card key={shownSheet.name} className="overflow-hidden">
+              <div className="border-b border-slate-100 p-4 sm:px-5">
+                <div className="flex flex-wrap items-baseline justify-between gap-2">
+                  <h3 className="text-sm font-bold text-slate-900">{shownSheet.title}</h3>
+                  <span className="text-[10px] font-semibold text-slate-400">Tab “{shownSheet.name}” · {shownSheet.totalRows.toLocaleString("en-US")} rows</span>
                 </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full min-w-[640px] text-left text-xs">
-                    <thead className="bg-slate-50 text-[10px] font-bold uppercase tracking-wide text-slate-400">
-                      <tr>{sheet.columns.map((column) => <th key={column.key} scope="col" className={`px-4 py-2.5 ${column.align === "center" ? "text-center" : ""}`}>{column.header}</th>)}</tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {sheet.rows.map((row, rowIndex) => {
-                        const tone = sheet.tones[rowIndex] ?? "none";
-                        return (
-                          <tr key={rowIndex} className="odd:bg-white even:bg-slate-50/50">
-                            {sheet.columns.map((column) => {
-                              const value = row[column.key];
-                              const text = value === null || value === undefined ? "—" : String(value);
-                              return (
-                                <td key={column.key} className={`max-w-[18rem] px-4 py-2.5 text-slate-700 ${column.align === "center" ? "text-center" : ""} ${column.wrap ? "" : "whitespace-nowrap"} ${column.key === "id" ? "font-mono text-[11px] text-slate-500" : ""}`}>
-                                  {column.status && tone !== "none"
-                                    ? <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold ring-1 ring-inset ${toneClass[tone]}`}>{text}</span>
-                                    : <span className={column.wrap ? "line-clamp-2" : "block truncate"} title={text}>{text}</span>}
-                                </td>
-                              );
-                            })}
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-                {sheet.totalRows > sheet.rows.length ? <p className="border-t border-slate-100 px-5 py-2.5 text-[10px] text-slate-400">Showing {sheet.rows.length} of {sheet.totalRows.toLocaleString("en-US")} rows. The Excel file has all of them.</p> : null}
-              </Card>
+                {shownSheet.summary.length ? (
+                  <dl className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+                    {shownSheet.summary.map((item) => (
+                      <div key={item.label} className="rounded-xl bg-slate-50 px-3 py-2">
+                        <dt className="text-[10px] font-semibold text-slate-400">{item.label}</dt>
+                        <dd className="mt-0.5 text-base font-bold tabular-nums text-slate-900">{item.value}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                ) : null}
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[640px] text-left text-xs">
+                  <thead className="bg-slate-50 text-[10px] font-bold uppercase tracking-wide text-slate-400">
+                    <tr>{shownSheet.columns.map((column) => <th key={column.key} scope="col" className={`px-4 py-2.5 ${column.align === "center" ? "text-center" : ""}`}>{column.header}</th>)}</tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {shownSheet.rows.map((row, rowIndex) => {
+                      const tone = shownSheet.tones[rowIndex] ?? "none";
+                      return (
+                        <tr key={rowIndex} className="odd:bg-white even:bg-slate-50/50">
+                          {shownSheet.columns.map((column) => {
+                            const value = row[column.key];
+                            const text = value === null || value === undefined ? "—" : String(value);
+                            return (
+                              <td key={column.key} className={`max-w-[18rem] px-4 py-2.5 text-slate-700 ${column.align === "center" ? "text-center" : ""} ${column.wrap ? "" : "whitespace-nowrap"}`}>
+                                {column.status && tone !== "none"
+                                  ? <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold ring-1 ring-inset ${toneClass[tone]}`}>{text}</span>
+                                  : <span className={column.wrap ? "line-clamp-2" : "block truncate"} title={text}>{text}</span>}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              {shownSheet.totalRows > shownSheet.rows.length ? <p className="border-t border-slate-100 px-5 py-2.5 text-[10px] text-slate-400">Showing {shownSheet.rows.length} of {shownSheet.totalRows.toLocaleString("en-US")} rows. The Excel file has all of them.</p> : null}
+            </Card>
             ))}
-            {sheets.length > PREVIEW_SHEETS ? <p className="text-[11px] text-slate-500">+ {sheets.length - PREVIEW_SHEETS} more {sheets.length - PREVIEW_SHEETS === 1 ? "tab" : "tabs"} in the Excel file.</p> : null}
           </div>
         )}
       </div>

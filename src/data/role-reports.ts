@@ -359,7 +359,9 @@ async function gaActivitySheets(user: AuthenticatedUser, period: { start: string
     }];
   }
 
-  // Administrator: one tab per member, then a per-member overview.
+  // Administrator: one tab per member, then a per-member overview. IT accounts keep no
+  // work plan; their report is their Troubleshooting and Inbox, so they get their own tables.
+  const itMembers = await itMemberTabs(period, used, memberId, scope);
   const byMember = new Map<string, typeof rows>();
   for (const row of rows) byMember.set(row.memberId, [...(byMember.get(row.memberId) ?? []), row]);
   const memberSheets: ReportSheet[] = [...byMember.values()].map((memberRows) => ({
@@ -370,14 +372,17 @@ async function gaActivitySheets(user: AuthenticatedUser, period: { start: string
     tones: memberRows.map((row) => planTone(row.status)),
     rows: memberRows.map(toRow),
   }));
-  const overviewRows = [...byMember.values()].map((memberRows, index) => {
-    const summary = planSummary(memberRows);
-    return { no: index + 1, member: memberRows[0].member, division: memberRows[0].division, total: memberRows.length, completed: Number(summary[1].value), inProgress: Number(summary[2].value), planned: Number(summary[3].value), completion: summary[4].value };
+  const overviewRows = [
+    ...[...byMember.values()].map((memberRows) => ({ member: memberRows[0].member, division: memberRows[0].division, plans: memberRows })),
+    ...itMembers.map((item) => ({ member: item.member, division: item.division, plans: item.plans })),
+  ].map((entry, index) => {
+    const summary = planSummary(entry.plans);
+    return { no: index + 1, member: entry.member, division: entry.division, total: entry.plans.length, completed: Number(summary[1].value), inProgress: Number(summary[2].value), planned: Number(summary[3].value), completion: summary[4].value };
   });
   const overview: ReportSheet = {
     name: uniqueSheetName("GA members", used),
     title: "GA Activity — members overview",
-    summary: [{ label: "Members with plans", value: String(overviewRows.length) }, ...planSummary(rows).slice(0, 2)],
+    summary: [{ label: "Members", value: String(overviewRows.length) }, ...planSummary([...rows, ...itMembers.flatMap((item) => item.plans)]).slice(0, 2)],
     columns: [
       { header: "No.", key: "no", width: 6, align: "center" },
       { header: "Member", key: "member", width: 26 },
@@ -391,7 +396,97 @@ async function gaActivitySheets(user: AuthenticatedUser, period: { start: string
     tones: overviewRows.map(() => "none" as const),
     rows: overviewRows,
   };
-  return [overview, ...memberSheets];
+  return [overview, ...memberSheets, ...itMembers.flatMap((item) => item.sheets)];
+}
+
+// ---------- GA Activity for IT accounts: each IT member's Troubleshooting and Inbox ----------
+const itWorkColumns: ReportColumn[] = [
+  { header: "No.", key: "no", width: 6, align: "center" },
+  { header: "Issue", key: "title", width: 40, wrap: true },
+  { header: "ID", key: "id", width: 18 },
+  { header: "Category", key: "category", width: 16 },
+  { header: "Location", key: "location", width: 12, align: "center" },
+  { header: "Requester", key: "requester", width: 22 },
+  { header: "Division", key: "division", width: 20 },
+  { header: "Date", key: "date", width: 12, align: "center" },
+  { header: "Completion time", key: "completion", width: 16, align: "center" },
+  { header: "Status", key: "status", width: 18, align: "center", status: true },
+];
+
+// The IT workspace lists two kinds of records: Troubleshooting (logged by IT, source
+// "manual") and Inbox (requests routed to IT, source "division_request").
+const itSources = [
+  { source: "manual", label: "Troubleshooting" },
+  { source: "division_request", label: "Inbox" },
+] as const;
+
+// Every IT account gets both tabs for the period, empty when it has no records. Each lists
+// what that account's own pages show: the division's queue plus what it acted on or was
+// assigned.
+async function itMemberTabs(period: { start: string; end: string }, used: Set<string>, memberId: string, scope: string[] | null) {
+  const accounts = await db
+    .select({ id: technicians.id, name: technicians.name, role: technicians.role, divisionId: technicians.divisionId, division: masterDivisions.name })
+    .from(technicians)
+    .leftJoin(masterDivisions, eq(technicians.divisionId, masterDivisions.id))
+    .where(and(eq(technicians.isActive, true), sql`${technicians.role} <> 'requester'`))
+    .orderBy(asc(technicians.name));
+  const itAccounts = accounts.filter((account) =>
+    isITDivisionName(account.division) &&
+    (!memberId || account.id === memberId) &&
+    (!scope || scope.includes(account.id)));
+
+  const tabs = [];
+  for (const account of itAccounts) {
+    const plans: Array<{ status: string }> = [];
+    const sheets: ReportSheet[] = [];
+    for (const { source, label } of itSources) {
+      const queue = account.role === "service_agent" && account.divisionId
+        ? and(
+            eq(issues.serviceDivisionId, account.divisionId),
+            source === "manual" ? undefined : eq(issues.workflowEnabled, false),
+          )
+        : undefined;
+      const rows = guardLimit(await db
+        .select(ticketCommon)
+        .from(issues)
+        .where(and(
+          eq(issues.source, source),
+          or(
+            eq(issues.assignedTechnicianId, account.id),
+            inArray(issues.id, db.select({ id: requestWorkflowHistory.issueId }).from(requestWorkflowHistory).where(eq(requestWorkflowHistory.actorId, account.id))),
+            queue,
+          ),
+          inPeriod(period),
+        ))
+        .orderBy(asc(issues.reportedAt), asc(issues.id))
+        .limit(REPORT_ROW_LIMIT + 1));
+
+      const tones = rows.map(toneOf);
+      // Same vocabulary as work plans so the overview counts both the same way.
+      plans.push(...tones.map((tone) => ({ status: tone === "ok" ? "completed" : tone === "bad" ? "cancelled" : tone === "run" ? "in_progress" : "planned" })));
+      sheets.push({
+        name: uniqueSheetName(`${account.name} ${label}`, used),
+        title: `IT ${label} — ${account.name} (${account.division ?? "IT"})`,
+        summary: ticketSummary(rows.map((row, index) => ({ tone: tones[index], completedDays: row.completedDays }))),
+        columns: itWorkColumns,
+        tones,
+        rows: rows.map((row, index): Record<string, ReportCell> => ({
+          no: index + 1,
+          title: row.title,
+          id: row.id,
+          category: row.category,
+          location: row.location,
+          requester: row.requesterName,
+          division: row.division,
+          date: displayDate(jakartaDateTimeInput(row.reportedAt)),
+          completion: row.completedDays === null ? "Not completed" : row.completedDays === 0 ? "Same day" : `${row.completedDays} days`,
+          status: row.workflowEnabled && row.workflowStatus === "rejected" ? "Rejected" : issueStatusLabel(row.status),
+        })),
+      });
+    }
+    tabs.push({ member: account.name, division: account.division ?? "IT", plans, sheets });
+  }
+  return tabs;
 }
 
 // ---------- entry point ----------
@@ -498,7 +593,19 @@ export async function listReportGaMembers() {
     .leftJoin(masterDivisions, eq(technicians.divisionId, masterDivisions.id))
     .groupBy(technicians.id, technicians.name, technicians.role, masterDivisions.name)
     .orderBy(asc(technicians.name));
-  return rows.map((row) => ({ id: row.id, name: row.name, role: row.role, isIt: isITDivisionName(row.division) }));
+  const members = rows.map((row) => ({ id: row.id, name: row.name, role: row.role, isIt: isITDivisionName(row.division) }));
+
+  // IT accounts keep no GA work plan but are part of the report too.
+  const known = new Set(members.map((member) => member.id));
+  const accounts = await db
+    .select({ id: technicians.id, name: technicians.name, role: technicians.role, division: masterDivisions.name })
+    .from(technicians)
+    .leftJoin(masterDivisions, eq(technicians.divisionId, masterDivisions.id))
+    .where(and(eq(technicians.isActive, true), sql`${technicians.role} <> 'requester'`));
+  for (const account of accounts) {
+    if (!known.has(account.id) && isITDivisionName(account.division)) members.push({ id: account.id, name: account.name, role: account.role, isIt: true });
+  }
+  return members.sort((a, b) => a.name.localeCompare(b.name));
 }
 
 export async function reportViewerCapabilities() {
