@@ -15,7 +15,7 @@ export async function getDashboardData() {
   const securityWindowStart = new Date(now.getTime() - 24 * 60 * 60 * 1000);
   const divisionFilter =
     currentUser.role === "requester"
-      ? eq(troubleshootingIssues.division, currentUser.divisionName ?? "")
+      ? eq(troubleshootingIssues.requesterId, currentUser.id)
       : serviceInboxScope(currentUser);
 
   const adminControlPromise = currentUser.role === "administrator"

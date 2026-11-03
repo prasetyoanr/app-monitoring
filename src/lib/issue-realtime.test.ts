@@ -19,10 +19,13 @@ const audience: IssueAudience = {
 const viewer = (role: AccountRole, divisionName: string | null = "Other", divisionId: string | null = "other", id = "user") => ({ role, divisionName, divisionId, id });
 
 test("division request viewers remain scoped while reception and approval pools are global", () => {
-  for (const role of ["requester", "service_agent"] as AccountRole[]) {
-    assert.equal(canReceiveIssueChange(viewer(role, "GA"), audience), true);
-    assert.equal(canReceiveIssueChange(viewer(role), audience), false);
-  }
+  assert.equal(canReceiveIssueChange(viewer("service_agent", "GA"), audience), true);
+  assert.equal(canReceiveIssueChange(viewer("service_agent"), audience), false);
+  // A requester only follows their own requests, even inside the same division.
+  const owned = { ...audience, requesterId: "user" };
+  assert.equal(canReceiveIssueChange(viewer("requester", "GA"), owned), true);
+  assert.equal(canReceiveIssueChange(viewer("requester", "GA", "ga", "someone-new"), owned), false);
+  assert.equal(canReceiveIssueChange(viewer("requester", "GA"), audience), false);
   assert.equal(canReceiveIssueChange(viewer("administrator"), audience), true);
   assert.equal(canReceiveIssueChange(viewer("receptionist"), audience), true);
   assert.equal(canReceiveIssueChange(viewer("receptionist"), { ...audience, source: "manual" }), false);
@@ -128,8 +131,8 @@ test("SSE filters audiences and sends no request IDs, reasons or routing metadat
   const decoder = new TextDecoder();
   assert.match(decoder.decode((await reader.read()).value), /^retry: /);
   assert.equal(decoder.decode((await reader.read()).value), "event: ready\ndata: {}\n\n");
-  client.notify(JSON.stringify({ ...audience, division: "Unrelated" }));
-  client.notify(JSON.stringify(audience));
+  client.notify(JSON.stringify({ ...audience, requesterId: "unrelated" }));
+  client.notify(JSON.stringify({ ...audience, requesterId: "user" }));
   assert.equal(decoder.decode((await reader.read()).value), "event: changed\ndata: {}\n\n");
   await reader.cancel();
   abort.abort();

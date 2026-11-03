@@ -45,7 +45,7 @@ export function canViewServiceIssue(
   if (user.role === "administrator") return true;
   if (issue.requesterId === user.id) return true;
   if (
-    (user.role === "requester" || user.role === "service_agent") &&
+    user.role === "service_agent" &&
     user.divisionName &&
     user.divisionName === issue.requesterDivision
   ) {

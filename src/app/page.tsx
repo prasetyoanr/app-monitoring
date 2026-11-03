@@ -72,10 +72,7 @@ export default async function DashboardPage() {
   }).format(now);
 
   const quickActions = isRequester
-    ? [
-        { href: "/requests", label: "Create request", icon: Plus, primary: true },
-        { href: "/surveys", label: "Take survey", icon: FileText, primary: false },
-      ]
+    ? [{ href: "/requests", label: "Create request", icon: Plus, primary: true }]
     : isAdmin
       ? [
           { href: "/inbox", label: "Open Inbox", icon: Inbox, primary: true },

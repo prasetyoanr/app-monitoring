@@ -6,6 +6,7 @@ export const ISSUE_EVENT_CHANNEL = "ga_management_issue_changed";
 // Routing metadata stays on the server. SSE sends only an invalidation signal.
 export const issueAudienceSchema = z.object({
   division: z.string(),
+  requesterId: z.string().nullable().optional(),
   serviceDivisionId: z.string().nullable(),
   source: z.enum(["manual", "division_request"]),
   serviceLane: z.enum(["asset", "atk_rtk"]).nullable().optional(),
@@ -21,9 +22,10 @@ type Viewer = { id: string; role: AccountRole; serviceLane?: ServiceLane | null;
 
 export function canReceiveIssueChange(user: Viewer, issue: IssueAudience): boolean {
   if (user.role === "administrator") return true;
-  // Requester and service roles can track requests made by their own division.
+  // A requester tracks only their own requests; service agents track their division's.
+  if (user.role === "requester") return Boolean(issue.requesterId) && issue.requesterId === user.id;
   if (
-    (user.role === "requester" || user.role === "service_agent") &&
+    user.role === "service_agent" &&
     user.divisionName &&
     user.divisionName === issue.division
   ) return true;

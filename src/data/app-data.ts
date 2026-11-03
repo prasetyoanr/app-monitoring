@@ -318,7 +318,13 @@ export async function getDivisionRequestRecords(): Promise<TicketRecord[]> {
     .leftJoin(technicians, eq(troubleshootingIssues.requesterId, technicians.id))
     .leftJoin(assignedTechnicians, eq(troubleshootingIssues.assignedTechnicianId, assignedTechnicians.id))
     .innerJoin(masterDivisions, eq(troubleshootingIssues.serviceDivisionId, masterDivisions.id))
-    .where(eq(troubleshootingIssues.division, currentUser.divisionName));
+    // A requester only tracks requests they submitted; a new account must start empty even
+    // when its division already has history. Service agents follow their whole division.
+    .where(
+      currentUser.role === "requester"
+        ? eq(troubleshootingIssues.requesterId, currentUser.id)
+        : eq(troubleshootingIssues.division, currentUser.divisionName),
+    );
   const [rows, approvedRows] = await Promise.all([
     issueQuery.orderBy(desc(troubleshootingIssues.reportedAt), desc(troubleshootingIssues.id)),
     db

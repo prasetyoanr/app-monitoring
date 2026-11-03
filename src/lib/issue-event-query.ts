@@ -7,6 +7,7 @@ import { ISSUE_EVENT_CHANNEL } from "@/lib/issue-events";
 export function issueChangeQuery(issueId: string, channel = ISSUE_EVENT_CHANNEL): SQL {
   return sql`select pg_notify(${channel}, json_build_object(
     'division', ${issues.division},
+    'requesterId', ${issues.requesterId},
     'serviceDivisionId', ${issues.serviceDivisionId},
     'source', ${issues.source},
     'serviceLane', ${issues.serviceLane},

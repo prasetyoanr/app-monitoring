@@ -4,7 +4,7 @@
 
 | Role | Responsibility |
 | --- | --- |
-| `requester` | Submit and track requests from their division; no service or approval actions. |
+| `requester` | Submit and track only the requests they submitted themselves (a new account starts empty); no service or approval actions. |
 | `receptionist` | Admin GA reviews every new request; asks for approval, assigns directly, or resolves an administrative request. |
 | `approver` | Atasan GA decides requests, may escalate, and assigns work after approval. |
 | `final_approver` | The higher supervisor decides escalated requests; assignment returns to the original Atasan GA. |
