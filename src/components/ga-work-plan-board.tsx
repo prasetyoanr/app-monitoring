@@ -124,12 +124,14 @@ export function GaWorkPlanBoard({
   const [formOpen, setFormOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<GaWorkPlanStatus | "all">("all");
+  const [dateOrder, setDateOrder] = useState<"newest" | "oldest">("newest");
   const [viewMode, setViewMode] = useState<"list" | "grid">("list");
   const [viewingId, setViewingId] = useState("");
   const [editingId, setEditingId] = useState("");
   const [editingTargetMode, setEditingTargetMode] = useState<GaWorkPlanTargetMode>("date");
   const searchText = search.trim().toLocaleLowerCase("id-ID");
   const visiblePlans = plans.filter((plan) => (statusFilter === "all" || plan.status === statusFilter) && `${plan.title} ${plan.description} ${gaWorkPlanStatusLabel(plan.status)}`.toLocaleLowerCase("id-ID").includes(searchText));
+  if (dateOrder === "oldest") visiblePlans.reverse();
   const viewingPlan = plans.find((plan) => plan.id === viewingId) ?? null;
   const planGrid = "grid grid-cols-2 gap-x-3 gap-y-3 lg:items-center lg:gap-x-4 lg:grid-cols-[minmax(0,2.5fr)_minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1.15fr)_auto]";
 
@@ -235,7 +237,7 @@ export function GaWorkPlanBoard({
 
       <section className="overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.05)]">
         <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-4 py-4 sm:px-5">
-          <div className="flex min-w-0 items-center gap-3"><span className="grid size-9 shrink-0 place-items-center rounded-xl bg-indigo-50 text-indigo-600"><ClipboardList size={17} /></span><div className="min-w-0"><h2 className="truncate text-sm font-semibold text-slate-900">Activity Plan</h2><p className="mt-0.5 truncate text-xs text-slate-500">{memberName} · {plans.length} items</p><p className="mt-0.5 text-[10px] text-slate-400">Newest created or updated first</p></div></div>
+          <div className="flex min-w-0 items-center gap-3"><span className="grid size-9 shrink-0 place-items-center rounded-xl bg-indigo-50 text-indigo-600"><ClipboardList size={17} /></span><div className="min-w-0"><h2 className="truncate text-sm font-semibold text-slate-900">Activity Plan</h2><p className="mt-0.5 truncate text-xs text-slate-500">{memberName} · {plans.length} items</p><p className="mt-0.5 text-[10px] text-slate-400">{dateOrder === "newest" ? "Newest" : "Oldest"} created or updated first</p></div></div>
           <span className="shrink-0 rounded-full bg-slate-900 px-2.5 py-1 text-[10px] font-semibold text-white tabular-nums">{visiblePlans.length} shown</span>
         </div>
 
@@ -245,6 +247,11 @@ export function GaWorkPlanBoard({
           <select id="ga-plan-status-filter" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as GaWorkPlanStatus | "all")} className="h-9 min-w-32 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-700 outline-none focus:border-indigo-400">
             <option value="all">All statuses</option>
             {gaWorkPlanStatuses.map((status) => <option key={status} value={status}>{gaWorkPlanStatusLabel(status)}</option>)}
+          </select>
+          <label className="sr-only" htmlFor="ga-plan-date-order">Sort work plans by latest activity date</label>
+          <select id="ga-plan-date-order" value={dateOrder} onChange={(event) => setDateOrder(event.target.value as "newest" | "oldest")} className="h-9 min-w-32 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-700 outline-none focus:border-indigo-400">
+            <option value="newest">Newest first</option>
+            <option value="oldest">Oldest first</option>
           </select>
           <div className="inline-flex h-9 items-center rounded-lg border border-slate-200 bg-slate-50 p-0.5" role="group" aria-label="Work plan view">
             <button type="button" aria-label="List view" aria-pressed={viewMode === "list"} title="List view" onClick={() => setViewMode("list")} className={`grid size-8 place-items-center rounded-md transition ${viewMode === "list" ? "bg-white text-indigo-700 shadow-sm" : "text-slate-500 hover:text-slate-800"}`}><List size={16} /></button>
