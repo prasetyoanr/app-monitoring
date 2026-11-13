@@ -43,7 +43,7 @@ function WorkPlanNote({ id, description }: { id: string; description: string }) 
   const canCollapse = description.length > 60 || description.split(/\r?\n/).length > 2;
   return (
     <div className="mt-0.5 min-w-0">
-      <p id={`ga-plan-note-${id}`} className={`whitespace-pre-wrap break-words text-[11px] leading-4 text-slate-500 ${canCollapse && !expanded ? "line-clamp-2" : ""}`}>
+      <p id={`ga-plan-note-${id}`} className={`whitespace-pre-wrap break-words text-sm leading-5 text-slate-700 ${canCollapse && !expanded ? "line-clamp-2" : ""}`}>
         {description}
       </p>
       {canCollapse ? <button type="button" aria-expanded={expanded} aria-controls={`ga-plan-note-${id}`} onClick={() => setExpanded((current) => !current)} style={{ fontSize: 10, fontWeight: 500 }} className="mt-0.5 inline-flex items-center gap-0.5 rounded text-indigo-700 hover:text-indigo-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500">
@@ -69,7 +69,7 @@ function WorkPlanDetailsDialog({ plan, memberName, onClose }: { plan: GaWorkPlan
         <header className="flex items-start justify-between gap-3 bg-[#004d32] px-4 py-3.5 text-white sm:px-5">
           <div className="min-w-0">
             <p className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-emerald-100">Work plan detail <span aria-hidden="true">·</span><UserRound size={11} className="shrink-0" /><span className="truncate normal-case tracking-normal">{memberName}</span></p>
-            <h2 id="ga-plan-detail-title" className="mt-1.5 break-words text-base font-bold leading-6 text-white">{plan.title}</h2>
+            <h2 id="ga-plan-detail-title" className="mt-1.5 break-words text-lg font-bold leading-6 text-white">{plan.title}</h2>
           </div>
           <button ref={closeRef} type="button" onClick={onClose} aria-label="Close work plan detail" className="grid size-8 shrink-0 place-items-center rounded-lg border border-white/25 bg-white/10 text-white transition-colors hover:bg-white/20 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"><X size={16} /></button>
         </header>
@@ -270,11 +270,11 @@ export function GaWorkPlanBoard({
                   <span aria-hidden="true" className={`absolute ${viewMode === "grid" ? "inset-x-0 top-0 h-1" : "inset-y-0 left-0 w-1"} ${statusStrip[plan.status]}`} />
                   <div className={viewMode === "grid" ? "grid grid-cols-2 gap-x-3 gap-y-3 p-4 pt-5" : `${planGrid} px-4 py-3.5 pl-5 sm:px-5 sm:pl-6`}>
                     <div className={viewMode === "grid" ? "col-span-2 min-w-0" : "col-span-2 min-w-0 lg:col-span-1"}>
-                      <div className="flex items-start gap-2">
-                        <span className="grid min-w-5 shrink-0 place-items-center rounded bg-indigo-50 px-1 text-[10px] font-bold leading-5 tabular-nums text-indigo-700">{index + 1}</span>
+                      <div className="flex items-start gap-2.5">
+                        <span className="grid size-7 shrink-0 place-items-center rounded-lg bg-indigo-100 text-sm font-bold tabular-nums text-indigo-800 ring-1 ring-inset ring-indigo-200">{index + 1}</span>
                         <div className="min-w-0 flex-1">
-                          <h3 className="break-words text-xs font-bold leading-5 text-slate-900">{plan.title}</h3>
-                          {plan.description ? <WorkPlanNote id={plan.id} description={plan.description} /> : <p className="mt-0.5 text-[11px] text-slate-400">No notes</p>}
+                          <h3 className="break-words text-normal font-bold leading-7 text-slate-950">{plan.title}</h3>
+                          {plan.description ? <WorkPlanNote id={plan.id} description={plan.description} /> : <p className="mt-0.5 text-xs text-slate-500">No notes</p>}
                         </div>
                       </div>
                     </div>
@@ -295,10 +295,10 @@ export function GaWorkPlanBoard({
                       ) : <span className={`inline-flex rounded-md px-2 py-1 text-[10px] font-bold ${statusTone[plan.status]}`}>{gaWorkPlanStatusLabel(plan.status)}</span>}
                     </div>
                     <div className="flex items-end justify-end gap-1 lg:items-center">
-                        <button type="button" onClick={(event) => { lastViewButtonRef.current = event.currentTarget; setViewingId(plan.id); }} aria-label={`View ${plan.title}`} title="View work plan" className="grid size-9 place-items-center rounded-lg text-slate-500 transition hover:bg-indigo-50 hover:text-indigo-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500"><Eye size={16} /></button>
+                        <button type="button" onClick={(event) => { lastViewButtonRef.current = event.currentTarget; setViewingId(plan.id); }} aria-label={`View ${plan.title}`} title="View work plan" className="grid size-9 place-items-center rounded-lg bg-indigo-50 text-indigo-700 transition hover:bg-indigo-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500"><Eye size={16} /></button>
                       {canEdit ? <>
-                        <button type="button" disabled={pending} onClick={() => { setEditingId(editingId === plan.id ? "" : plan.id); setEditingTargetMode(plan.targetMode); }} aria-label={`Edit ${plan.title}`} className="grid size-9 place-items-center rounded-lg text-slate-500 transition hover:bg-indigo-50 hover:text-indigo-700 disabled:opacity-50"><Pencil size={15} /></button>
-                        <button type="button" disabled={pending} onClick={() => deletePlan(plan.id)} aria-label={`Delete ${plan.title}`} className="grid size-9 place-items-center rounded-lg text-slate-500 transition hover:bg-rose-50 hover:text-rose-700 disabled:opacity-50"><Trash2 size={15} /></button>
+                        <button type="button" disabled={pending} onClick={() => { setEditingId(editingId === plan.id ? "" : plan.id); setEditingTargetMode(plan.targetMode); }} aria-label={`Edit ${plan.title}`} className="grid size-9 place-items-center rounded-lg bg-blue-50 text-blue-700 transition hover:bg-blue-100 disabled:opacity-50"><Pencil size={15} /></button>
+                        <button type="button" disabled={pending} onClick={() => deletePlan(plan.id)} aria-label={`Delete ${plan.title}`} className="grid size-9 place-items-center rounded-lg bg-rose-50 text-rose-700 transition hover:bg-rose-100 disabled:opacity-50"><Trash2 size={15} /></button>
                       </> : null}
                     </div>
                   </div>
