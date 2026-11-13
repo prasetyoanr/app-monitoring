@@ -50,10 +50,10 @@ export function GaActivityPeriodFilter({
       ) : (
         <>
           <label className="min-w-0 text-center text-[10px] font-semibold text-slate-500 sm:w-32">From
-            <input name="date" type="date" required value={startDate} max={endDate || undefined} onChange={(event) => setStartDate(event.target.value)} className={dateClass} />
+            <input name="date" type="date" required value={startDate} onChange={(event) => { const next = event.target.value; setStartDate(next); if (endDate && next > endDate) setEndDate(next); }} className={dateClass} />
           </label>
           <label className="min-w-0 text-center text-[10px] font-semibold text-slate-500 sm:w-32">To
-            <input name="end" type="date" required value={endDate} min={startDate || undefined} onChange={(event) => setEndDate(event.target.value)} className={dateClass} />
+            <input name="end" type="date" required value={endDate} onChange={(event) => { const next = event.target.value; setEndDate(next); if (startDate && next < startDate) setStartDate(next); }} className={dateClass} />
           </label>
         </>
       )}
