@@ -6,7 +6,7 @@ import { alias } from "drizzle-orm/pg-core";
 import { isITDivisionName, requireAuthenticatedUser, type AuthenticatedUser } from "@/auth/session";
 import { getAdminOperationRecords } from "@/data/admin-operations";
 import { AUDIT_LOG_EXPORT_LIMIT, getAuditLogExportRecords } from "@/data/audit-log-data";
-import { canKeepGaWorkPlan, roleMayKeepGaWorkPlan } from "@/data/ga-workspace";
+import { activeNonItGaMembers, canKeepGaWorkPlan, roleMayKeepGaWorkPlan } from "@/data/ga-workspace";
 import { gaWorkPlansForPeriod } from "@/data/ga-work-plan-period";
 import { serviceInboxScope } from "@/data/issue-scope";
 import { getSystemHealth } from "@/data/system-health";
@@ -298,7 +298,7 @@ async function inboxSheet(user: AuthenticatedUser, period: { start: string; end:
 // ---------- GA Activity: work plans ----------
 const planColumns: ReportColumn[] = [
   { header: "No.", key: "no", width: 6, align: "center" },
-  { header: "Period (Fri–Thu)", key: "period", width: 22 },
+  { header: "Created", key: "created", width: 17 },
   { header: "Work plan", key: "title", width: 36, wrap: true },
   { header: "Description", key: "description", width: 46, wrap: true },
   { header: "Target", key: "target", width: 16, align: "center" },
@@ -314,6 +314,7 @@ async function gaActivitySheets(user: AuthenticatedUser, period: { start: string
       member: technicians.name,
       division: masterDivisions.name,
       weekStart: gaWorkPlanItems.weekStart,
+      createdAt: gaWorkPlanItems.createdAt,
       targetMode: gaWorkPlanItems.targetMode,
       targetDate: gaWorkPlanItems.targetDate,
       title: gaWorkPlanItems.title,
@@ -333,14 +334,9 @@ async function gaActivitySheets(user: AuthenticatedUser, period: { start: string
     .orderBy(asc(technicians.name), asc(gaWorkPlanItems.weekStart), asc(gaWorkPlanItems.createdAt))
     .limit(REPORT_ROW_LIMIT + 1));
 
-  const weekEnd = (weekStart: string) => {
-    const date = new Date(`${weekStart}T00:00:00Z`);
-    date.setUTCDate(date.getUTCDate() + 6);
-    return date.toISOString().slice(0, 10);
-  };
   const toRow = (row: (typeof rows)[number], index: number): Record<string, ReportCell> => ({
     no: index + 1,
-    period: `${displayDate(row.weekStart)} – ${displayDate(weekEnd(row.weekStart))}`,
+    created: displayDateTime(row.createdAt),
     title: row.title,
     description: row.description || "—",
     target: row.targetMode === "until_completed" ? "Until done" : row.targetDate ? displayDate(row.targetDate) : "—",
@@ -586,17 +582,24 @@ export async function buildRoleReportForUser(user: AuthenticatedUser, input: {
 export async function listReportGaMembers() {
   const user = await requireAuthenticatedUser();
   if (!reportSeesAllData(user.role)) return [];
-  const rows = await db
+  const [rows, activeGaMembers] = await Promise.all([db
     .select({ id: technicians.id, name: technicians.name, role: technicians.role, division: masterDivisions.name })
     .from(gaWorkPlanItems)
     .innerJoin(technicians, eq(gaWorkPlanItems.memberId, technicians.id))
     .leftJoin(masterDivisions, eq(technicians.divisionId, masterDivisions.id))
     .groupBy(technicians.id, technicians.name, technicians.role, masterDivisions.name)
-    .orderBy(asc(technicians.name));
+    .orderBy(asc(technicians.name)), activeNonItGaMembers()]);
   const members = rows.map((row) => ({ id: row.id, name: row.name, role: row.role, isIt: isITDivisionName(row.division) }));
 
+  // The report selector includes every member card, even when that member has no plan yet.
   // IT accounts keep no GA work plan but are part of the report too.
   const known = new Set(members.map((member) => member.id));
+  for (const account of activeGaMembers) {
+    if (!known.has(account.id)) {
+      members.push({ id: account.id, name: account.name, role: account.role, isIt: false });
+      known.add(account.id);
+    }
+  }
   const accounts = await db
     .select({ id: technicians.id, name: technicians.name, role: technicians.role, division: masterDivisions.name })
     .from(technicians)

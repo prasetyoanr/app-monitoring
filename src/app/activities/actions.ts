@@ -7,7 +7,7 @@ import { db } from "@/db";
 import { auditLogs, gaSpreadsheetReports, gaSpreadsheetReportViewers, gaWorkPlanItems, masterDivisions, technicians, troubleshootingIssues } from "@/db/schema";
 import { getCurrentGaWorkPlanMember } from "@/data/ga-workspace";
 import type { ActionResult } from "@/data/types";
-import { gaWorkPlanStatuses, reportingPeriodStartForDate, shiftDate, workPlanInputError, type GaWorkPlanStatus } from "@/lib/ga-work-plan";
+import { gaWorkPlanStatuses, reportingPeriodStartForDate, workPlanInputError, type GaWorkPlanStatus } from "@/lib/ga-work-plan";
 import { jakartaDateInput } from "@/lib/jakarta-date";
 import { generateRecordId } from "@/lib/record-id";
 import { issueChangeQuery } from "@/lib/issue-event-query";
@@ -57,16 +57,11 @@ export async function createGaWorkPlanAction(form: FormData): Promise<ActionResu
     const member = await getCurrentGaWorkPlanMember();
     const title = String(form.get("title") ?? "").trim();
     const description = String(form.get("description") ?? "").trim();
-    const weekStart = String(form.get("weekStart") ?? "").trim();
+    const weekStart = reportingPeriodStartForDate(jakartaDateInput());
     const targetMode = String(form.get("targetMode") ?? "").trim();
     const targetDate = targetMode === "date" ? String(form.get("targetDate") ?? "").trim() : "";
     const validationError = workPlanInputError({ title, description, weekStart, targetMode, targetDate });
     if (validationError) throw new Error(validationError);
-
-    const currentPeriod = reportingPeriodStartForDate(jakartaDateInput());
-    if (weekStart < shiftDate(currentPeriod, -56) || weekStart > shiftDate(currentPeriod, 84)) {
-      throw new Error("Work plans can only be created from 8 weeks ago through 12 weeks ahead.");
-    }
 
     await db.transaction(async (tx) => {
       const rows = await tx.insert(gaWorkPlanItems).values({
@@ -93,6 +88,70 @@ export async function createGaWorkPlanAction(form: FormData): Promise<ActionResu
   } catch (error) {
     console.error("Unable to create GA work plan item", error);
     return { ok: false, error: error instanceof Error ? error.message : "The work plan could not be saved." };
+  }
+}
+
+export async function updateGaWorkPlanAction(input: {
+  id: string;
+  title: string;
+  description: string;
+  targetMode: string;
+  targetDate: string;
+}): Promise<ActionResult> {
+  try {
+    const member = await getCurrentGaWorkPlanMember();
+    if (!uuidPattern.test(input.id)) throw new Error("Invalid work plan item.");
+    const targetDate = input.targetMode === "date" ? input.targetDate.trim() : "";
+    const validationError = workPlanInputError({
+      title: input.title, description: input.description,
+      weekStart: reportingPeriodStartForDate(jakartaDateInput()),
+      targetMode: input.targetMode, targetDate,
+    });
+    if (validationError) throw new Error(validationError);
+    await db.transaction(async (tx) => {
+      const [row] = await tx.update(gaWorkPlanItems).set({
+        title: input.title.trim(), description: input.description.trim(),
+        targetMode: input.targetMode as "date" | "until_completed",
+        targetDate: targetDate || null, updatedAt: new Date(),
+      }).where(and(eq(gaWorkPlanItems.id, input.id), eq(gaWorkPlanItems.memberId, member.id)))
+        .returning({ id: gaWorkPlanItems.id });
+      if (!row) throw new Error("Work plan item was not found or is not yours.");
+      await tx.insert(auditLogs).values({
+        actorType: "technician", actorId: member.id, action: "ga.work_plan.updated",
+        entityType: "ga_work_plan_item", entityId: input.id,
+        metadata: { title: input.title.trim(), targetMode: input.targetMode, targetDate: targetDate || null },
+      });
+    });
+    revalidatePath("/activities");
+    revalidatePath("/reports");
+    return { ok: true, data: undefined };
+  } catch (error) {
+    console.error("Unable to edit GA work plan item", error);
+    return { ok: false, error: error instanceof Error ? error.message : "The work plan could not be updated." };
+  }
+}
+
+export async function deleteGaWorkPlanAction(id: string): Promise<ActionResult> {
+  try {
+    const member = await getCurrentGaWorkPlanMember();
+    if (!uuidPattern.test(id)) throw new Error("Invalid work plan item.");
+    await db.transaction(async (tx) => {
+      const [row] = await tx.delete(gaWorkPlanItems)
+        .where(and(eq(gaWorkPlanItems.id, id), eq(gaWorkPlanItems.memberId, member.id)))
+        .returning({ id: gaWorkPlanItems.id, title: gaWorkPlanItems.title });
+      if (!row) throw new Error("Work plan item was not found or is not yours.");
+      await tx.insert(auditLogs).values({
+        actorType: "technician", actorId: member.id, action: "ga.work_plan.deleted",
+        entityType: "ga_work_plan_item", entityId: id,
+        metadata: { title: row.title },
+      });
+    });
+    revalidatePath("/activities");
+    revalidatePath("/reports");
+    return { ok: true, data: undefined };
+  } catch (error) {
+    console.error("Unable to delete GA work plan item", error);
+    return { ok: false, error: error instanceof Error ? error.message : "The work plan could not be deleted." };
   }
 }
 

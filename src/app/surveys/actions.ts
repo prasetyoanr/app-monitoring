@@ -1,7 +1,7 @@
 "use server";
 
 import { randomBytes, randomUUID } from "node:crypto";
-import { and, count, eq, gt, inArray, isNull, ne, or } from "drizzle-orm";
+import { and, count, eq, gt, inArray, isNull, ne, or, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { cookies, headers } from "next/headers";
 import { after } from "next/server";
@@ -14,6 +14,8 @@ import { requireITRoleUser } from "@/auth/session";
 import { db } from "@/db";
 import {
   auditLogs,
+  kpiReviewEvents,
+  kpiScorecards,
   surveyAnswerAnalyses,
   surveyAnswers,
   surveyForms,
@@ -102,6 +104,7 @@ function revalidateSurveys() {
   revalidatePath("/");
   revalidatePath("/surveys");
   revalidatePath("/reports");
+  revalidatePath("/kpi");
 }
 
 export async function createSurveyAction(input: {
@@ -449,6 +452,10 @@ export async function deleteSurveyAction(id: string): Promise<ActionResult> {
   try {
     if (!validUuid(id)) throw new Error("Invalid survey ID.");
     await db.transaction(async (tx) => {
+      const linked = JSON.stringify([{ surveyIds: [id] }]);
+      const [activeLink] = await tx.select({ id: kpiScorecards.id }).from(kpiScorecards).where(sql`${kpiScorecards.items} @> ${linked}::jsonb`).limit(1);
+      const [historicalLink] = await tx.select({ id: kpiReviewEvents.id }).from(kpiReviewEvents).where(sql`${kpiReviewEvents.itemsSnapshot} @> ${linked}::jsonb`).limit(1);
+      if (activeLink || historicalLink) throw new Error("Survei ini terhubung ke KPI dan tidak dapat dihapus agar nilai serta riwayatnya tetap dapat diperiksa.");
       await tx.insert(auditLogs).values({
         actorType: "technician",
         actorId: currentUser.id,

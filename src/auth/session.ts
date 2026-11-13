@@ -11,6 +11,7 @@ import { db } from "@/db";
 import { authSessions, masterDivisions, technicians } from "@/db/schema";
 import type { AccountRole, ServiceLane } from "@/data/types";
 import { HEARTBEAT_WRITE_INTERVAL_MS, SESSION_TOUCH_INTERVAL_MS } from "@/lib/presence";
+import { retryTransientDatabaseRead } from "@/lib/db-read-retry";
 import { recordAuthorizationDenied } from "@/security/audit";
 
 const SESSION_DURATION_MS = 4 * 60 * 60 * 1000;
@@ -149,7 +150,7 @@ export async function findUserBySessionToken(
 ): Promise<AuthenticatedUser | null> {
   if (!isSessionToken(token)) return null;
 
-  const [row] = await db
+  const [row] = await retryTransientDatabaseRead("session", async () => db
       .select({
         id: technicians.id,
         name: technicians.name,
@@ -177,7 +178,7 @@ export async function findUserBySessionToken(
           eq(technicians.isActive, true),
         ),
       )
-      .limit(1);
+      .limit(1));
 
     if (!row?.username) return null;
     void touchSession(token);

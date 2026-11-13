@@ -1,18 +1,18 @@
 "use client";
 
-import { CalendarDays, CheckCircle2, ChevronDown, ClipboardList, LoaderCircle, Plus } from "lucide-react";
+import { CalendarDays, CheckCircle2, ChevronDown, ClipboardList, LoaderCircle, Pencil, Plus, Search, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
 
-import { createGaWorkPlanAction, updateGaWorkPlanStatusAction } from "@/app/activities/actions";
+import { createGaWorkPlanAction, deleteGaWorkPlanAction, updateGaWorkPlanAction, updateGaWorkPlanStatusAction } from "@/app/activities/actions";
 import type { GaWorkPlanRecord } from "@/data/ga-workspace";
 import { gaWorkPlanStatusLabel, gaWorkPlanStatuses, type GaWorkPlanStatus, type GaWorkPlanTargetMode } from "@/lib/ga-work-plan";
 
 const dateFormat = new Intl.DateTimeFormat("en-GB", {
-  timeZone: "UTC",
-  weekday: "short",
+  timeZone: "Asia/Jakarta",
   day: "2-digit",
   month: "short",
+  year: "numeric",
 });
 
 const statusTone: Record<GaWorkPlanStatus, string> = {
@@ -31,15 +31,13 @@ const statusStrip: Record<GaWorkPlanStatus, string> = {
 
 export function GaWorkPlanBoard({
   memberName,
-  periodStart,
-  selectedDate,
+  defaultTargetDate,
   plans,
   canEdit,
   amberCta = false,
 }: {
   memberName: string;
-  periodStart: string;
-  selectedDate?: string;
+  defaultTargetDate: string;
   plans: GaWorkPlanRecord[];
   canEdit: boolean;
   amberCta?: boolean;
@@ -51,6 +49,13 @@ export function GaWorkPlanBoard({
   const [message, setMessage] = useState("");
   const [targetMode, setTargetMode] = useState<GaWorkPlanTargetMode>("date");
   const [formOpen, setFormOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const [editingId, setEditingId] = useState("");
+  const [editingTargetMode, setEditingTargetMode] = useState<GaWorkPlanTargetMode>("date");
+  const visiblePlans = plans.filter((plan) => `${plan.title} ${plan.description} ${gaWorkPlanStatusLabel(plan.status)}`.toLocaleLowerCase("id-ID").includes(search.trim().toLocaleLowerCase("id-ID")));
+  const planGrid = `grid grid-cols-2 gap-x-3 gap-y-3 lg:items-center lg:gap-x-4 ${canEdit
+    ? "lg:grid-cols-[minmax(0,2.5fr)_minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1.15fr)_auto]"
+    : "lg:grid-cols-[minmax(0,2.5fr)_minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1.15fr)]"}`;
 
   function submitPlan(form: HTMLFormElement) {
     const data = new FormData(form);
@@ -87,6 +92,40 @@ export function GaWorkPlanBoard({
     });
   }
 
+  function submitEdit(form: HTMLFormElement) {
+    const values = new FormData(form);
+    startTransition(async () => {
+      setMessage("");
+      try {
+        const result = await updateGaWorkPlanAction({
+          id: editingId,
+          title: String(values.get("title") ?? ""),
+          description: String(values.get("description") ?? ""),
+          targetMode: editingTargetMode,
+          targetDate: editingTargetMode === "date" ? String(values.get("targetDate") ?? "") : "",
+        });
+        setMessage(result.ok ? "Work plan updated." : result.error);
+        if (result.ok) { setEditingId(""); router.refresh(); }
+      } catch {
+        setMessage("Unable to contact the server. Please try again.");
+      }
+    });
+  }
+
+  function deletePlan(id: string) {
+    if (!window.confirm("Delete this work plan? This cannot be undone.")) return;
+    startTransition(async () => {
+      setMessage("");
+      try {
+        const result = await deleteGaWorkPlanAction(id);
+        setMessage(result.ok ? "Work plan deleted." : result.error);
+        if (result.ok) { setEditingId(""); router.refresh(); }
+      } catch {
+        setMessage("Unable to contact the server. Please try again.");
+      }
+    });
+  }
+
   return (
     <div className="grid gap-4 font-[inherit]">
       {canEdit ? <section className="overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.05)]">
@@ -100,11 +139,10 @@ export function GaWorkPlanBoard({
 
         {formOpen ? <div id="ga-work-plan-form" className="border-t border-slate-100 bg-slate-50/60 p-4 sm:p-5">
           <form ref={formRef} className="grid gap-3 sm:grid-cols-2" onSubmit={(event) => { event.preventDefault(); submitPlan(event.currentTarget); }}>
-            <input type="hidden" name="weekStart" value={periodStart} />
             <label className="text-xs font-medium text-slate-600">Plan title<input name="title" required minLength={3} maxLength={200} disabled={pending} placeholder="Example: Inspect meeting rooms" className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-xs font-normal text-slate-700 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100" /></label>
             <div className="grid gap-3 sm:grid-cols-2">
               <label className="text-xs font-medium text-slate-600">Target type<select name="targetMode" value={targetMode} disabled={pending} onChange={(event) => setTargetMode(event.target.value as GaWorkPlanTargetMode)} className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 bg-white px-2.5 text-xs font-normal text-slate-700 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"><option value="date">Specific date</option><option value="until_completed">Until completed</option></select></label>
-              {targetMode === "date" ? <label className="text-xs font-medium text-slate-600">Target date<input name="targetDate" type="date" required defaultValue={selectedDate ?? periodStart} disabled={pending} className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 bg-white px-2.5 text-xs font-normal text-slate-700 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100" /></label> : <div className="rounded-xl border border-dashed border-indigo-200 bg-indigo-50/70 px-3 py-2"><p className="text-xs font-semibold text-indigo-600">Open target</p><p className="mt-1 text-xs leading-4 text-slate-600">Runs until marked Completed.</p></div>}
+              {targetMode === "date" ? <label className="text-xs font-medium text-slate-600">Target date<input name="targetDate" type="date" required defaultValue={defaultTargetDate} disabled={pending} className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 bg-white px-2.5 text-xs font-normal text-slate-700 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100" /></label> : <div className="rounded-xl border border-dashed border-indigo-200 bg-indigo-50/70 px-3 py-2"><p className="text-xs font-semibold text-indigo-600">Open target</p><p className="mt-1 text-xs leading-4 text-slate-600">Runs until marked Completed.</p></div>}
             </div>
             <label className="text-xs font-medium text-slate-600 sm:col-span-2">Plan notes<textarea name="description" maxLength={2000} rows={2} disabled={pending} placeholder="Optional scope, location, or expected result" className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white p-3 text-xs font-normal text-slate-700 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100" /></label>
             <button type="submit" disabled={pending} className={`inline-flex h-10 items-center justify-center gap-2 rounded-xl px-4 text-xs font-bold transition active:scale-[0.98] disabled:cursor-wait disabled:opacity-60 sm:col-start-2 ${amberCta ? "bg-amber-400 text-slate-900 hover:bg-amber-300" : "bg-slate-900 text-white hover:bg-slate-700"}`}>{pending && !updatingId ? <LoaderCircle size={14} className="animate-spin" /> : <CalendarDays size={14} />} Save Work Plan</button>
@@ -117,20 +155,62 @@ export function GaWorkPlanBoard({
       <section className="overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.05)]">
         <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-4 py-4 sm:px-5">
           <div className="flex min-w-0 items-center gap-3"><span className="grid size-9 shrink-0 place-items-center rounded-xl bg-indigo-50 text-indigo-600"><ClipboardList size={17} /></span><div className="min-w-0"><h2 className="truncate text-sm font-semibold text-slate-900">Activity Plan</h2><p className="mt-0.5 truncate text-xs text-slate-500">{memberName} · {plans.length} items</p></div></div>
-          <span className="shrink-0 rounded-full bg-slate-900 px-2.5 py-1 text-[10px] font-semibold text-white tabular-nums">{selectedDate ? "By date" : "Fri–Thu"}</span>
+          <span className="shrink-0 rounded-full bg-slate-900 px-2.5 py-1 text-[10px] font-semibold text-white tabular-nums">{visiblePlans.length} shown</span>
         </div>
 
-        {plans.length ? <div className="grid gap-2.5 p-3 sm:p-4">{plans.map((plan) => <article key={plan.id} className="overflow-hidden rounded-xl border border-slate-200/90 bg-white transition hover:shadow-md">
-          <span aria-hidden="true" className={`block h-1 ${statusStrip[plan.status]}`} />
-          <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-start sm:justify-between">
-            <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-2"><h3 className="text-sm font-semibold text-slate-900">{plan.title}</h3><span className={`rounded-md px-2 py-1 text-[10px] font-semibold ${statusTone[plan.status]}`}>{gaWorkPlanStatusLabel(plan.status)}</span></div>
-              <p className="mt-1.5 inline-flex items-center gap-1.5 text-xs font-medium text-slate-500"><CalendarDays size={12} className="text-slate-400" />{plan.targetMode === "until_completed" || !plan.targetDate ? "Target until completed" : `Target ${dateFormat.format(new Date(`${plan.targetDate}T00:00:00Z`))}`}</p>
-              {plan.description ? <p className="mt-2 whitespace-pre-wrap text-xs leading-5 text-slate-600">{plan.description}</p> : null}
+        <label className="relative block border-b border-slate-100 px-4 py-3 sm:px-5"><span className="sr-only">Search work plans</span><Search size={14} className="pointer-events-none absolute left-7 top-1/2 -translate-y-1/2 text-slate-400 sm:left-8" /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search plan, notes, or status" className="h-9 w-full rounded-lg border border-slate-200 bg-white pl-9 pr-3 text-xs text-slate-700 outline-none focus:border-indigo-400" /></label>
+
+        {visiblePlans.length ? (
+          <div>
+            <div className={`${planGrid} border-b border-slate-200 bg-slate-50 px-5 py-2.5 text-[10px] font-bold uppercase tracking-wide text-slate-500 max-lg:hidden`}>
+              <span>Work plan</span><span>Target</span><span>Created</span><span>Status</span>{canEdit ? <span className="text-right">Actions</span> : null}
             </div>
-            {canEdit ? <label className="shrink-0 text-xs font-medium text-slate-500">Status<select key={`${plan.id}-${plan.status}`} defaultValue={plan.status} disabled={pending && updatingId === plan.id} onChange={(event) => updateStatus(plan.id, event.target.value as GaWorkPlanStatus)} className="mt-1 block h-9 cursor-pointer rounded-lg border border-slate-200 bg-slate-50 px-2 text-xs font-medium text-slate-700 outline-none hover:border-slate-300 focus:border-indigo-400">{gaWorkPlanStatuses.map((status) => <option key={status} value={status}>{gaWorkPlanStatusLabel(status)}</option>)}</select></label> : null}
+            <div className="divide-y divide-slate-100">
+              {visiblePlans.map((plan) => (
+                <article key={plan.id} className="relative bg-white transition-colors hover:bg-slate-50/70 even:bg-slate-50/40">
+                  <span aria-hidden="true" className={`absolute inset-y-0 left-0 w-1 ${statusStrip[plan.status]}`} />
+                  <div className={`${planGrid} px-4 py-3.5 pl-5 sm:px-5 sm:pl-6`}>
+                    <div className="col-span-2 min-w-0 lg:col-span-1">
+                      <h3 className="break-words text-xs font-bold leading-5 text-slate-900">{plan.title}</h3>
+                      {plan.description ? <p className="mt-0.5 line-clamp-2 whitespace-pre-wrap text-[11px] leading-4 text-slate-500" title={plan.description}>{plan.description}</p> : <p className="mt-0.5 text-[11px] text-slate-400">No notes</p>}
+                    </div>
+                    <div className="min-w-0 text-[11px] font-medium text-slate-700">
+                      <span className="mb-0.5 block text-[9px] font-bold uppercase text-slate-400 lg:hidden">Target</span>
+                      {plan.targetMode === "until_completed" || !plan.targetDate ? "Until completed" : dateFormat.format(new Date(`${plan.targetDate}T00:00:00Z`))}
+                    </div>
+                    <div className="min-w-0 text-[11px] text-slate-600">
+                      <span className="mb-0.5 block text-[9px] font-bold uppercase text-slate-400 lg:hidden">Created</span>
+                      {dateFormat.format(new Date(plan.createdAt))}
+                    </div>
+                    <div className="min-w-0">
+                      <span className="mb-0.5 block text-[9px] font-bold uppercase text-slate-400 lg:hidden">Status</span>
+                      {canEdit ? (
+                        <select key={`${plan.id}-${plan.status}`} aria-label={`Status for ${plan.title}`} defaultValue={plan.status} disabled={pending} onChange={(event) => updateStatus(plan.id, event.target.value as GaWorkPlanStatus)} className="h-9 w-full max-w-36 rounded-lg border border-slate-200 bg-white px-2 text-[11px] font-semibold text-slate-700 outline-none focus:border-indigo-400 disabled:opacity-60">
+                          {gaWorkPlanStatuses.map((status) => <option key={status} value={status}>{gaWorkPlanStatusLabel(status)}</option>)}
+                        </select>
+                      ) : <span className={`inline-flex rounded-md px-2 py-1 text-[10px] font-bold ${statusTone[plan.status]}`}>{gaWorkPlanStatusLabel(plan.status)}</span>}
+                    </div>
+                    {canEdit ? (
+                      <div className="flex items-end justify-end gap-1 lg:items-center">
+                        <button type="button" disabled={pending} onClick={() => { setEditingId(editingId === plan.id ? "" : plan.id); setEditingTargetMode(plan.targetMode); }} aria-label={`Edit ${plan.title}`} className="grid size-9 place-items-center rounded-lg text-slate-500 transition hover:bg-indigo-50 hover:text-indigo-700 disabled:opacity-50"><Pencil size={15} /></button>
+                        <button type="button" disabled={pending} onClick={() => deletePlan(plan.id)} aria-label={`Delete ${plan.title}`} className="grid size-9 place-items-center rounded-lg text-slate-500 transition hover:bg-rose-50 hover:text-rose-700 disabled:opacity-50"><Trash2 size={15} /></button>
+                      </div>
+                    ) : null}
+                  </div>
+                  {canEdit && editingId === plan.id ? (
+                    <form className="grid gap-3 border-t border-slate-100 bg-indigo-50/40 p-4 sm:grid-cols-2" onSubmit={(event) => { event.preventDefault(); submitEdit(event.currentTarget); }}>
+                      <label className="text-xs font-medium text-slate-600">Plan title<input name="title" required minLength={3} maxLength={200} defaultValue={plan.title} disabled={pending} className="mt-1 w-full rounded-lg border border-slate-200 bg-white p-2 text-xs" /></label>
+                      <label className="text-xs font-medium text-slate-600">Target type<select value={editingTargetMode} onChange={(event) => setEditingTargetMode(event.target.value as GaWorkPlanTargetMode)} disabled={pending} className="mt-1 w-full rounded-lg border border-slate-200 bg-white p-2 text-xs"><option value="date">Specific date</option><option value="until_completed">Until completed</option></select></label>
+                      {editingTargetMode === "date" ? <label className="text-xs font-medium text-slate-600">Target date<input name="targetDate" type="date" required defaultValue={plan.targetDate ?? defaultTargetDate} disabled={pending} className="mt-1 w-full rounded-lg border border-slate-200 bg-white p-2 text-xs" /></label> : null}
+                      <label className="text-xs font-medium text-slate-600 sm:col-span-2">Plan notes<textarea name="description" maxLength={2000} rows={2} defaultValue={plan.description} disabled={pending} className="mt-1 w-full rounded-lg border border-slate-200 bg-white p-2 text-xs" /></label>
+                      <div className="flex gap-2 sm:col-span-2"><button type="submit" disabled={pending} className="rounded-lg bg-slate-900 px-4 py-2 text-xs font-semibold text-white disabled:opacity-50">Save changes</button><button type="button" disabled={pending} onClick={() => setEditingId("")} className="rounded-lg border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600">Cancel</button></div>
+                    </form>
+                  ) : null}
+                </article>
+              ))}
+            </div>
           </div>
-        </article>)}</div> : <div className="px-5 py-12 text-center"><span className="mx-auto grid size-11 place-items-center rounded-2xl bg-slate-100 text-slate-400"><CheckCircle2 size={20} /></span><p className="mt-3 text-sm font-semibold text-slate-700">No activity plan yet</p><p className="mt-1 text-xs text-slate-400">{canEdit ? "Use Add Work Plan above to create the first plan." : "This staff account has not added a plan for this selection."}</p></div>}
+        ) : <div className="px-5 py-12 text-center"><span className="mx-auto grid size-11 place-items-center rounded-2xl bg-slate-100 text-slate-400"><CheckCircle2 size={20} /></span><p className="mt-3 text-sm font-semibold text-slate-700">{search ? "No matching plans" : "No activity plan yet"}</p><p className="mt-1 text-xs text-slate-400">{search ? "Try another search term." : canEdit ? "Use Add Work Plan above to create the first plan." : "This staff account has not added a plan for this selection."}</p></div>}
       </section>
     </div>
   );

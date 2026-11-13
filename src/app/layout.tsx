@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { headers } from "next/headers";
 import { getCurrentUser } from "@/auth/session";
+import { retryTransientDatabaseRead } from "@/lib/db-read-retry";
 import { AppShell } from "@/components/app-shell";
 import { PwaRegistration } from "@/components/pwa-registration";
 import { getNavigationCounts } from "@/data/app-data";
@@ -41,7 +42,7 @@ export default async function RootLayout({
 }>) {
   const user = await getCurrentUser();
   const counts = user
-    ? await getNavigationCounts()
+    ? await retryTransientDatabaseRead("navigation", () => getNavigationCounts())
     : {
         issues: 0,
         backups: 0,

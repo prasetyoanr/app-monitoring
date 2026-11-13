@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit --noUnusedLocals --noUnusedParameters",
     "test:workflow": "tsx --test src/lib/request-workflow.test.ts",
     "test:queue": "tsx --test src/lib/request-queue.test.ts",
+    "test:kpi": "tsx --test src/lib/kpi-approval.test.ts src/lib/kpi-attachment.test.ts src/lib/kpi-score.test.ts src/lib/kpi-downtime.test.ts src/lib/kpi-survey.test.ts",
     "test:realtime": "tsx --test src/lib/issue-realtime.test.ts",
     "test:realtime:db": "tsx --test src/lib/issue-realtime.integration.test.ts",
     "check": "bun run typecheck && bun run lint && bun run db:check",

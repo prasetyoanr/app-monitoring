@@ -1,12 +1,12 @@
 import { LucideIcon } from "lucide-react";
 
-export function PageHeader({ eyebrow, title, description, action }: { eyebrow?: string; title: string; description: string; action?: React.ReactNode }) {
+export function PageHeader({ eyebrow, title, description, action }: { eyebrow?: string; title: string; description?: string; action?: React.ReactNode }) {
   return (
     <div className="mb-5 flex flex-col justify-between gap-4 sm:mb-6 md:flex-row md:items-end">
       <div className="max-w-3xl">
         {eyebrow ? <p className="mb-1.5 text-[10px] font-bold uppercase tracking-[0.17em] text-indigo-600">{eyebrow}</p> : null}
         <h1 className="text-2xl font-black tracking-[-0.04em] text-slate-950 sm:text-[30px]">{title}</h1>
-        <p className="mt-1.5 max-w-2xl text-[13px] leading-6 text-slate-500">{description}</p>
+        {description ? <p className="mt-1.5 max-w-2xl text-[13px] leading-6 text-slate-500">{description}</p> : null}
       </div>
       {action ? <div className="w-full shrink-0 md:w-auto [&>*]:w-full md:[&>*]:w-auto">{action}</div> : null}
     </div>

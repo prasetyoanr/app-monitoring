@@ -24,17 +24,22 @@ export function MonthPicker({
   onChange,
   label = "Month",
   onOpenChange,
+  compact = false,
+  shadowless = false,
 }: {
   value: string;
   onChange: (value: string) => void;
   label?: string;
   /** Lets a parent raise its stacking order while the popover is open. */
   onOpenChange?: (open: boolean) => void;
+  compact?: boolean;
+  shadowless?: boolean;
 }) {
   const labelId = useId();
   const [open, setOpen] = useState(false);
   const [year, setYear] = useState(() => Number(value.slice(0, 4)) || new Date().getFullYear());
   const rootRef = useRef<HTMLDivElement>(null);
+  const selectedMonthClass = compact || shadowless ? "bg-indigo-600 text-white" : "bg-[#3157d5] text-white shadow-md shadow-blue-600/20";
 
   function changeOpen(next: boolean) {
     setOpen(next);
@@ -64,7 +69,7 @@ export function MonthPicker({
   }, [open, onOpenChange]);
 
   return (
-    <div ref={rootRef} className="relative w-full text-[11px] font-semibold text-slate-600 sm:w-auto">
+    <div ref={rootRef} className={compact ? "relative min-w-0 text-center text-[10px] font-semibold text-slate-500" : "relative w-full text-[11px] font-semibold text-slate-600 sm:w-auto"}>
       <span id={labelId}>{label}</span>
       <button
         type="button"
@@ -75,13 +80,20 @@ export function MonthPicker({
         aria-labelledby={labelId}
         aria-haspopup="dialog"
         aria-expanded={open}
-        className="mt-1.5 flex h-10 w-full min-w-48 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-left text-xs font-medium text-slate-600 outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-100"
+        className={compact
+          ? "mt-1 grid h-9 w-full min-w-0 grid-cols-[1rem_minmax(0,1fr)_1rem] items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 text-center text-xs font-medium text-slate-700 outline-none focus:border-indigo-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500"
+          : shadowless
+            ? "mt-1.5 flex h-10 w-full min-w-48 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-left text-xs font-medium text-slate-600 outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500"
+            : "mt-1.5 flex h-10 w-full min-w-48 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-left text-xs font-medium text-slate-600 outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-100"}
       >
         <CalendarRange size={15} className="text-slate-400" />
-        <span className="flex-1">{formatMonthLabel(value)}</span>
+        <span className={compact ? "truncate text-center" : "flex-1"}>{formatMonthLabel(value)}</span>
+        {compact ? <span aria-hidden="true" /> : null}
       </button>
       {open ? (
-        <div role="dialog" aria-label={`Choose ${label.toLowerCase()}`} className="absolute left-0 top-full z-50 mt-2 w-72 rounded-2xl border border-slate-200 bg-white p-3 shadow-2xl sm:left-auto sm:right-0">
+        <div role="dialog" aria-label={`Choose ${label.toLowerCase()}`} className={compact || shadowless
+          ? "shadowless-month-picker-dialog absolute right-0 top-full z-50 mt-2 w-72 max-w-[calc(100vw-2rem)] rounded-2xl border border-slate-200 bg-white p-3"
+          : "absolute left-0 top-full z-50 mt-2 w-72 rounded-2xl border border-slate-200 bg-white p-3 shadow-2xl sm:left-auto sm:right-0"}>
           <div className="flex items-center justify-between">
             <button type="button" onClick={() => setYear((current) => current - 1)} aria-label="Previous year" className="grid size-9 place-items-center rounded-lg bg-slate-100 text-slate-600"><ChevronLeft size={16} /></button>
             <span className="text-sm font-bold text-slate-800">{year}</span>
@@ -100,7 +112,7 @@ export function MonthPicker({
                     onChange(optionValue);
                     changeOpen(false);
                   }}
-                  className={`h-10 rounded-xl text-xs font-semibold ${selected ? "bg-[#3157d5] text-white shadow-md shadow-blue-600/20" : "bg-slate-50 text-slate-600"}`}
+                  className={`h-10 rounded-xl text-xs font-semibold ${selected ? selectedMonthClass : "bg-slate-50 text-slate-600"}`}
                 >
                   {monthName}
                 </button>

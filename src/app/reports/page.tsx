@@ -17,18 +17,17 @@ export default async function ReportsPage() {
   if (user.role === "requester") redirect("/");
 
   // The IT team keeps its own periodic reports (Inbox, Backup User, Survey).
-  const hasItReports = isITTeamUser(user) && ["administrator", "service_agent", "approver"].includes(user.role);
+  const isItUser = isITTeamUser(user);
+  const hasItReports = isItUser && ["administrator", "service_agent", "approver"].includes(user.role);
   const [{ types }, members] = await Promise.all([reportViewerCapabilities(), listReportGaMembers()]);
 
   if (!hasItReports) {
     return (
       <>
-        <PageHeader
-          eyebrow="Reports"
-          title="Reports"
-          description="Export your requests, the inbox items you handled, and your GA work plans. Pick a period, check the preview, then download the Excel file."
-        />
-        <RoleReportsCenter types={types} members={members} canPickGroup={reportSeesAllData(user.role)} theme="ga" />
+        {isItUser
+          ? <PageHeader eyebrow="IT activity reporting" title="Reports" description="Centralized periodic reporting for IT activities. Select a date range or month, then export the required report." />
+          : <PageHeader title="Reports" />}
+        <RoleReportsCenter types={types} members={members} canPickGroup={reportSeesAllData(user.role)} theme={isItUser ? "dark" : "ga"} />
       </>
     );
   }

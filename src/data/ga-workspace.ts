@@ -7,7 +7,8 @@ import { isITDivisionName, requireAuthenticatedUser, type AuthenticatedUser } fr
 import { db } from "@/db";
 import { gaSpreadsheetReports, gaSpreadsheetReportViewers, gaWorkPlanItems, masterDivisions, technicians, troubleshootingIssues } from "@/db/schema";
 import { gaWorkPlansForPeriod } from "@/data/ga-work-plan-period";
-import { shiftDate, type GaWorkPlanStatus, type GaWorkPlanTargetMode } from "@/lib/ga-work-plan";
+import type { AccountRole } from "@/data/types";
+import { type GaWorkPlanStatus, type GaWorkPlanTargetMode } from "@/lib/ga-work-plan";
 import { GA_DIVISION_SLUGS, isGaDivisionSlug } from "@/lib/request-destination";
 import { isGaSpreadsheetEligible } from "@/lib/ga-spreadsheet";
 
@@ -22,7 +23,7 @@ export interface GaMemberOption {
   divisionId: string;
   divisionName: string;
   divisionSlug: string;
-  role: string;
+  role: AccountRole;
 }
 
 // The "Add work plan" board belongs to the GA scope, not to one role: every role except
@@ -62,6 +63,7 @@ export interface GaWorkPlanRecord {
   targetMode: GaWorkPlanTargetMode;
   targetDate: string | null;
   status: GaWorkPlanStatus;
+  createdAt: string;
   updatedAt: string;
 }
 
@@ -93,7 +95,7 @@ function isSupervisor(user: AuthenticatedUser) {
 // Service agents of GA units, plus GA-scope Admin / First / Final Approval accounts. The
 // staff list shown to supervisors is the service-agent subset; the others are only used
 // to resolve a viewer's own workspace.
-async function activeNonItGaMembers(): Promise<GaMemberOption[]> {
+export async function activeNonItGaMembers(): Promise<GaMemberOption[]> {
   const rows = await db
     .select({
       id: technicians.id,
@@ -145,8 +147,8 @@ export async function getCurrentGaWorkPlanMember() {
 
 export async function getGaWorkspaceData(input: {
   requestedMemberId: string;
-  weekStart: string;
-  targetDate?: string;
+  startDate: string;
+  endDate: string;
   query: string;
   page: number;
 }) {
@@ -234,6 +236,7 @@ export async function getGaWorkspaceData(input: {
           eq(troubleshootingIssues.source, "division_request"),
           eq(troubleshootingIssues.workflowStatus, "assigned"),
           inArray(troubleshootingIssues.assignedTechnicianId, memberIds),
+          sql`(${troubleshootingIssues.reportedAt} at time zone 'Asia/Jakarta')::date between ${input.startDate}::date and ${input.endDate}::date`,
         ))
         .groupBy(troubleshootingIssues.assignedTechnicianId),
       db
@@ -244,13 +247,8 @@ export async function getGaWorkspaceData(input: {
         })
         .from(gaWorkPlanItems)
         .where(and(
-          gaWorkPlansForPeriod(input.weekStart, shiftDate(input.weekStart, 6)),
-          input.targetDate ? or(
-            eq(gaWorkPlanItems.targetDate, input.targetDate),
-            eq(gaWorkPlanItems.targetMode, "until_completed"),
-            inArray(gaWorkPlanItems.status, ["planned", "in_progress"]),
-          ) : undefined,
           inArray(gaWorkPlanItems.memberId, memberIds),
+          gaWorkPlansForPeriod(input.startDate, input.endDate),
         ))
         .groupBy(gaWorkPlanItems.memberId),
     ]) : [[], []];
@@ -301,9 +299,9 @@ export async function getGaWorkspaceData(input: {
         eq(troubleshootingIssues.source, "division_request"),
         eq(troubleshootingIssues.workflowStatus, "assigned"),
         eq(troubleshootingIssues.assignedTechnicianId, selectedMember.id),
+        sql`(${troubleshootingIssues.reportedAt} at time zone 'Asia/Jakarta')::date between ${input.startDate}::date and ${input.endDate}::date`,
       ))
-      .orderBy(desc(troubleshootingIssues.updatedAt), desc(troubleshootingIssues.id))
-      .limit(50),
+      .orderBy(desc(troubleshootingIssues.updatedAt), desc(troubleshootingIssues.id)),
     db
       .select({
         id: gaWorkPlanItems.id,
@@ -312,17 +310,13 @@ export async function getGaWorkspaceData(input: {
         targetMode: gaWorkPlanItems.targetMode,
         targetDate: gaWorkPlanItems.targetDate,
         status: gaWorkPlanItems.status,
+        createdAt: gaWorkPlanItems.createdAt,
         updatedAt: gaWorkPlanItems.updatedAt,
       })
       .from(gaWorkPlanItems)
       .where(and(
         eq(gaWorkPlanItems.memberId, selectedMember.id),
-        gaWorkPlansForPeriod(input.weekStart, shiftDate(input.weekStart, 6)),
-        input.targetDate ? or(
-          eq(gaWorkPlanItems.targetDate, input.targetDate),
-          eq(gaWorkPlanItems.targetMode, "until_completed"),
-          inArray(gaWorkPlanItems.status, ["planned", "in_progress"]),
-        ) : undefined,
+        gaWorkPlansForPeriod(input.startDate, input.endDate),
       ))
       .orderBy(asc(gaWorkPlanItems.targetDate), desc(gaWorkPlanItems.updatedAt)),
     db.select({ enabled: technicians.spreadsheetEnabled }).from(technicians)
@@ -392,6 +386,7 @@ export async function getGaWorkspaceData(input: {
     })),
     workPlans: planRows.map((row): GaWorkPlanRecord => ({
       ...row,
+      createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),
     })),
     spreadsheetEnabled,

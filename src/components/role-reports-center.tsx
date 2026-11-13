@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarCheck, ChevronLeft, ChevronRight, ClipboardList, Download, FileSpreadsheet, Inbox, Layers, LoaderCircle, ScrollText, Wrench, type LucideIcon } from "lucide-react";
+import { CalendarCheck, ClipboardList, Download, FileSpreadsheet, Inbox, Layers, LoaderCircle, ScrollText, Wrench, type LucideIcon } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 
@@ -8,9 +8,8 @@ import { previewRoleReportAction, type ReportPreviewSheet } from "@/app/reports/
 import { MonthPicker, formatMonthLabel } from "@/components/month-picker";
 import { useReportActionsSlot, useSharedReportPeriod } from "@/components/report-period-context";
 import { Card } from "@/components/ui";
-import { reportingPeriodStartForDate, shiftDate } from "@/lib/ga-work-plan";
-import { currentJakartaMonth, jakartaDateInput } from "@/lib/jakarta-date";
-import { REPORT_GROUPS, accountInReportGroup, reportGroupLabels, reportTypeDescriptions, reportTypeLabels, usesStaffDatePicker, type ReportGroup, type ReportPeriodInput, type ReportTone, type RoleReportType } from "@/lib/role-report";
+import { currentJakartaMonth } from "@/lib/jakarta-date";
+import { REPORT_GROUPS, accountInReportGroup, parseReportGroup, reportGroupLabels, reportTypeDescriptions, reportTypeLabels, usesStaffDatePicker, type ReportGroup, type ReportPeriodInput, type ReportTone, type RoleReportType } from "@/lib/role-report";
 
 const typeIcons: Record<RoleReportType, LucideIcon> = {
   request: ClipboardList,
@@ -48,29 +47,42 @@ export function RoleReportsCenter({
 }: {
   types: RoleReportType[];
   members: Array<{ id: string; name: string; role: string; isIt: boolean }>;
-  /** First approval and administrator can narrow the report to one group of accounts. */
+  /** Supervisors can narrow the report to one account group or member. */
   canPickGroup?: boolean;
   theme?: keyof typeof themes;
   heading?: string;
 }) {
   const style = themes[theme];
+  const compactGa = theme === "ga";
   const [type, setType] = useState<RoleReportType>(types[0] ?? "request");
   const [mode, setMode] = useState<"month" | "range">("month");
   const [month, setMonth] = useState(currentJakartaMonth());
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
-  const [viewBy, setViewBy] = useState<"date" | "period" | "month">("period");
-  const [group, setGroup] = useState<ReportGroup>("all");
-  const [refDate, setRefDate] = useState(jakartaDateInput());
-  const [member, setMember] = useState("");
+  const [viewBy, setViewBy] = useState<"range" | "month">("month");
+  const [scope, setScope] = useState("group:all");
+  const [itGroup, setItGroup] = useState<ReportGroup>("all");
+  const [itMember, setItMember] = useState("");
   const [monthOpen, setMonthOpen] = useState(false);
   const [previewTab, setPreviewTab] = useState("");
+  const [pageState, setPageState] = useState<{ key: string; pages: Record<string, number> }>({ key: "", pages: {} });
   const [result, setResult] = useState<{ key: string; sheets: ReportPreviewSheet[]; totalRows: number; error: string } | null>(null);
 
-  // Only members of the chosen group can be picked, so the two filters never clash.
-  const groupMembers = useMemo(() => members.filter((item) => accountInReportGroup(item, canPickGroup ? group : "all")), [members, canPickGroup, group]);
-  const showMembers = members.length > 0 && (type === "ga_activity" || type === "all");
-  // GA Activity and All use the same date picker as the staff workspace; Utility is a
+  // One choice controls the exported accounts. The preview sheet below only changes the view.
+  let group: ReportGroup = "all";
+  let member = "";
+  if (canPickGroup) {
+    if (compactGa) {
+      if (scope.startsWith("group:")) group = parseReportGroup(scope.slice(6));
+      if (scope.startsWith("member:")) member = scope.slice(7);
+    } else {
+      group = itGroup;
+      if (type === "ga_activity" || type === "all") member = itMember;
+    }
+  }
+  const scopeLabel = member ? members.find((item) => item.id === member)?.name ?? "Selected member" : reportGroupLabels[group];
+  const groupMembers = useMemo(() => members.filter((item) => accountInReportGroup(item, itGroup)), [members, itGroup]);
+  // GA Activity and All use the same month/range picker as the staff workspace; Utility is a
   // snapshot and needs no period; the others keep month / date range.
   const staffPicker = usesStaffDatePicker(type);
   const snapshot = type === "utility";
@@ -83,20 +95,25 @@ export function RoleReportsCenter({
   const rangeIncomplete = snapshot
     ? false
     : staffPicker
-      ? viewBy !== "month" && !refDate
+      ? viewBy === "range" && (!startDate || !endDate)
       : usesSharedPeriod && shared
         ? shared.mode === "range" && (!shared.startDate || !shared.endDate)
         : mode === "range" && (!startDate || !endDate);
   const period = useMemo<ReportPeriodInput>(() => {
     if (snapshot) return { mode: "month", month: currentJakartaMonth() };
-    if (staffPicker) return viewBy === "month" ? { mode: "month", month } : { mode: viewBy, date: refDate };
+    if (staffPicker) return viewBy === "month" ? { mode: "month", month } : { mode: "range", startDate, endDate };
     if (usesSharedPeriod && shared) return shared;
     return mode === "month" ? { mode: "month", month } : { mode: "range", startDate, endDate };
-  }, [snapshot, staffPicker, usesSharedPeriod, shared, viewBy, refDate, mode, month, startDate, endDate]);
-  const periodStart = viewBy === "period" ? reportingPeriodStartForDate(refDate) : refDate;
-  const step = viewBy === "period" ? 7 : 1;
+  }, [snapshot, staffPicker, usesSharedPeriod, shared, viewBy, mode, month, startDate, endDate]);
   // One key per set of choices. The preview is "loading" until a result for the current key arrives.
-  const requestKey = rangeIncomplete ? "" : JSON.stringify([type, period, showMembers ? member : "", canPickGroup ? group : "all"]);
+  const filterKey = rangeIncomplete ? "" : JSON.stringify([type, period, member, group]);
+  const pages = useMemo(() => pageState.key === filterKey ? pageState.pages : {}, [pageState, filterKey]);
+  const requestKey = filterKey ? JSON.stringify([filterKey, pages]) : "";
+
+  const changePage = (sheet: ReportPreviewSheet, page: number) => {
+    if (!filterKey || page < 1 || page > sheet.totalPages) return;
+    setPageState({ key: filterKey, pages: { ...pages, [sheet.name]: page } });
+  };
 
   useEffect(() => {
     if (!requestKey) return;
@@ -105,8 +122,9 @@ export function RoleReportsCenter({
       void previewRoleReportAction({
         type,
         period,
-        memberId: showMembers ? member : undefined,
+        memberId: member || undefined,
         group: canPickGroup ? group : undefined,
+        pages,
       }).then((response) => {
         if (cancelled) return;
         setResult(response.ok
@@ -120,25 +138,25 @@ export function RoleReportsCenter({
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [requestKey, type, period, member, showMembers, canPickGroup, group]);
+  }, [requestKey, type, period, member, canPickGroup, group, pages]);
 
   const current = result && result.key === requestKey ? result : null;
   const loading = Boolean(requestKey) && !current;
   const error = rangeIncomplete ? (usesSharedPeriod ? "Choose both dates in Report Period above to see the report." : "Choose both dates to see the report.") : current?.error ?? "";
   const sheets = current?.sheets ?? [];
   const totalRows = current?.totalRows ?? 0;
-  // One tab is shown at a time; the first one when the chosen tab is not in this report.
+  // Open a data sheet first when a new report also contains an Excel summary sheet.
   const showAllTabs = previewTab === ALL_TABS && sheets.length > 1;
-  const shownSheets = showAllTabs ? sheets : sheets.filter((sheet, index) => sheet.name === previewTab || (index === 0 && !sheets.some((item) => item.name === previewTab)));
+  const selectedSheet = sheets.find((sheet) => sheet.name === previewTab) ?? (compactGa ? sheets.find((sheet) => sheet.name !== "Summary") : undefined) ?? sheets[0];
+  const shownSheets = showAllTabs ? sheets : selectedSheet ? [selectedSheet] : [];
 
   const canDownload = !loading && !error && totalRows > 0;
   const inputClass = `mt-1 h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-xs text-slate-700 outline-none focus:ring-2 ${style.focus}`;
 
-  const periodEnd = shiftDate(periodStart, 6);
   const periodCaption = snapshot
     ? "Current snapshot"
     : staffPicker
-      ? (viewBy === "month" ? formatMonthLabel(month) : viewBy === "date" ? formatDay(refDate) : `${formatDay(periodStart)} – ${formatDay(periodEnd)}`)
+      ? (viewBy === "month" ? formatMonthLabel(month) : `${formatDay(startDate)} – ${formatDay(endDate)}`)
       : period.mode === "month"
         ? formatMonthLabel(period.month)
         : period.mode === "range"
@@ -146,14 +164,13 @@ export function RoleReportsCenter({
           : "";
   const downloadForm = (
     <form method="post" action="/reports/export" className={actionsSlot ? "flex flex-col items-stretch gap-1.5 sm:items-end" : "shrink-0"}>
-    {actionsSlot ? <p className="text-[10px] font-semibold text-slate-500 sm:text-right">{reportTypeLabels[type]}{canPickGroup ? ` · ${reportGroupLabels[group]}` : ""} · {periodCaption}</p> : null}
+    {actionsSlot ? <p className="text-[10px] font-semibold text-slate-500 sm:text-right">{reportTypeLabels[type]}{canPickGroup ? ` · ${scopeLabel}` : ""} · {periodCaption}</p> : null}
       <input type="hidden" name="type" value={type} />
       <input type="hidden" name="mode" value={period.mode} />
-      <input type="hidden" name="date" value={staffPicker ? refDate : ""} />
       <input type="hidden" name="month" value={period.mode === "month" ? period.month : month} />
       <input type="hidden" name="startDate" value={period.mode === "range" ? period.startDate : startDate} />
       <input type="hidden" name="endDate" value={period.mode === "range" ? period.endDate : endDate} />
-      <input type="hidden" name="member" value={showMembers ? member : ""} />
+      <input type="hidden" name="member" value={member} />
       <input type="hidden" name="group" value={canPickGroup ? group : "all"} />
       <button type="submit" disabled={!canDownload} className={`inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl px-5 text-xs font-bold text-white transition disabled:cursor-not-allowed disabled:bg-slate-300 lg:w-auto ${style.button}`}>
         <Download size={15} /> Download Excel
@@ -165,7 +182,9 @@ export function RoleReportsCenter({
     <section className="space-y-5" aria-label={heading ?? "Reports"}>
       {heading ? <h2 className="text-sm font-bold text-slate-800">{heading}</h2> : null}
 
-      <div className={`grid gap-3 ${types.length >= 5 ? "sm:grid-cols-2 xl:grid-cols-3" : types.length === 4 ? "sm:grid-cols-2 xl:grid-cols-4" : types.length === 3 ? "sm:grid-cols-3" : "sm:grid-cols-2"}`} role="radiogroup" aria-label="Report type">
+      <div className={compactGa
+        ? "flex flex-wrap gap-2"
+        : `grid gap-3 ${types.length >= 5 ? "sm:grid-cols-2 xl:grid-cols-3" : types.length === 4 ? "sm:grid-cols-2 xl:grid-cols-4" : types.length === 3 ? "sm:grid-cols-3" : "sm:grid-cols-2"}`} role="radiogroup" aria-label="Report type">
         {types.map((item) => {
           const Icon = typeIcons[item];
           const selected = type === item;
@@ -176,49 +195,35 @@ export function RoleReportsCenter({
               role="radio"
               aria-checked={selected}
               onClick={() => setType(item)}
-              className={`flex items-start gap-3 rounded-2xl border p-4 text-left transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-500 ${selected ? style.selected : "border-slate-200 bg-white hover:border-slate-300"}`}
+              className={`${compactGa ? "inline-flex min-h-10 items-center gap-2 rounded-xl border px-3 py-2 text-left" : "flex items-start gap-3 rounded-2xl border p-4 text-left"} transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-500 ${selected ? style.selected : "border-slate-200 bg-white hover:border-slate-300"}`}
             >
-              <span className={`grid size-9 shrink-0 place-items-center rounded-xl ${selected ? style.icon : "bg-slate-100 text-slate-500"}`}><Icon size={17} /></span>
+              <span className={`grid shrink-0 place-items-center ${compactGa ? "size-6 rounded-md" : "size-9 rounded-xl"} ${selected ? style.icon : "bg-slate-100 text-slate-500"}`}><Icon size={compactGa ? 14 : 17} /></span>
               <span className="min-w-0">
                 <span className="block text-xs font-bold text-slate-900">{reportTypeLabels[item]}</span>
-                <span className="mt-1 block text-[11px] leading-4 text-slate-500">{reportTypeDescriptions[item]}</span>
+                {compactGa ? null : <span className="mt-1 block text-[11px] leading-4 text-slate-500">{reportTypeDescriptions[item]}</span>}
               </span>
             </button>
           );
         })}
       </div>
+      {compactGa ? <p className="text-[11px] text-slate-500">{reportTypeDescriptions[type]}</p> : null}
 
       <Card className={`relative overflow-visible p-4 sm:p-5 ${monthOpen ? "z-[60]" : ""}`}>
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end">
           {snapshot ? (
             <p className="flex-1 rounded-xl bg-slate-50 px-4 py-3 text-[11px] leading-5 text-slate-500">Utility is a snapshot of the current state (Admin Operations and System Health), so no period is needed.</p>
           ) : staffPicker ? (
-            <div className="flex flex-1 flex-col gap-3 xl:flex-row xl:items-end">
-              <div className="grid grid-cols-2 items-end gap-2 sm:grid-cols-[minmax(0,10rem)_minmax(0,10rem)]">
+            <div className={`grid min-w-0 flex-1 items-end gap-3 ${viewBy === "month" ? "sm:grid-cols-[minmax(0,10rem)_minmax(0,16rem)]" : "sm:grid-cols-2 xl:grid-cols-[minmax(0,10rem)_minmax(0,12rem)_minmax(0,12rem)]"}`}>
                 <label className="min-w-0 text-[10px] font-bold uppercase tracking-wide text-slate-400">View by
-                  <select value={viewBy} onChange={(event) => setViewBy(event.target.value as "date" | "period" | "month")} className={inputClass}>
-                    <option value="date">Date</option>
-                    <option value="period">Reporting period</option>
+                  <select value={viewBy} onChange={(event) => setViewBy(event.target.value as "range" | "month")} className={inputClass}>
                     <option value="month">Month</option>
+                    <option value="range">Date range</option>
                   </select>
                 </label>
-                {viewBy === "month" ? null : (
-                  <label className="min-w-0 text-[10px] font-bold uppercase tracking-wide text-slate-400">Reference date
-                    <input type="date" value={refDate} required aria-label="Choose report reference date" onChange={(event) => setRefDate(event.target.value)} className={inputClass} />
-                  </label>
-                )}
-              </div>
+                {viewBy === "range" ? <><label className="min-w-0 text-[10px] font-bold uppercase tracking-wide text-slate-400">Start date<input type="date" value={startDate} required max={endDate || undefined} onChange={(event) => setStartDate(event.target.value)} className={inputClass} /></label><label className="min-w-0 text-[10px] font-bold uppercase tracking-wide text-slate-400">End date<input type="date" value={endDate} required min={startDate || undefined} onChange={(event) => setEndDate(event.target.value)} className={inputClass} /></label></> : null}
               {viewBy === "month" ? (
-                <div className="min-w-56"><MonthPicker value={month} onChange={setMonth} onOpenChange={setMonthOpen} /></div>
+                <div className="min-w-0"><MonthPicker value={month} onChange={setMonth} onOpenChange={setMonthOpen} shadowless={compactGa} /></div>
               ) : null}
-              <div hidden={viewBy === "month"} className="flex items-center gap-1 rounded-2xl border border-slate-200 bg-slate-50/70 p-1.5">
-                <button type="button" disabled={!refDate} onClick={() => setRefDate(shiftDate(refDate, -step))} aria-label={viewBy === "date" ? "Previous date" : "Previous reporting period"} className="grid size-9 place-items-center rounded-xl border border-slate-200 bg-white text-slate-500 transition hover:border-slate-900 hover:text-slate-900 disabled:opacity-40"><ChevronLeft size={15} /></button>
-                <div className="min-w-44 flex-1 px-1 text-center">
-                  <p className="text-[9px] font-bold uppercase tracking-wide text-slate-400">{viewBy === "date" ? "Selected date" : "Friday to Thursday"}</p>
-                  <p className="mt-1 text-[11px] font-semibold text-slate-700">{refDate ? (viewBy === "date" ? formatDay(refDate) : `${formatDay(periodStart)} – ${formatDay(shiftDate(periodStart, 6))}`) : "Choose a date"}</p>
-                </div>
-                <button type="button" disabled={!refDate} onClick={() => setRefDate(shiftDate(refDate, step))} aria-label={viewBy === "date" ? "Next date" : "Next reporting period"} className="grid size-9 place-items-center rounded-xl border border-slate-200 bg-white text-slate-500 transition hover:border-slate-900 hover:text-slate-900 disabled:opacity-40"><ChevronRight size={15} /></button>
-              </div>
             </div>
           ) : usesSharedPeriod ? (
             <p className="flex-1 rounded-xl bg-slate-50 px-4 py-3 text-[11px] leading-5 text-slate-500">This report uses the <strong className="font-semibold text-slate-700">Report Period</strong> selected above.</p>
@@ -231,7 +236,7 @@ export function RoleReportsCenter({
                 </select>
               </label>
               {mode === "month" ? (
-                <div className="sm:col-span-1 lg:col-span-2"><MonthPicker value={month} onChange={setMonth} onOpenChange={setMonthOpen} /></div>
+                <div className="sm:col-span-1 lg:col-span-2"><MonthPicker value={month} onChange={setMonth} onOpenChange={setMonthOpen} shadowless={compactGa} /></div>
               ) : (
                 <>
                   <label className="text-[10px] font-bold uppercase tracking-wide text-slate-400">From
@@ -244,21 +249,33 @@ export function RoleReportsCenter({
               )}
             </div>
           )}
-          {canPickGroup ? (
+          {canPickGroup && compactGa ? (
+            <label className="min-w-0 text-[10px] font-bold uppercase tracking-wide text-slate-400 lg:w-64">Report for
+              <select value={scope} onChange={(event) => setScope(event.target.value)} className={inputClass}>
+                <optgroup label="Account groups">
+                  {REPORT_GROUPS.map((item) => <option key={item} value={`group:${item}`}>{reportGroupLabels[item]}</option>)}
+                </optgroup>
+                {members.length > 0 ? <optgroup label="Individual members">
+                  {members.map((item) => <option key={item.id} value={`member:${item.id}`}>{item.name}</option>)}
+                </optgroup> : null}
+              </select>
+            </label>
+          ) : null}
+          {canPickGroup && !compactGa ? <>
             <label className="text-[10px] font-bold uppercase tracking-wide text-slate-400 lg:w-56">Account group
-              <select value={group} onChange={(event) => { const next = event.target.value as ReportGroup; setGroup(next); const chosen = members.find((item) => item.id === member); if (chosen && !accountInReportGroup(chosen, next)) setMember(""); }} className={inputClass}>
+              <select value={itGroup} onChange={(event) => { const next = event.target.value as ReportGroup; setItGroup(next); const chosen = members.find((item) => item.id === itMember); if (chosen && !accountInReportGroup(chosen, next)) setItMember(""); }} className={inputClass}>
                 {REPORT_GROUPS.map((item) => <option key={item} value={item}>{reportGroupLabels[item]}</option>)}
               </select>
             </label>
-          ) : null}
-          {showMembers ? (
-            <label className="text-[10px] font-bold uppercase tracking-wide text-slate-400 lg:w-64">GA member
-              <select value={member} onChange={(event) => setMember(event.target.value)} className={inputClass}>
-                <option value="">All members (one tab each)</option>
-                {groupMembers.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
-              </select>
-            </label>
-          ) : null}
+            {(type === "ga_activity" || type === "all") && members.length > 0 ? (
+              <label className="text-[10px] font-bold uppercase tracking-wide text-slate-400 lg:w-64">GA member
+                <select value={itMember} onChange={(event) => setItMember(event.target.value)} className={inputClass}>
+                  <option value="">All members (one tab each)</option>
+                  {groupMembers.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+                </select>
+              </label>
+            ) : null}
+          </> : null}
           {actionsSlot ? null : downloadForm}
         </div>
       </Card>
@@ -271,19 +288,29 @@ export function RoleReportsCenter({
         ) : totalRows === 0 ? (
           <Card className="grid place-items-center gap-2 p-10 text-center"><FileSpreadsheet className="text-slate-300" size={28} /><p className="text-sm font-bold text-slate-700">No records in this period</p><p className="max-w-sm text-xs text-slate-500">Try another month or a wider date range.</p></Card>
         ) : (
-          <div className="space-y-5">
-            <p className="text-[11px] text-slate-500">
-              The file will have <strong className="font-semibold text-slate-700">{sheets.length} {sheets.length === 1 ? "tab" : "tabs"}</strong>
-              {sheets.length > 1 ? `: ${sheets.map((sheet) => sheet.name).join(" · ")}` : ""} and <strong className="font-semibold text-slate-700">{totalRows.toLocaleString("en-US")} records</strong>.
-            </p>
-            {sheets.length > 1 ? (
-              <label className="block text-[10px] font-bold uppercase tracking-wide text-slate-400">Preview tab
+          <div className={compactGa ? "space-y-3" : "space-y-5"}>
+            {compactGa ? <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3">
+              <div>
+                <h2 className="text-xs font-bold text-slate-800">Preview</h2>
+                <p className="mt-0.5 text-[11px] text-slate-500">{totalRows.toLocaleString("en-US")} records · {sheets.length} {sheets.length === 1 ? "sheet" : "sheets"} in Excel</p>
+              </div>
+              {sheets.length > 1 ? (
+                <label className="min-w-0 text-[10px] font-semibold text-slate-500 sm:w-64">Show sheet
+                  <select value={showAllTabs ? ALL_TABS : shownSheets[0]?.name ?? ""} onChange={(event) => setPreviewTab(event.target.value)} className="mt-1 h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 outline-none focus:border-indigo-500">
+                    <option value={ALL_TABS}>All sheets</option>
+                    {sheets.map((sheet) => <option key={sheet.name} value={sheet.name}>{sheet.name} · {sheet.totalRows.toLocaleString("en-US")}</option>)}
+                  </select>
+                </label>
+              ) : null}
+            </div> : <>
+              <p className="text-[11px] text-slate-500">The file will have <strong className="font-semibold text-slate-700">{sheets.length} {sheets.length === 1 ? "tab" : "tabs"}</strong>{sheets.length > 1 ? `: ${sheets.map((sheet) => sheet.name).join(" · ")}` : ""} and <strong className="font-semibold text-slate-700">{totalRows.toLocaleString("en-US")} records</strong>.</p>
+              {sheets.length > 1 ? <label className="block text-[10px] font-bold uppercase tracking-wide text-slate-400">Preview tab
                 <select value={showAllTabs ? ALL_TABS : shownSheets[0]?.name ?? ""} onChange={(event) => setPreviewTab(event.target.value)} className={inputClass}>
                   <option value={ALL_TABS}>All tabs · {sheets.length} tabs</option>
                   {sheets.map((sheet) => <option key={sheet.name} value={sheet.name}>{sheet.name} · {sheet.totalRows.toLocaleString("en-US")} {sheet.totalRows === 1 ? "row" : "rows"}</option>)}
                 </select>
-              </label>
-            ) : null}
+              </label> : null}
+            </>}
             {shownSheets.map((shownSheet) => (
             <Card key={shownSheet.name} className="overflow-hidden">
               <div className="border-b border-slate-100 p-4 sm:px-5">
@@ -329,7 +356,16 @@ export function RoleReportsCenter({
                   </tbody>
                 </table>
               </div>
-              {shownSheet.totalRows > shownSheet.rows.length ? <p className="border-t border-slate-100 px-5 py-2.5 text-[10px] text-slate-400">Showing {shownSheet.rows.length} of {shownSheet.totalRows.toLocaleString("en-US")} rows. The Excel file has all of them.</p> : null}
+              {shownSheet.totalPages > 1 ? (
+                <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 px-4 py-3 text-[11px] text-slate-500 sm:px-5">
+                  <span>Showing {shownSheet.startRow + 1}–{shownSheet.startRow + shownSheet.rows.length} of {shownSheet.totalRows.toLocaleString("en-US")} rows</span>
+                  <div className="flex items-center gap-2">
+                    <button type="button" disabled={shownSheet.page === 1} onClick={() => changePage(shownSheet, shownSheet.page - 1)} className="rounded-lg border border-slate-200 px-3 py-1.5 font-semibold text-slate-700 disabled:opacity-40">Previous</button>
+                    <span className="tabular-nums">Page {shownSheet.page} of {shownSheet.totalPages}</span>
+                    <button type="button" disabled={shownSheet.page === shownSheet.totalPages} onClick={() => changePage(shownSheet, shownSheet.page + 1)} className="rounded-lg border border-slate-200 px-3 py-1.5 font-semibold text-slate-700 disabled:opacity-40">Next</button>
+                  </div>
+                </div>
+              ) : null}
             </Card>
             ))}
           </div>

@@ -4,6 +4,7 @@ import {
   boolean,
   check,
   date,
+  doublePrecision,
   index,
   integer,
   jsonb,
@@ -237,6 +238,77 @@ export const technicians = pgTable(
     ),
     index("technicians_division_idx").on(table.divisionId),
   ],
+);
+
+export const kpiScorecards = pgTable(
+  "kpi_scorecards",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    ownerId: uuid("owner_id").notNull().references(() => technicians.id, { onDelete: "cascade" }),
+    year: integer("year").notNull(),
+    status: varchar("status", { length: 16 }).notNull().default("draft"),
+    revision: integer("revision").notNull().default(0),
+    items: jsonb("items").$type<unknown[]>().notNull().default(sql`'[]'::jsonb`),
+    reviewNote: text("review_note"),
+    reviewedById: uuid("reviewed_by_id").references(() => technicians.id, { onDelete: "set null" }),
+    submittedAt: timestamp("submitted_at", { withTimezone: true }),
+    reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("kpi_scorecards_owner_year_unique").on(table.ownerId, table.year),
+    check("kpi_scorecards_year_check", sql`${table.year} BETWEEN 2020 AND 2100`),
+    check("kpi_scorecards_status_check", sql`${table.status} IN ('draft', 'submitted', 'approved', 'rejected')`),
+  ],
+);
+
+export const kpiDowntimeWeeks = pgTable(
+  "kpi_downtime_weeks",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    scorecardId: uuid("scorecard_id").notNull().references(() => kpiScorecards.id, { onDelete: "cascade" }),
+    itemId: uuid("item_id").notNull(),
+    weekStart: date("week_start", { mode: "string" }).notNull(),
+    hours: doublePrecision("hours").notNull(),
+    source: varchar("source", { length: 16 }).notNull().default("manual"),
+    updatedById: uuid("updated_by_id").references(() => technicians.id, { onDelete: "set null" }),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("kpi_downtime_weeks_unique").on(table.scorecardId, table.itemId, table.weekStart),
+    check("kpi_downtime_weeks_hours_check", sql`${table.hours} >= 0 AND ${table.hours} <= 168`),
+    check("kpi_downtime_weeks_source_check", sql`${table.source} IN ('manual', 'monitoring')`),
+  ],
+);
+
+export const kpiFiles = pgTable(
+  "kpi_files",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    scorecardId: uuid("scorecard_id").notNull().references(() => kpiScorecards.id, { onDelete: "cascade" }),
+    itemId: uuid("item_id").notNull(),
+    name: varchar("name", { length: 255 }).notNull(),
+    mimeType: varchar("mime_type", { length: 120 }).notNull(),
+    bytes: bytea("bytes").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("kpi_files_scorecard_idx").on(table.scorecardId)],
+);
+
+export const kpiReviewEvents = pgTable(
+  "kpi_review_events",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    scorecardId: uuid("scorecard_id").notNull().references(() => kpiScorecards.id, { onDelete: "cascade" }),
+    revision: integer("revision").notNull(),
+    actorId: uuid("actor_id").references(() => technicians.id, { onDelete: "set null" }),
+    action: varchar("action", { length: 20 }).notNull(),
+    note: text("note"),
+    itemsSnapshot: jsonb("items_snapshot").$type<unknown[]>().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("kpi_review_events_scorecard_idx").on(table.scorecardId)],
 );
 
 // Legacy member-level grants are copied to the first report during migration.

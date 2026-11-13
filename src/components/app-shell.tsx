@@ -14,6 +14,7 @@ import {
   Gauge,
   HardDriveDownload,
   FileBarChart,
+  Target,
   Inbox,
   HeartPulse,
   LogOut,
@@ -53,6 +54,7 @@ type NavigationItem = {
   itTeamOnly?: boolean;
   itRoleOnly?: boolean;
   administratorOnly?: boolean;
+  nonRequesterOnly?: boolean;
   children?: NavigationChild[];
 };
 
@@ -71,6 +73,7 @@ const navigationBase: NavigationItem[] = [
   { label: "Inbox", href: "/inbox", icon: Inbox },
   { label: "GA Activities", mobileLabel: "Activities", href: "/activities", icon: ClipboardCheck },
   { label: "Surveys", href: "/surveys", icon: ClipboardCheck, itRoleOnly: true },
+  { label: "KPI", href: "/kpi", icon: Target, nonRequesterOnly: true },
   { label: "Reports", href: "/reports", icon: FileBarChart },
   { label: "Log", href: "/audit-logs", icon: ScrollText, administratorOnly: true },
   { label: "Backup User", mobileLabel: "Backup", href: "/backups", icon: HardDriveDownload, itRoleOnly: true },
@@ -90,6 +93,7 @@ const primaryPagePaths = new Set([
   "/internal/inbox",
   "/backups",
   "/surveys",
+  "/kpi",
   "/reports",
   "/audit-logs",
   "/admin-operations",
@@ -343,6 +347,7 @@ export function AppShell({
     .filter((item) => !item.itTeamOnly || (isIT && ["administrator", "service_agent", "approver"].includes(user.role)))
     .filter((item) => !item.itRoleOnly || isITRole)
     .filter((item) => !item.administratorOnly || user.role === "administrator")
+    .filter((item) => !item.nonRequesterOnly || user.role !== "requester")
     .map((item): NavigationItem & { count?: number } => {
       // GA and IT staff do not send official requests, so their "Request" entry becomes
       // the Internal dropdown: request history first, the internal inbox second.
