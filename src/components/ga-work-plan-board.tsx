@@ -8,16 +8,16 @@ import { createGaWorkPlanAction, deleteGaWorkPlanAction, updateGaWorkPlanAction,
 import type { GaWorkPlanRecord } from "@/data/ga-workspace";
 import { gaWorkPlanStatusLabel, gaWorkPlanStatuses, type GaWorkPlanStatus, type GaWorkPlanTargetMode } from "@/lib/ga-work-plan";
 
-const dateFormat = new Intl.DateTimeFormat("en-GB", {
+const dateFormat = new Intl.DateTimeFormat("id-ID", {
   timeZone: "Asia/Jakarta",
-  day: "2-digit",
-  month: "short",
+  day: "numeric",
+  month: "long",
   year: "numeric",
 });
 
 const dateTimeFormat = new Intl.DateTimeFormat("id-ID", {
   timeZone: "Asia/Jakarta",
-  day: "2-digit",
+  day: "numeric",
   month: "long",
   year: "numeric",
   hour: "2-digit",
@@ -46,9 +46,9 @@ function WorkPlanNote({ id, description }: { id: string; description: string }) 
       <p id={`ga-plan-note-${id}`} className={`whitespace-pre-wrap break-words text-[11px] leading-4 text-slate-500 ${canCollapse && !expanded ? "line-clamp-2" : ""}`}>
         {description}
       </p>
-      {canCollapse ? <button type="button" aria-expanded={expanded} aria-controls={`ga-plan-note-${id}`} onClick={() => setExpanded((current) => !current)} className="mt-0.5 inline-flex items-center gap-0.5 rounded text-[10px] font-medium text-indigo-700 hover:text-indigo-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500">
+      {canCollapse ? <button type="button" aria-expanded={expanded} aria-controls={`ga-plan-note-${id}`} onClick={() => setExpanded((current) => !current)} className="mt-0.5 inline-flex items-center gap-0.5 rounded text-[9px] font-medium text-indigo-700 hover:text-indigo-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500">
         {expanded ? "Show less" : "Show full note"}
-        <ChevronDown size={11} className={expanded ? "rotate-180" : ""} />
+        <ChevronDown size={10} className={expanded ? "rotate-180" : ""} />
       </button> : null}
     </div>
   );
@@ -263,8 +263,13 @@ export function GaWorkPlanBoard({
                   <span aria-hidden="true" className={`absolute ${viewMode === "grid" ? "inset-x-0 top-0 h-1" : "inset-y-0 left-0 w-1"} ${statusStrip[plan.status]}`} />
                   <div className={viewMode === "grid" ? "grid grid-cols-2 gap-x-3 gap-y-3 p-4 pt-5" : `${planGrid} px-4 py-3.5 pl-5 sm:px-5 sm:pl-6`}>
                     <div className={viewMode === "grid" ? "col-span-2 min-w-0" : "col-span-2 min-w-0 lg:col-span-1"}>
-                      <div className="flex items-start gap-2"><span className="grid min-w-5 shrink-0 place-items-center rounded bg-indigo-50 px-1 text-[10px] font-bold leading-5 tabular-nums text-indigo-700">{index + 1}</span><h3 className="min-w-0 break-words text-xs font-bold leading-5 text-slate-900">{plan.title}</h3></div>
-                      {plan.description ? <WorkPlanNote id={plan.id} description={plan.description} /> : <p className="mt-0.5 text-[11px] text-slate-400">No notes</p>}
+                      <div className="flex items-start gap-2">
+                        <span className="grid min-w-5 shrink-0 place-items-center rounded bg-indigo-50 px-1 text-[10px] font-bold leading-5 tabular-nums text-indigo-700">{index + 1}</span>
+                        <div className="min-w-0 flex-1">
+                          <h3 className="break-words text-xs font-bold leading-5 text-slate-900">{plan.title}</h3>
+                          {plan.description ? <WorkPlanNote id={plan.id} description={plan.description} /> : <p className="mt-0.5 text-[11px] text-slate-400">No notes</p>}
+                        </div>
+                      </div>
                     </div>
                     <div className="min-w-0 text-[11px] font-medium text-slate-700">
                       <span className={`mb-0.5 block text-[9px] font-bold uppercase text-slate-400 ${viewMode === "list" ? "lg:hidden" : ""}`}>Target</span>
