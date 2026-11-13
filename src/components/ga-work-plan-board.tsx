@@ -93,7 +93,7 @@ function WorkPlanDetailsDialog({ plan, memberName, onClose }: { plan: GaWorkPlan
           <div className="px-4 py-4 sm:px-5">
             <div className="flex items-center gap-1.5 text-xs font-bold text-slate-900"><FileText size={14} className="text-[#006746]" />Plan notes</div>
             <p className="mt-2 whitespace-pre-wrap break-words rounded-xl border border-slate-200 bg-[#f7faf8] p-3 text-[13px] leading-5 text-slate-700">{plan.description || "No notes"}</p>
-            <p className="mt-3 flex items-center gap-1.5 text-[11px] text-slate-500"><Clock3 size={12} className="shrink-0" />Last updated {dateTimeFormat.format(new Date(plan.updatedAt))}</p>
+            {plan.updatedAt > plan.createdAt ? <p className="mt-3 flex items-center gap-1.5 text-[11px] text-slate-500"><Clock3 size={12} className="shrink-0" />Last updated {dateTimeFormat.format(new Date(plan.updatedAt))}</p> : null}
           </div>
         </section>
       </div>
@@ -235,7 +235,7 @@ export function GaWorkPlanBoard({
 
       <section className="overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.05)]">
         <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-4 py-4 sm:px-5">
-          <div className="flex min-w-0 items-center gap-3"><span className="grid size-9 shrink-0 place-items-center rounded-xl bg-indigo-50 text-indigo-600"><ClipboardList size={17} /></span><div className="min-w-0"><h2 className="truncate text-sm font-semibold text-slate-900">Activity Plan</h2><p className="mt-0.5 truncate text-xs text-slate-500">{memberName} · {plans.length} items</p><p className="mt-0.5 text-[10px] text-slate-400">Newest created first</p></div></div>
+          <div className="flex min-w-0 items-center gap-3"><span className="grid size-9 shrink-0 place-items-center rounded-xl bg-indigo-50 text-indigo-600"><ClipboardList size={17} /></span><div className="min-w-0"><h2 className="truncate text-sm font-semibold text-slate-900">Activity Plan</h2><p className="mt-0.5 truncate text-xs text-slate-500">{memberName} · {plans.length} items</p><p className="mt-0.5 text-[10px] text-slate-400">Newest created or updated first</p></div></div>
           <span className="shrink-0 rounded-full bg-slate-900 px-2.5 py-1 text-[10px] font-semibold text-white tabular-nums">{visiblePlans.length} shown</span>
         </div>
 
@@ -255,7 +255,7 @@ export function GaWorkPlanBoard({
         {visiblePlans.length ? (
           <div>
             {viewMode === "list" ? <div className={`${planGrid} border-b border-slate-200 bg-slate-50 px-5 py-2.5 text-[10px] font-bold uppercase tracking-wide text-slate-500 max-lg:hidden`}>
-              <span>Work plan</span><span>Target</span><span>Created</span><span>Status</span><span className="text-right">Actions</span>
+              <span>Work plan</span><span>Target</span><span>Latest activity</span><span>Status</span><span className="text-right">Actions</span>
             </div> : null}
             <div className={viewMode === "grid" ? "grid gap-3 p-3 sm:grid-cols-2 xl:grid-cols-3 sm:p-4" : "divide-y divide-slate-100"}>
               {visiblePlans.map((plan, index) => (
@@ -276,8 +276,8 @@ export function GaWorkPlanBoard({
                       {plan.targetMode === "until_completed" || !plan.targetDate ? "Until completed" : dateFormat.format(new Date(`${plan.targetDate}T00:00:00Z`))}
                     </div>
                     <div className="min-w-0 text-[11px] text-slate-600">
-                      <span className={`mb-0.5 block text-[9px] font-bold uppercase text-slate-400 ${viewMode === "list" ? "lg:hidden" : ""}`}>Created</span>
-                      {dateFormat.format(new Date(plan.createdAt))}
+                      <span className="mb-0.5 block text-[9px] font-bold uppercase text-slate-400">{plan.updatedAt > plan.createdAt ? "Updated" : "Created"}</span>
+                      {dateFormat.format(new Date(plan.updatedAt > plan.createdAt ? plan.updatedAt : plan.createdAt))}
                     </div>
                     <div className="min-w-0">
                       <span className={`mb-0.5 block text-[9px] font-bold uppercase text-slate-400 ${viewMode === "list" ? "lg:hidden" : ""}`}>Status</span>

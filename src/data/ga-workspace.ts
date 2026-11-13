@@ -16,9 +16,11 @@ import { isGaSpreadsheetEligible } from "@/lib/ga-spreadsheet";
 const supervisorRoles = new Set(["administrator", "approver", "final_approver"]);
 export const GA_MEMBER_PAGE_SIZE = 20;
 
-// The activity date filter follows the work plan's creation date in Jakarta.
+// Use the latest creation or update timestamp for both filtering and ordering.
+const activityPlanTimestamp = sql`greatest(${gaWorkPlanItems.createdAt}, ${gaWorkPlanItems.updatedAt})`;
+
 function activityPlansForPeriod(start: string, end: string) {
-  return sql`(${gaWorkPlanItems.createdAt} at time zone 'Asia/Jakarta')::date between ${start}::date and ${end}::date`;
+  return sql`(${activityPlanTimestamp} at time zone 'Asia/Jakarta')::date between ${start}::date and ${end}::date`;
 }
 
 export interface GaMemberOption {
@@ -322,7 +324,7 @@ export async function getGaWorkspaceData(input: {
         eq(gaWorkPlanItems.memberId, selectedMember.id),
         activityPlansForPeriod(input.startDate, input.endDate),
       ))
-      .orderBy(desc(gaWorkPlanItems.createdAt), desc(gaWorkPlanItems.id)),
+      .orderBy(desc(activityPlanTimestamp), desc(gaWorkPlanItems.id)),
     db.select({ enabled: technicians.spreadsheetEnabled }).from(technicians)
       .where(eq(technicians.id, selectedMember.id)).limit(1),
     isAdmin || isOwner || eligibleUser

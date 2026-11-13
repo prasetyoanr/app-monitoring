@@ -61,7 +61,7 @@ export function GaActivityPeriodFilter({
       {query ? <input type="hidden" name="q" value={query} /> : null}
       {tab === "inbox" ? <input type="hidden" name="tab" value="inbox" /> : null}
 
-      <label className="min-w-0 text-center text-[10px] font-semibold text-slate-500 sm:w-32">{tab === "plan" ? "Created date" : "Reported date"}
+      <label className="min-w-0 text-center text-[10px] font-semibold text-slate-500 sm:w-32">{tab === "plan" ? "Created / updated" : "Reported date"}
         <select name="mode" value={mode} onChange={(event) => setMode(event.target.value as ActivityPeriodMode)} className={dateClass}>
           <option value="month">Month</option>
           <option value="date">Single date</option>
