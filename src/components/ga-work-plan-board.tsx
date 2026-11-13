@@ -8,16 +8,16 @@ import { createGaWorkPlanAction, deleteGaWorkPlanAction, updateGaWorkPlanAction,
 import type { GaWorkPlanRecord } from "@/data/ga-workspace";
 import { gaWorkPlanStatusLabel, gaWorkPlanStatuses, type GaWorkPlanStatus, type GaWorkPlanTargetMode } from "@/lib/ga-work-plan";
 
-const dateFormat = new Intl.DateTimeFormat("id-ID", {
+const dateFormat = new Intl.DateTimeFormat("en-GB", {
   timeZone: "Asia/Jakarta",
-  day: "numeric",
-  month: "long",
+  day: "2-digit",
+  month: "short",
   year: "numeric",
 });
 
 const dateTimeFormat = new Intl.DateTimeFormat("id-ID", {
   timeZone: "Asia/Jakarta",
-  day: "numeric",
+  day: "2-digit",
   month: "long",
   year: "numeric",
   hour: "2-digit",
@@ -46,7 +46,7 @@ function WorkPlanNote({ id, description }: { id: string; description: string }) 
       <p id={`ga-plan-note-${id}`} className={`whitespace-pre-wrap break-words text-[11px] leading-4 text-slate-500 ${canCollapse && !expanded ? "line-clamp-2" : ""}`}>
         {description}
       </p>
-      {canCollapse ? <button type="button" aria-expanded={expanded} aria-controls={`ga-plan-note-${id}`} onClick={() => setExpanded((current) => !current)} className="mt-0.5 inline-flex items-center gap-0.5 rounded text-[4px] font-medium text-indigo-700 hover:text-indigo-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500">
+      {canCollapse ? <button type="button" aria-expanded={expanded} aria-controls={`ga-plan-note-${id}`} onClick={() => setExpanded((current) => !current)} style={{ fontSize: 10, fontWeight: 500 }} className="mt-0.5 inline-flex items-center gap-0.5 rounded text-indigo-700 hover:text-indigo-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500">
         {expanded ? "Show less" : "Show full note"}
         <ChevronDown size={10} className={expanded ? "rotate-180" : ""} />
       </button> : null}

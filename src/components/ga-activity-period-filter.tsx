@@ -1,10 +1,36 @@
 "use client";
 
+import { CalendarDays } from "lucide-react";
 import { useState } from "react";
 
 import { MonthPicker } from "@/components/month-picker";
 
 type ActivityPeriodMode = "month" | "date" | "range";
+
+const filterDateFormat = new Intl.DateTimeFormat("id-ID", {
+  timeZone: "UTC",
+  day: "numeric",
+  month: "long",
+  year: "numeric",
+});
+
+function FilterDateField({ label, name, value, onChange }: {
+  label: string;
+  name: string;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <label className="col-span-2 min-w-0 text-center text-[10px] font-semibold text-slate-500 sm:w-44">
+      {label}
+      <span className="relative mt-1 flex h-9 min-w-0 items-center justify-center gap-1 rounded-lg border border-slate-200 bg-white px-2 text-[10px] font-medium text-slate-700 focus-within:border-indigo-500 focus-within:ring-2 focus-within:ring-indigo-100">
+        <span className="truncate">{value ? filterDateFormat.format(new Date(`${value}T00:00:00Z`)) : "Select date"}</span>
+        <CalendarDays size={13} className="shrink-0 text-slate-400" aria-hidden="true" />
+        <input name={name} type="date" required value={value} onChange={(event) => onChange(event.target.value)} onClick={(event) => { try { event.currentTarget.showPicker?.(); } catch { /* The native click can still open the picker. */ } }} className="absolute inset-0 h-full w-full cursor-pointer opacity-0" />
+      </span>
+    </label>
+  );
+}
 
 export function GaActivityPeriodFilter({
   initialMode,
@@ -49,17 +75,11 @@ export function GaActivityPeriodFilter({
           <input type="hidden" name="month" value={month} />
         </div>
       ) : mode === "date" ? (
-        <label className="min-w-0 text-center text-[10px] font-semibold text-slate-500 sm:w-32">Date
-          <input name="date" type="date" required value={startDate} onChange={(event) => setStartDate(event.target.value)} className={dateClass} />
-        </label>
+        <FilterDateField label="Date" name="date" value={startDate} onChange={setStartDate} />
       ) : (
         <>
-          <label className="min-w-0 text-center text-[10px] font-semibold text-slate-500 sm:w-32">From
-            <input name="date" type="date" required value={startDate} onChange={(event) => { const next = event.target.value; setStartDate(next); if (endDate && next > endDate) setEndDate(next); }} className={dateClass} />
-          </label>
-          <label className="min-w-0 text-center text-[10px] font-semibold text-slate-500 sm:w-32">To
-            <input name="end" type="date" required value={endDate} onChange={(event) => { const next = event.target.value; setEndDate(next); if (startDate && next < startDate) setStartDate(next); }} className={dateClass} />
-          </label>
+          <FilterDateField label="From" name="date" value={startDate} onChange={(next) => { setStartDate(next); if (endDate && next > endDate) setEndDate(next); }} />
+          <FilterDateField label="To" name="end" value={endDate} onChange={(next) => { setEndDate(next); if (startDate && next < startDate) setStartDate(next); }} />
         </>
       )}
 
