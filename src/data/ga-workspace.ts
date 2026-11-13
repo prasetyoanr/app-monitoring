@@ -6,7 +6,6 @@ import { redirect } from "next/navigation";
 import { isITDivisionName, requireAuthenticatedUser, type AuthenticatedUser } from "@/auth/session";
 import { db } from "@/db";
 import { gaSpreadsheetReports, gaSpreadsheetReportViewers, gaWorkPlanItems, masterDivisions, technicians, troubleshootingIssues } from "@/db/schema";
-import { gaWorkPlansForPeriod } from "@/data/ga-work-plan-period";
 import type { AccountRole } from "@/data/types";
 import { type GaWorkPlanStatus, type GaWorkPlanTargetMode } from "@/lib/ga-work-plan";
 import { GA_DIVISION_SLUGS, isGaDivisionSlug } from "@/lib/request-destination";
@@ -16,6 +15,11 @@ import { isGaSpreadsheetEligible } from "@/lib/ga-spreadsheet";
 // Admin only gets their own workspace.
 const supervisorRoles = new Set(["administrator", "approver", "final_approver"]);
 export const GA_MEMBER_PAGE_SIZE = 20;
+
+// The activity date filter follows the work plan's creation date in Jakarta.
+function activityPlansForPeriod(start: string, end: string) {
+  return sql`(${gaWorkPlanItems.createdAt} at time zone 'Asia/Jakarta')::date between ${start}::date and ${end}::date`;
+}
 
 export interface GaMemberOption {
   id: string;
@@ -248,7 +252,7 @@ export async function getGaWorkspaceData(input: {
         .from(gaWorkPlanItems)
         .where(and(
           inArray(gaWorkPlanItems.memberId, memberIds),
-          gaWorkPlansForPeriod(input.startDate, input.endDate),
+          activityPlansForPeriod(input.startDate, input.endDate),
         ))
         .groupBy(gaWorkPlanItems.memberId),
     ]) : [[], []];
@@ -316,9 +320,9 @@ export async function getGaWorkspaceData(input: {
       .from(gaWorkPlanItems)
       .where(and(
         eq(gaWorkPlanItems.memberId, selectedMember.id),
-        gaWorkPlansForPeriod(input.startDate, input.endDate),
+        activityPlansForPeriod(input.startDate, input.endDate),
       ))
-      .orderBy(asc(gaWorkPlanItems.targetDate), desc(gaWorkPlanItems.updatedAt)),
+      .orderBy(desc(gaWorkPlanItems.createdAt), desc(gaWorkPlanItems.id)),
     db.select({ enabled: technicians.spreadsheetEnabled }).from(technicians)
       .where(eq(technicians.id, selectedMember.id)).limit(1),
     isAdmin || isOwner || eligibleUser

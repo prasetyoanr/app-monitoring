@@ -20,7 +20,7 @@ function single(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] ?? "" : value ?? "";
 }
 
-type ActivityPeriodMode = "range" | "month";
+type ActivityPeriodMode = "date" | "range" | "month";
 
 function activitiesHref(input: { memberId?: string; referenceDate: string; endDate: string; mode: ActivityPeriodMode; query?: string; page?: number; tab?: string }) {
   const params = new URLSearchParams();
@@ -54,7 +54,7 @@ export default async function ActivitiesPage({
   const viewer = await requireAuthenticatedUser();
   if (viewer.role !== "administrator" && isITTeamUser(viewer)) redirect("/inbox");
   const params = await searchParams;
-  const mode: ActivityPeriodMode = single(params.mode) === "range" || single(params.mode) === "date" ? "range" : "month";
+  const mode: ActivityPeriodMode = single(params.mode) === "date" ? "date" : single(params.mode) === "range" ? "range" : "month";
   const requestedDate = single(params.date) || single(params.week);
   const fallbackDate = isDateInput(requestedDate) ? requestedDate : jakartaDateInput();
   const requestedMonth = single(params.month);
@@ -63,7 +63,7 @@ export default async function ActivitiesPage({
   const requestedEnd = single(params.end);
   const endDate = isDateInput(requestedEnd) && requestedEnd >= referenceDate ? requestedEnd : referenceDate;
   const startDate = mode === "month" ? `${month}-01` : referenceDate;
-  const periodEnd = mode === "month" ? new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0)).toISOString().slice(0, 10) : endDate;
+  const periodEnd = mode === "month" ? new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0)).toISOString().slice(0, 10) : mode === "date" ? referenceDate : endDate;
   const memberQuery = viewer.role === "administrator" ? single(params.q).trim().slice(0, 80) : "";
   const requestedPage = Number.parseInt(single(params.page) || "1", 10);
   const data = await getGaWorkspaceData({

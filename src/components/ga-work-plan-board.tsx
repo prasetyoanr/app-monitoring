@@ -46,9 +46,9 @@ function WorkPlanNote({ id, description }: { id: string; description: string }) 
       <p id={`ga-plan-note-${id}`} className={`whitespace-pre-wrap break-words text-[11px] leading-4 text-slate-500 ${canCollapse && !expanded ? "line-clamp-2" : ""}`}>
         {description}
       </p>
-      {canCollapse ? <button type="button" aria-expanded={expanded} aria-controls={`ga-plan-note-${id}`} onClick={() => setExpanded((current) => !current)} className="mt-1 inline-flex items-center gap-1 rounded text-[11px] font-semibold text-indigo-700 hover:text-indigo-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500">
+      {canCollapse ? <button type="button" aria-expanded={expanded} aria-controls={`ga-plan-note-${id}`} onClick={() => setExpanded((current) => !current)} className="mt-0.5 inline-flex items-center gap-0.5 rounded text-[10px] font-medium text-indigo-700 hover:text-indigo-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500">
         {expanded ? "Show less" : "Show full note"}
-        <ChevronDown size={13} className={expanded ? "rotate-180" : ""} />
+        <ChevronDown size={11} className={expanded ? "rotate-180" : ""} />
       </button> : null}
     </div>
   );
@@ -235,7 +235,7 @@ export function GaWorkPlanBoard({
 
       <section className="overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.05)]">
         <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-4 py-4 sm:px-5">
-          <div className="flex min-w-0 items-center gap-3"><span className="grid size-9 shrink-0 place-items-center rounded-xl bg-indigo-50 text-indigo-600"><ClipboardList size={17} /></span><div className="min-w-0"><h2 className="truncate text-sm font-semibold text-slate-900">Activity Plan</h2><p className="mt-0.5 truncate text-xs text-slate-500">{memberName} · {plans.length} items</p></div></div>
+          <div className="flex min-w-0 items-center gap-3"><span className="grid size-9 shrink-0 place-items-center rounded-xl bg-indigo-50 text-indigo-600"><ClipboardList size={17} /></span><div className="min-w-0"><h2 className="truncate text-sm font-semibold text-slate-900">Activity Plan</h2><p className="mt-0.5 truncate text-xs text-slate-500">{memberName} · {plans.length} items</p><p className="mt-0.5 text-[10px] text-slate-400">Newest created first</p></div></div>
           <span className="shrink-0 rounded-full bg-slate-900 px-2.5 py-1 text-[10px] font-semibold text-white tabular-nums">{visiblePlans.length} shown</span>
         </div>
 
@@ -258,12 +258,12 @@ export function GaWorkPlanBoard({
               <span>Work plan</span><span>Target</span><span>Created</span><span>Status</span><span className="text-right">Actions</span>
             </div> : null}
             <div className={viewMode === "grid" ? "grid gap-3 p-3 sm:grid-cols-2 xl:grid-cols-3 sm:p-4" : "divide-y divide-slate-100"}>
-              {visiblePlans.map((plan) => (
+              {visiblePlans.map((plan, index) => (
                 <article key={plan.id} className={viewMode === "grid" ? "relative overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm transition hover:border-indigo-200 hover:shadow-md" : "relative bg-white transition-colors hover:bg-slate-50/70 even:bg-slate-50/40"}>
                   <span aria-hidden="true" className={`absolute ${viewMode === "grid" ? "inset-x-0 top-0 h-1" : "inset-y-0 left-0 w-1"} ${statusStrip[plan.status]}`} />
                   <div className={viewMode === "grid" ? "grid grid-cols-2 gap-x-3 gap-y-3 p-4 pt-5" : `${planGrid} px-4 py-3.5 pl-5 sm:px-5 sm:pl-6`}>
                     <div className={viewMode === "grid" ? "col-span-2 min-w-0" : "col-span-2 min-w-0 lg:col-span-1"}>
-                      <h3 className="break-words text-xs font-bold leading-5 text-slate-900">{plan.title}</h3>
+                      <div className="flex items-start gap-2"><span className="grid min-w-5 shrink-0 place-items-center rounded bg-indigo-50 px-1 text-[10px] font-bold leading-5 tabular-nums text-indigo-700">{index + 1}</span><h3 className="min-w-0 break-words text-xs font-bold leading-5 text-slate-900">{plan.title}</h3></div>
                       {plan.description ? <WorkPlanNote id={plan.id} description={plan.description} /> : <p className="mt-0.5 text-[11px] text-slate-400">No notes</p>}
                     </div>
                     <div className="min-w-0 text-[11px] font-medium text-slate-700">
